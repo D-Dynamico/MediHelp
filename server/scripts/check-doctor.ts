@@ -378,6 +378,131 @@ const paged = await call('/api/doctor/appointments?when=all&pageSize=1', { token
 check('the list pages', pageOf(paged.body).items.length === 1 && pageOf(paged.body).pages === pageOf(all.body).total,
   { items: pageOf(paged.body).items.length, pages: pageOf(paged.body).pages });
 
+/* ------------------------------------------------------------ 5.4 actions --- */
+
+async function act(id: string, action: 'start' | 'complete' | 'cancel', token: string) {
+  const response = await fetch(`${base}/api/doctor/appointments/${id}/${action}`, {
+    method: 'PATCH',
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const text = await response.text();
+  return { status: response.status, body: (text ? JSON.parse(text) : {}) as Record<string, never> };
+}
+const apptOf = (body: unknown) => (body as { appointment: Appt }).appointment;
+
+// The assertion this whole module exists for: a doctor holding a valid token,
+// with the right role, must not be able to touch another doctor's appointment
+// by putting its id in the URL. Only the ownership check stops this.
+const meeraAppt = pageOf(meeraList.body).items[0]!;
+const trespass = await act(meeraAppt.id, 'complete', anitaToken);
+check("a doctor cannot complete another doctor's appointment", trespass.status === 403, trespass.body);
+check(
+  "a doctor cannot cancel another doctor's appointment",
+  (await act(meeraAppt.id, 'cancel', anitaToken)).status === 403,
+);
+check(
+  "a doctor cannot start another doctor's consult",
+  (await act(meeraAppt.id, 'start', anitaToken)).status === 403,
+);
+check(
+  'the trespass changed nothing',
+  (await Appts.findById(meeraAppt.id))?.status === meeraAppt.status,
+);
+check(
+  'a patient cannot use the doctor actions at all',
+  (await act(meeraAppt.id, 'complete', patientToken)).status === 403,
+);
+
+// One booking of Anita's, taken from start to finish. Its payment is forced to
+// unsettled cash here rather than hunted for in the seed: which of the seeded
+// rows happens to be cash is an accident of the seed's ordering, and a check
+// that depends on that breaks the next time the sample data is edited.
+const own = await Appts.findOne({ doctorId: anitaDoctor!._id, status: 'booked' });
+const ownId = String(own!._id);
+await Appts.updateOne(
+  { _id: ownId },
+  { $set: { 'payment.mode': 'cash', 'payment.status': 'pending_at_desk' } },
+);
+
+const started = await act(ownId, 'start', anitaToken);
+check('a doctor starts their own consult', started.status === 200, started.body);
+check('the consult is in progress', apptOf(started.body).status === 'in_progress', apptOf(started.body).status);
+const startedAt = (await Appts.findById(ownId))?.consultStartedAt;
+check('the start time was stamped', startedAt instanceof Date);
+
+// Starting again must not move the clock — that would shorten the consult being
+// measured, and a doctor tapping twice has done nothing wrong.
+const restarted = await act(ownId, 'start', anitaToken);
+check('starting twice is not an error', restarted.status === 200, restarted.status);
+check(
+  'starting twice does not move the start time',
+  (await Appts.findById(ownId))?.consultStartedAt?.getTime() === startedAt?.getTime(),
+);
+
+// Backdate the start so the completion has a plausible length to learn from.
+await Appts.updateOne({ _id: ownId }, { $set: { consultStartedAt: new Date(Date.now() - 20 * 60_000) } });
+const medianBefore = (await DoctorModel.findById(anitaDoctor!._id))!.medianConsultMins;
+
+const finished = await act(ownId, 'complete', anitaToken);
+check('a doctor completes their own consult', finished.status === 200, finished.body);
+check('it is marked completed', apptOf(finished.body).status === 'completed');
+check(
+  'a cash payment is settled on completion',
+  apptOf(finished.body).payment.status === 'paid',
+  apptOf(finished.body).payment,
+);
+check('the end time was stamped', (await Appts.findById(ownId))?.consultEndedAt instanceof Date);
+
+const medianAfter = (await DoctorModel.findById(anitaDoctor!._id))!.medianConsultMins;
+check(
+  'completing a timed consult moves the doctor\'s typical length toward it',
+  medianAfter > medianBefore && medianAfter < 20,
+  { before: medianBefore, after: medianAfter },
+);
+
+check('completing twice is refused', (await act(ownId, 'complete', anitaToken)).status === 409);
+check('a completed consult cannot be cancelled', (await act(ownId, 'cancel', anitaToken)).status === 409);
+check('a completed consult cannot be restarted', (await act(ownId, 'start', anitaToken)).status === 409);
+
+// An implausible length is a clock problem, not a measurement.
+const wild = await Appts.findOne({ doctorId: anitaDoctor!._id, status: 'booked' });
+if (wild) {
+  await Appts.updateOne(
+    { _id: wild._id },
+    { $set: { status: 'in_progress', consultStartedAt: new Date(Date.now() - 30 * 60 * 60_000) } },
+  );
+  const medianWas = (await DoctorModel.findById(anitaDoctor!._id))!.medianConsultMins;
+  await act(String(wild._id), 'complete', anitaToken);
+  check(
+    'a thirty-hour consult is ignored rather than learned from',
+    (await DoctorModel.findById(anitaDoctor!._id))!.medianConsultMins === medianWas,
+  );
+}
+
+const toCancel = await Appts.findOne({ doctorId: anitaDoctor!._id, status: 'booked' });
+if (toCancel) {
+  const cancelled2 = await act(String(toCancel._id), 'cancel', anitaToken);
+  check('a doctor cancels their own appointment', cancelled2.status === 200, cancelled2.body);
+  check('it is recorded as cancelled by the doctor', (await Appts.findById(toCancel._id))?.cancelledBy === 'doctor');
+}
+
+check(
+  'acting on an appointment that does not exist is a 404',
+  (await act('0'.repeat(24), 'complete', anitaToken)).status === 404,
+);
+check(
+  'a malformed id is refused before any lookup',
+  (await act('nonsense', 'complete', anitaToken)).status === 422,
+);
+
+// Every action wrote an audit row naming who did it.
+const { AuditLogModel } = await import('../src/models/index.js');
+check(
+  'the actions are recorded in the audit log',
+  (await AuditLogModel.countDocuments({ actorId: anita!._id, action: /^appointment\./ })) >= 3,
+  await AuditLogModel.countDocuments({ actorId: anita!._id }),
+);
+
 console.log(`\n${results.join('\n')}\n`);
 
 server.close();

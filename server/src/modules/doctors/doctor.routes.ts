@@ -2,7 +2,11 @@ import { Router } from 'express';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { uploadImage } from '../../middleware/upload.js';
 import { validate } from '../../middleware/validate.js';
-import { appointmentScopeSchema, updateProfileSchema } from './doctor.schema.js';
+import {
+  appointmentScopeSchema,
+  objectIdParamSchema,
+  updateProfileSchema,
+} from './doctor.schema.js';
 import * as controller from './doctor.controller.js';
 
 /**
@@ -33,4 +37,26 @@ doctorRouter.get(
   '/appointments',
   validate({ query: appointmentScopeSchema }),
   controller.listAppointments,
+);
+
+// Ownership is not checked here. It is checked inside the shared appointment
+// service, which loads the signed-in doctor's own id and compares it with the
+// appointment's — a role guard alone would happily let one doctor complete
+// another's consult by changing the id in this URL.
+doctorRouter.patch(
+  '/appointments/:id/start',
+  validate({ params: objectIdParamSchema }),
+  controller.startConsult,
+);
+
+doctorRouter.patch(
+  '/appointments/:id/complete',
+  validate({ params: objectIdParamSchema }),
+  controller.completeAppointment,
+);
+
+doctorRouter.patch(
+  '/appointments/:id/cancel',
+  validate({ params: objectIdParamSchema }),
+  controller.cancelAppointment,
 );

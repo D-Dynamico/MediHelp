@@ -89,3 +89,7 @@ export type AppointmentScope = z.infer<typeof appointmentScopeSchema>;
 
 /** Just the slice, without the paging that travels with it on the query string. */
 export type AppointmentWhen = AppointmentScope['when'];
+
+export const objectIdParamSchema = z.object({
+  id: z.string().length(24, 'That is not a valid id.'),
+});

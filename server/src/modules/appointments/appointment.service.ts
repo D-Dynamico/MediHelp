@@ -200,6 +200,36 @@ export async function cancelAppointment(id: string, actor: Actor): Promise<Appoi
 }
 
 /**
+ * Marks a consult as started.
+ *
+ * This is what stamps `consultStartedAt`, and therefore the only thing that
+ * gives `completeAppointment` a length to learn from — without it the doctor's
+ * typical consult time never moves off its default and the queue's wait
+ * estimate stays a guess forever.
+ *
+ * Starting twice is not an error worth raising: a doctor who taps it again has
+ * not done anything wrong, and moving the start time later would quietly
+ * shorten the consult being measured. The first stamp wins and the call is a
+ * no-op.
+ */
+export async function startConsult(id: string, actor: Actor): Promise<AppointmentDto> {
+  const appointment = await load(id);
+  await assertMayAct(appointment, actor, { patientsAllowed: false });
+
+  if (!OPEN_STATUSES.includes(appointment.status as AppointmentStatus)) {
+    throw ApiError.conflict('That appointment is no longer open.');
+  }
+
+  if (appointment.status !== 'in_progress') {
+    appointment.status = 'in_progress';
+    appointment.consultStartedAt ??= new Date();
+    await appointment.save();
+  }
+
+  return present(appointment._id);
+}
+
+/**
  * Marks a consult done and settles a cash payment.
  *
  * Cash is `pending_at_desk` from the moment of booking until someone confirms

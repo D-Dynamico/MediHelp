@@ -461,3 +461,45 @@ behaviour. New assertions worth naming: another doctor's list shares no rows wit
 this one; `past` and `upcoming` between them account for every appointment
 exactly once; `today`'s rows all appear in `upcoming`; past is newest-first and
 upcoming is soonest-first; and every row carries the patient's name and age.
+
+---
+
+## 5.4 — Doctor actions
+
+**What changed.** `PATCH /api/doctor/appointments/:id/{start,complete,cancel}`,
+and a new `startConsult` in the shared appointment service.
+
+**Decisions.**
+
+- *The actions are re-exported from the shared service, not reimplemented.* Who
+  may act on what, and what completing does to a cash payment, are the same rules
+  the admin panel obeys. The doctor's `Actor` carries `role: 'doctor'`, and the
+  shared `assertMayAct` looks up their own `Doctor` id and compares it with the
+  appointment's — so the trespass case is refused in one place rather than two.
+- *`startConsult` closes a gap left open in 4.5.* Completing an appointment
+  learns the doctor's typical consult length from `consultStartedAt`, but until
+  now nothing ever set that field: the learning code could never fire and the
+  queue's wait estimate would have sat on its default forever. Starting a consult
+  is what stamps it.
+- *Starting twice is a no-op, not a conflict.* A doctor who taps the button again
+  has done nothing wrong, and moving the start time later would quietly shorten
+  the consult being measured. The first stamp wins.
+- *An implausible length is discarded rather than learned from.* A consult
+  reading as thirty hours is a forgotten "start", not data. The check backdates
+  one and asserts the doctor's median does not move.
+
+**Files.** `server/src/modules/appointments/appointment.service.ts`,
+`server/src/modules/doctors/{doctor.service,doctor.controller,doctor.routes,doctor.schema}.ts`,
+`server/scripts/check-doctor.ts`.
+
+**Verification.** `check:doctor` now 74 assertions, `check:admin` still 87, both
+green. The ownership assertions are the point of the substep: with a valid
+doctor token, completing, cancelling *and* starting another doctor's appointment
+are each 403, and the target row is confirmed unchanged afterwards. Also: a
+consult driven start → complete settles its cash payment, stamps both times,
+moves the doctor's typical length toward the measured one, and then refuses to be
+completed, cancelled or restarted.
+
+One check-script fix worth noting: it originally hunted the seed for a booked
+*cash* appointment of this doctor's. Which seeded row happens to be cash is an
+accident of the seed's ordering, so the script now sets up that condition itself.

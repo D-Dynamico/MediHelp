@@ -3,7 +3,10 @@ import { DoctorModel, UserModel } from '../../models/index.js';
 import { ApiError } from '../../utils/apiError.js';
 import { endOfDayUtc, startOfDayUtc } from '../../utils/dates.js';
 import {
+  cancelAppointment,
+  completeAppointment,
   listAppointments as listAll,
+  startConsult,
   type AppointmentPage,
   type Page,
 } from '../appointments/appointment.service.js';
@@ -118,3 +121,15 @@ export async function listOwnAppointments(
 
   return listAll(filter, page);
 }
+
+/**
+ * A doctor's three actions on an appointment.
+ *
+ * Re-exported rather than reimplemented: who may cancel what, and what
+ * completing does to a cash payment, are the same rules the admin panel obeys
+ * and they live in the shared appointment service. The doctor's `Actor` says
+ * `role: 'doctor'`, and that service looks up their own `Doctor` id and compares
+ * it — so a doctor putting another doctor's appointment id in the URL is refused
+ * there, not here.
+ */
+export { cancelAppointment, completeAppointment, startConsult };

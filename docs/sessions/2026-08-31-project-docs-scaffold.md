@@ -269,3 +269,53 @@ Cloudinary provider are phase 13 and 4.2 work.
     plus the three things to check. No stack trace.
   - a URI with a password → logged as `mongodb+srv://dbuser:***@cluster0…`.
 - Typecheck and lint clean.
+
+## 2.2 Core models
+
+- `User` — one account per person whatever the role, so login, guards and audit
+  work identically for all three. `passwordHash` is `select: false`, `email` is
+  lowercased and unique, `isActive` gives soft delete, and `failedLogins` /
+  `lockUntil` back the lockout in phase 3. Two small methods: `isLocked()` and
+  `age()` (the admin and doctor appointment tables both show patient age, so it
+  belongs on the model rather than in two controllers).
+- `Doctor` — the professional profile only: speciality, degree, fees, address,
+  availability, working hours and `medianConsultMins`. Identity stays on the
+  linked `User`. `medianConsultMins` is **stored, not derived**, because the queue
+  recomputes wait estimates on every socket update and must not aggregate the
+  last 20 consults each time.
+- `Appointment` — the busy one. `docSnapshot` freezes the doctor's name,
+  speciality and fee at booking time; without it, a doctor raising their fee would
+  silently rewrite the price of every past appointment read through a populate.
+- **The double-booking rule is an index, not a check.** Unique on
+  `{doctorId, slotStart}`, partial to `ACTIVE_APPOINTMENT_STATUSES`, so cancelled
+  and no-show appointments release the slot while active ones hold it. An
+  availability check in application code cannot close the window between the check
+  and the write; the index can.
+- Verified against a **real MongoDB**, not just the type checker: added
+  `mongodb-memory-server` and `server/scripts/check-models.ts`
+  (`npm run check:models --workspace server`), which spins up a real mongod,
+  syncs indexes and asserts behaviour. All nine pass:
+
+  ```
+  PASS  partial unique slot index created
+  PASS  passwordHash hidden by default
+  PASS  passwordHash readable when selected
+  PASS  email lowercased on save
+  PASS  age() computed from dob
+  PASS  duplicate email rejected
+  PASS  second booking of the same slot rejected
+  PASS  cancelled slot becomes bookable again
+  PASS  unknown speciality rejected
+  ```
+
+  This also confirms `$in` inside a `partialFilterExpression` is accepted by a
+  current MongoDB, which the design depends on.
+- **Why an in-memory database**: no Atlas URI exists yet, and deferring all model
+  verification to whenever one arrives would mean building phases 3–7 on
+  unverified foundations. It stays useful afterwards as the harness for later
+  phases.
+- `scripts/` is now included in typecheck and lint but excluded from the
+  production build. The typecheck immediately earned its keep by rejecting the
+  deliberately-invalid speciality in the check script — that one line now carries
+  an explicit cast and a comment saying it is testing the database, not the
+  compiler.

@@ -75,3 +75,21 @@ with each.
 - Files: `package.json`, `package-lock.json`.
 - Verified: `npm install` clean (0 vulnerabilities), `npx concurrently --version`
   → 9.2.4.
+
+## 1.2 Server package
+
+- `server/` on Express 5 + TypeScript, run in development with `tsx watch`.
+  `createApp()` lives in `app.ts` separately from the `index.ts` bootstrap so
+  tests and the Socket.IO server in phase 9 can wrap the same app instead of
+  starting a second one.
+- `tsconfig.json` is strict, plus `noUncheckedIndexedAccess` and `noUnusedLocals`.
+  `rootDir` is the repo root and `@shared/*` is mapped to `../shared/*`, so the
+  server can import shared types in 1.4 — that is also why the built entry point
+  is `dist/server/src/index.js`.
+- ESLint 9 flat config with `consistent-type-imports`, since `type: "module"` plus
+  NodeNext makes accidental value imports of type-only modules a runtime error.
+- Files: `server/package.json`, `server/tsconfig.json`,
+  `server/tsconfig.build.json`, `server/eslint.config.js`, `server/src/app.ts`,
+  `server/src/index.ts`.
+- Verified: `npm run typecheck` and `npm run lint` both clean;
+  `curl localhost:4000/api/health` → `{"status":"ok","uptime":4.74}`.

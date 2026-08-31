@@ -117,6 +117,16 @@ export interface DoctorDto {
   slotDurationMins: number;
 }
 
+/**
+ * A doctor as the admin sees them — the public profile plus the two things only
+ * an admin has any business knowing: the phone number and whether the account
+ * has been deactivated.
+ */
+export interface AdminDoctorDto extends DoctorDto {
+  phone?: string;
+  isActive: boolean;
+}
+
 export interface AppointmentDto {
   id: string;
   patient: Pick<UserDto, 'id' | 'name' | 'image'> & { age?: number };

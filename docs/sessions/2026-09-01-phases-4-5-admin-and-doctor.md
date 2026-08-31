@@ -157,3 +157,52 @@ password the admin typed and comes back with the doctor role; a forced failure o
 the second write leaves no account and frees the email again; a refused create
 leaves no file in the upload directory; and the returned `id` is the `Doctor` id,
 not the `User` id.
+
+---
+
+## 4.4 — Doctor management
+
+**What changed.** `GET /api/admin/doctors` (speciality filter, name/email
+search, optional removed doctors), `GET /api/admin/doctors/:id`,
+`PATCH /api/admin/doctors/:id` (multipart, optional new photo), and
+`DELETE /api/admin/doctors/:id`, which deactivates rather than deletes.
+
+**Decisions.**
+
+- *Delete means deactivate.* The appointments have to outlive the doctor:
+  patients keep a visit history, the revenue figures include consults this
+  doctor did, and an audit trail pointing at a row that no longer exists is not
+  a trail. Setting `User.isActive = false` stops the login and takes them off
+  every list while leaving all of that intact.
+- *Removal does not touch `Doctor.available`.* That field is the doctor's own
+  switch for taking new bookings. Flipping it as a side effect of removal would
+  mean a reinstated doctor comes back with a setting the admin silently changed
+  for them.
+- *Removal signs them out everywhere.* `logoutEverywhere` revokes the refresh
+  tokens, so the session cannot be renewed. The access token they already hold
+  keeps working until it expires — fifteen minutes at most — which is the
+  standing trade for not hitting the database on every request.
+- *Reinstating is `PATCH { isActive: true }`, not a second delete route.*
+  Without it the admin panel would have a one-way door.
+- *An edit changes only the fields it names.* Every assignment is guarded on
+  `!== undefined`, so changing a fee cannot blank an address by omission. An
+  edit naming nothing at all is a 422 rather than a silent no-op.
+- *The search term is regex-escaped.* It goes into a `RegExp` for a
+  case-insensitive contains-match, so an unescaped `.*` would quietly return
+  every doctor. The check asserts that it returns none instead.
+- *No client object ever becomes a filter.* The list is assembled from fields the
+  schema already parsed and typed — the rule that stands in for `sanitizeFilter`
+  being off (`docs/SYSTEM_DESIGN.md` §3).
+- The list is one aggregation over `Doctor` with the account joined, because the
+  filters straddle both collections: speciality lives on the profile, the name
+  and email the admin searches by live on the account.
+
+**Files.** `server/src/modules/admin/{admin.service,admin.controller,admin.routes,admin.schema}.ts`,
+`shared/types.ts` (`AdminDoctorDto`), `server/scripts/check-admin.ts`.
+
+**Verification.** `npm run check:admin --workspace server` — now 60 assertions,
+all green. The soft-delete ones are the point: after a removal the account is
+deactivated but present, the profile row is there, the appointment count is
+unchanged, `available` is untouched, the doctor is off the default list but on
+the `includeInactive` one, the login is refused, and a reinstate lets them back
+in. Also asserts `.*` in the search box matches nothing.

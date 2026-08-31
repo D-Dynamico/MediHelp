@@ -57,6 +57,8 @@ export const updateDoctorSchema = z
   .object({
     name: z.string().trim().min(2).max(120).optional(),
     phone: z.string().trim().max(20).optional(),
+    /** How a removed doctor is reinstated. Removal itself is the DELETE route. */
+    isActive: boolish.optional(),
     ...doctorProfileFields,
   })
   .partial()

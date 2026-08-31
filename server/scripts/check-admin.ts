@@ -258,6 +258,172 @@ check(
   (await fs.readdir(UPLOAD_DIR).catch(() => [])).length === strandedBefore,
 );
 
+/* --------------------------------------------------- managing doctors --- */
+
+async function patchDoctor(id: string, fields: Record<string, string>) {
+  const form = new FormData();
+  for (const [key, value] of Object.entries(fields)) form.append(key, value);
+  const response = await fetch(`${base}/api/admin/doctors/${id}`, {
+    method: 'PATCH',
+    headers: { authorization: `Bearer ${adminToken}` },
+    body: form,
+  });
+  const text = await response.text();
+  return { status: response.status, body: (text ? JSON.parse(text) : {}) as Record<string, never> };
+}
+
+type DoctorRow = {
+  id: string;
+  name: string;
+  email: string;
+  speciality: string;
+  fees: number;
+  isActive: boolean;
+  available: boolean;
+  address: { line1: string; line2?: string };
+};
+const rowsOf = (body: unknown) => (body as { doctors: DoctorRow[] }).doctors;
+
+const all = await call('/api/admin/doctors', { token: adminToken });
+check('an admin lists the doctors', all.status === 200, all.status);
+check(
+  'the list holds every active doctor',
+  rowsOf(all.body).length === (await UserModel.countDocuments({ role: 'doctor', isActive: true })),
+  rowsOf(all.body).length,
+);
+check(
+  'the list is sorted by name',
+  rowsOf(all.body).every((row, i, rows) => i === 0 || rows[i - 1]!.name <= row.name),
+);
+check(
+  'each row carries both halves of the doctor',
+  rowsOf(all.body).every((row) => row.email.length > 0 && row.speciality.length > 0),
+);
+
+const cardio = await call('/api/admin/doctors?speciality=Cardiologist', { token: adminToken });
+check(
+  'the speciality filter narrows the list',
+  rowsOf(cardio.body).length > 0 &&
+    rowsOf(cardio.body).every((row) => row.speciality === 'Cardiologist'),
+  rowsOf(cardio.body).map((r) => r.speciality),
+);
+
+// "priya" is deliberately ambiguous: the seed has a Dr. Priya Sharma and this
+// script added a Dr. Priya Shah, so a match on part of a name is really tested.
+const byName = await call('/api/admin/doctors?search=PRIYA', { token: adminToken });
+check(
+  'search matches part of a name, case-insensitively',
+  rowsOf(byName.body).length >= 2 &&
+    rowsOf(byName.body).every((row) => row.name.toLowerCase().includes('priya')),
+  rowsOf(byName.body).map((r) => r.name),
+);
+
+const searched = await call('/api/admin/doctors?search=priya.shah', { token: adminToken });
+check(
+  'search matches an email too',
+  rowsOf(searched.body).length === 1 && rowsOf(searched.body)[0]!.email === 'priya.shah@medihelp.test',
+  rowsOf(searched.body).map((r) => r.email),
+);
+
+// If the term were used as a pattern, ".*" would match every doctor.
+const punctuation = await call('/api/admin/doctors?search=.%2A', { token: adminToken });
+check(
+  'a regex in the search box is treated as text, not a pattern',
+  rowsOf(punctuation.body).length === 0,
+  rowsOf(punctuation.body).length,
+);
+
+const badSpeciality = await call('/api/admin/doctors?speciality=Wizard', { token: adminToken });
+check('an unknown speciality filter is refused', badSpeciality.status === 422, badSpeciality.status);
+
+// --- editing -------------------------------------------------------------
+const target = rowsOf(searched.body)[0]!;
+const edited = await patchDoctor(target.id, {
+  fees: '1200',
+  about: 'Updated interests and clinic hours for the coming term.',
+});
+const editedDoctor = (edited.body as unknown as { doctor: DoctorRow }).doctor;
+check('an admin edits a doctor', edited.status === 200, edited.body);
+check('the fee changed', editedDoctor.fees === 1200, editedDoctor.fees);
+check(
+  'a field the edit did not name is left alone',
+  editedDoctor.address.line1 === target.address.line1,
+  editedDoctor.address,
+);
+check(
+  'the name survived an edit that did not mention it',
+  editedDoctor.name === target.name,
+  editedDoctor.name,
+);
+
+const emptyEdit = await patchDoctor(target.id, {});
+check('an edit that changes nothing is refused', emptyEdit.status === 422, emptyEdit.status);
+
+const badEdit = await patchDoctor(target.id, { fees: '-5' });
+check('a negative fee is refused', badEdit.status === 422, badEdit.status);
+
+const missing = await patchDoctor('0'.repeat(24), { fees: '100' });
+check('editing a doctor who does not exist is a 404', missing.status === 404, missing.status);
+
+const malformed = await call('/api/admin/doctors/not-an-id', { token: adminToken });
+check('a malformed id is refused before any lookup', malformed.status === 422, malformed.status);
+
+// --- soft delete ---------------------------------------------------------
+const appointmentsBefore = await AppointmentModel.countDocuments();
+const beforeRow =
+  rowsOf(all.body).find((row) => row.email === 'rao@medihelp.test') ?? rowsOf(all.body)[0]!;
+const removedDoctorId = beforeRow.id;
+
+const removed = await fetch(`${base}/api/admin/doctors/${removedDoctorId}`, {
+  method: 'DELETE',
+  headers: { authorization: `Bearer ${adminToken}` },
+});
+check('an admin removes a doctor', removed.status === 200, removed.status);
+
+check(
+  'the account was deactivated, not deleted',
+  (await UserModel.findOne({ email: beforeRow.email }))?.isActive === false,
+);
+check('the profile row still exists', (await DoctorModel.findById(removedDoctorId)) !== null);
+check(
+  'the appointment history survived',
+  (await AppointmentModel.countDocuments()) === appointmentsBefore,
+);
+check(
+  "the doctor's own availability switch was not touched",
+  (await DoctorModel.findById(removedDoctorId))?.available === beforeRow.available,
+);
+
+const afterRemoval = await call('/api/admin/doctors', { token: adminToken });
+check(
+  'a removed doctor drops off the list',
+  !rowsOf(afterRemoval.body).some((row) => row.id === removedDoctorId),
+);
+check(
+  'they are still there when the admin asks for removed ones',
+  rowsOf((await call('/api/admin/doctors?includeInactive=true', { token: adminToken })).body).some(
+    (row) => row.id === removedDoctorId,
+  ),
+);
+
+const blockedLogin = await call('/api/auth/login', {
+  method: 'POST',
+  body: { email: beforeRow.email, password: 'Password123!' },
+});
+check('a removed doctor cannot log in', blockedLogin.status === 401, blockedLogin.status);
+
+const reinstated = await patchDoctor(removedDoctorId, { isActive: 'true' });
+check('an admin can reinstate them', reinstated.status === 200, reinstated.body);
+check(
+  'the reinstated doctor can log in again',
+  (
+    await call('/api/auth/login', {
+      method: 'POST',
+      body: { email: beforeRow.email, password: 'Password123!' },
+    })
+  ).status === 200,
+);
+
 console.log(`\n${results.join('\n')}\n`);
 
 server.close();

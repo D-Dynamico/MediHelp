@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { ACTIVE_APPOINTMENT_STATUSES } from '@shared/types.js';
-import type { AdminDashboardDto, DoctorDto } from '@shared/types.js';
+import type { AdminDashboardDto, AdminDoctorDto, DoctorDto } from '@shared/types.js';
 import {
   AppointmentModel,
   DoctorModel,
@@ -17,7 +17,8 @@ import {
   type AppointmentRow,
 } from '../appointments/appointment.mapper.js';
 import { toDoctorDto } from '../doctors/doctor.mapper.js';
-import type { CreateDoctorInput } from './admin.schema.js';
+import { logoutEverywhere } from '../auth/auth.service.js';
+import type { CreateDoctorInput, DoctorListQuery, UpdateDoctorInput } from './admin.schema.js';
 
 /** What the admin panel runs on. No HTTP in here. */
 
@@ -175,4 +176,150 @@ export async function createDoctor(
   } finally {
     await session.endSession();
   }
+}
+
+/**
+ * The admin's doctor list.
+ *
+ * Driven from `Doctor` with the account joined on, because speciality and
+ * availability live here while the name, email and photo live on `User` — and
+ * the admin searches by name.
+ *
+ * Note what this does *not* do: it never puts a client-supplied object into a
+ * filter. Every branch below is built from a field the schema already parsed
+ * and typed (see docs/SYSTEM_DESIGN.md §3 on why `sanitizeFilter` is off).
+ */
+export async function listDoctors(query: DoctorListQuery): Promise<AdminDoctorDto[]> {
+  const accountMatch: Record<string, unknown> = {};
+  if (!query.includeInactive) accountMatch['account.isActive'] = true;
+
+  if (query.search) {
+    // Escaped, so a search for "a.b" cannot become a pattern, and anchored at
+    // no end so it matches anywhere in the name or address.
+    const pattern = new RegExp(escapeRegExp(query.search), 'i');
+    accountMatch.$or = [{ 'account.name': pattern }, { 'account.email': pattern }];
+  }
+
+  return DoctorModel.aggregate<AdminDoctorDto>([
+    ...(query.speciality ? [{ $match: { speciality: query.speciality } }] : []),
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'userId',
+        foreignField: '_id',
+        as: 'account',
+        pipeline: [{ $project: { name: 1, email: 1, image: 1, isActive: 1, phone: 1 } }],
+      },
+    },
+    { $unwind: '$account' },
+    ...(Object.keys(accountMatch).length > 0 ? [{ $match: accountMatch }] : []),
+    { $sort: { 'account.name': 1 } },
+    {
+      $project: {
+        _id: 0,
+        id: { $toString: '$_id' },
+        name: '$account.name',
+        email: '$account.email',
+        image: '$account.image',
+        phone: '$account.phone',
+        isActive: '$account.isActive',
+        speciality: 1,
+        degree: 1,
+        experience: 1,
+        about: 1,
+        fees: 1,
+        address: 1,
+        available: 1,
+        slotDurationMins: 1,
+      },
+    },
+  ]);
+}
+
+/** Regex-escapes a search term so punctuation in it stays literal. */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Loads a doctor and their account together, or 404s. */
+async function loadDoctor(id: string) {
+  const doctor = await DoctorModel.findById(id);
+  if (!doctor) throw ApiError.notFound('No doctor with that id.');
+
+  const user = await UserModel.findById(doctor.userId);
+  if (!user) throw ApiError.notFound('That doctor has no account.');
+
+  return { doctor, user };
+}
+
+export async function getDoctor(id: string): Promise<DoctorDto> {
+  const { doctor, user } = await loadDoctor(id);
+  return toDoctorDto(doctor, user);
+}
+
+/**
+ * Edits a doctor. Only the fields the request actually named are touched, so
+ * changing a fee cannot blank out an address by omission.
+ *
+ * The fee is deliberately editable here and nowhere else on the client's side of
+ * the wire: booking reads it from this record, never from the request.
+ */
+export async function updateDoctor(
+  id: string,
+  input: UpdateDoctorInput,
+  image?: string,
+): Promise<DoctorDto> {
+  const { doctor, user } = await loadDoctor(id);
+
+  if (input.name !== undefined) user.name = input.name;
+  if (input.phone !== undefined) user.phone = input.phone;
+  if (input.isActive !== undefined) user.isActive = input.isActive;
+  if (image) user.image = image;
+
+  if (input.speciality !== undefined) doctor.speciality = input.speciality;
+  if (input.degree !== undefined) doctor.degree = input.degree;
+  if (input.experience !== undefined) doctor.experience = input.experience;
+  if (input.about !== undefined) doctor.about = input.about;
+  if (input.fees !== undefined) doctor.fees = input.fees;
+  if (input.available !== undefined) doctor.available = input.available;
+  if (input.slotDurationMins !== undefined) doctor.slotDurationMins = input.slotDurationMins;
+
+  if (input.addressLine1 !== undefined || input.addressLine2 !== undefined) {
+    doctor.address = {
+      line1: input.addressLine1 ?? doctor.address?.line1 ?? '',
+      line2: input.addressLine2 ?? doctor.address?.line2,
+    };
+  }
+
+  await Promise.all([user.save(), doctor.save()]);
+  return toDoctorDto(doctor, user);
+}
+
+/**
+ * Removes a doctor by deactivating their account, never by deleting the row.
+ *
+ * Their appointments must survive: patients have a visit history, the revenue
+ * figures include consults this doctor did, and an audit trail that points at a
+ * missing document is not a trail. Deactivating stops the login and takes them
+ * off the public list while leaving all of that intact.
+ *
+ * `available` is left alone on purpose — that is the doctor's own switch for
+ * taking bookings, and overwriting it here would mean a reinstated doctor came
+ * back with a setting the admin silently changed.
+ */
+export async function deactivateDoctor(id: string): Promise<DoctorDto> {
+  const { doctor, user } = await loadDoctor(id);
+
+  if (user.isActive) {
+    user.isActive = false;
+    await user.save();
+
+    // They cannot log in again, and their refresh token stops working on its
+    // next use. The access token they already hold stays valid until it expires
+    // — at most fifteen minutes, which is the price of not checking the database
+    // on every single request.
+    await logoutEverywhere(String(user._id));
+  }
+
+  return toDoctorDto(doctor, user);
 }

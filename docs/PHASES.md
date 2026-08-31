@@ -91,7 +91,7 @@ refresh keeps the user signed in; six bad passwords lock the account.
       disk is ephemeral).
 - [x] **4.3 Add doctor** — multipart endpoint creating the `User` and `Doctor`
       together in one transaction, with a validated speciality list.
-- [ ] **4.4 Doctor management** — list, edit, and soft delete (`isActive: false`)
+- [x] **4.4 Doctor management** — list, edit, and soft delete (`isActive: false`)
       so appointment history survives.
 - [ ] **4.5 Appointments admin** — paginated list with filters, plus cancel and
       mark-completed actions that go through the shared appointment service.

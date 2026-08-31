@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requireAuth } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import { loginSchema, registerSchema } from './auth.schema.js';
 import * as controller from './auth.controller.js';
@@ -14,4 +15,4 @@ authRouter.post('/login', validate({ body: loginSchema }), controller.login);
 authRouter.post('/refresh', controller.refresh);
 authRouter.post('/logout', controller.logout);
 
-// `/me` is added in 3.4, once the guard exists to protect it.
+authRouter.get('/me', requireAuth, controller.me);

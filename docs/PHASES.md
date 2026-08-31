@@ -13,19 +13,19 @@ A substep is done when it runs, not when it compiles.
 
 ## Phase 1 — Scaffold
 
-- [ ] **1.1 Root workspace** — `package.json` with npm workspaces (`server`,
+- [x] **1.1 Root workspace** — `package.json` with npm workspaces (`server`,
       `client`), `concurrently` for `npm run dev`, plus `seed`, `typecheck` and
       `lint` scripts that fan out to both packages.
-- [ ] **1.2 Server package** — TypeScript, `tsx` watch, `tsconfig` with strict mode
+- [x] **1.2 Server package** — TypeScript, `tsx` watch, `tsconfig` with strict mode
       and path aliases, eslint + prettier, a `src/index.ts` that serves
       `GET /api/health`.
-- [ ] **1.3 Client package** — Vite + React + TypeScript, Tailwind with the theme
+- [x] **1.3 Client package** — Vite + React + TypeScript, Tailwind with the theme
       tokens, React Router with a placeholder home route, Vite proxy for `/api`
       and `/socket.io` to `localhost:4000`.
-- [ ] **1.4 Shared types** — `shared/types.ts` with `Role`, `AppointmentStatus`,
+- [x] **1.4 Shared types** — `shared/types.ts` with `Role`, `AppointmentStatus`,
       `PaymentMode`, `Urgency` and the DTO shapes; wire the path alias so both
       packages import it.
-- [ ] **1.5 Env and docs** — `.env.example` with every key commented, `.gitignore`
+- [x] **1.5 Env and docs** — `.env.example` with every key commented, `.gitignore`
       already in place, README run steps confirmed accurate.
 
 **Exit**: `npm run dev` starts both, `curl localhost:4000/api/health` returns ok,

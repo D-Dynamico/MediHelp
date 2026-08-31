@@ -150,3 +150,41 @@ with each.
   shared value import through `tsx`, and `Gastroenterologist` appears in the
   client's production bundle, proving the Vite alias resolves too. Typecheck and
   lint clean on both workspaces.
+
+## 1.5 Env and docs
+
+- `.env.example` documents every key with a comment, grouped by concern, and says
+  up front that only `MONGODB_URI` and `JWT_SECRET` are required — the rest have
+  working local defaults (`PAYMENT_PROVIDER=mock`, `STORAGE_PROVIDER=local`, empty
+  `ANTHROPIC_API_KEY` meaning the rules engine). It also carries the
+  restart-after-change warning, since `getSettings()` caches.
+- `server/uploads/.gitkeep` so the folder the local storage provider writes to
+  exists in a fresh clone; `.gitignore` already keeps its contents out.
+- README updated to say phase 1 of 12 is done, with accurate commands — and an
+  explicit note that `npm run seed` arrives in phase 2, rather than leaving a
+  command in the setup block that would fail today.
+
+## Phase 1 exit check
+
+Ran from a clean start, after killing the stray dev servers holding ports 4000
+and 5173:
+
+| Check | Result |
+|---|---|
+| `npm run dev` starts both | server on :4000, client on :5173 |
+| `curl :4000/api/health` | `{"status":"ok","uptime":3.53}` |
+| `curl :5173/api/health` (proxied) | `{"status":"ok","uptime":3.61}` |
+| Client serves the app shell | `#root` present |
+| `npm run typecheck` | clean on both workspaces |
+| `npm run lint` | clean on both workspaces |
+| `npm run build` | both build; shared value present in the client bundle |
+
+Phase 1 complete; boxes ticked in `docs/PHASES.md`.
+
+## Open items after phase 1
+
+- No visual browser check has been possible this session — the Chrome extension
+  is not connected. Worth a manual look at http://localhost:5173 before phase 11.
+- `MONGODB_URI` for an Atlas cluster is needed before phase 2 can be verified end
+  to end; there is no local `mongod` on this machine.
+- Work is on branch `phase-1-scaffold`, not merged to `main`.

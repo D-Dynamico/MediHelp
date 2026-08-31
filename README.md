@@ -12,8 +12,9 @@ payments, plus three features that go past the usual CRUD app:
 - **Auto-waitlist** — a cancelled slot is offered automatically to the next person
   waiting, with a claim window, so it never goes to waste.
 
-> Not built yet — the repo currently holds the plan and docs. Build order is in
-> `docs/PHASES.md`.
+> **Status: phase 1 of 12 complete** — the scaffold runs (workspaces, API server,
+> React client, shared types). Features arrive phase by phase; the plan and
+> progress are in `docs/PHASES.md`.
 
 ## Documentation
 
@@ -36,12 +37,24 @@ MongoDB Atlas (Mongoose) · Socket.IO
 ```bash
 cp .env.example .env     # set MONGODB_URI and JWT_SECRET
 npm install
-npm run seed             # admin, doctors, patients, sample appointments
 npm run dev              # API on :4000, client on :5173
 ```
+
+Then open http://localhost:5173 — the page shows the live API status, so you can
+see both halves are talking.
 
 MongoDB Atlas is the only service you must configure. Payments, image hosting and
 the AI provider all have keyless local fallbacks, so the full demo runs without any
 other accounts.
 
-Demo credentials are printed by the seed script.
+`npm run seed` (admin, doctors, patients, sample appointments, with demo
+credentials printed at the end) arrives in phase 2, along with the database
+connection — phase 1 does not touch Mongo yet.
+
+Other commands:
+
+```bash
+npm run typecheck        # tsc --noEmit on both packages
+npm run lint
+npm run build            # production build of both
+```

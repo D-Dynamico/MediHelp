@@ -14,6 +14,18 @@ import { APPOINTMENT_STATUSES, SPECIALITIES } from '@shared/types.js';
 const numeric = (label: string) =>
   z.coerce.number({ error: `${label} must be a number.` });
 
+/**
+ * A required text field, with a message for the case where it is missing
+ * entirely — not only for the case where it is present but wrong.
+ *
+ * That distinction matters here because the client drops empty fields rather
+ * than sending `""`, so a blank box arrives as *absent*. Without an `error` of
+ * its own, zod answers that with "Invalid input: expected string, received
+ * undefined", which is a sentence written for a programmer and shown to a
+ * receptionist.
+ */
+const required = (message: string) => z.string({ error: message }).trim();
+
 /** A checkbox that arrived as text. Absent means "not changed". */
 const boolish = z
   .union([z.boolean(), z.enum(['true', 'false'])])
@@ -33,21 +45,31 @@ const workingHoursEntry = z.object({
  */
 const doctorProfileFields = {
   speciality: z.enum(SPECIALITIES, { error: 'Choose one of the listed specialities.' }),
-  degree: z.string().trim().min(2, 'Enter the qualification.').max(120),
+  // Every other profile field below carries its own missing-field message, for
+  // the reason `required()` explains.
+  degree: required('Enter the qualification.').min(2, 'Enter the qualification.').max(120),
   experience: numeric('Years of experience').int().min(0).max(70),
-  about: z.string().trim().min(20, 'Write at least a sentence or two.').max(2000),
+  about: required('Write a short description — patients read this.')
+    .min(20, 'Write at least a sentence or two.')
+    .max(2000),
   fees: numeric('The fee').int().min(0).max(1_000_000),
-  addressLine1: z.string().trim().min(3, 'Enter the clinic address.').max(200),
+  addressLine1: required('Enter the clinic address.').min(3, 'Enter the clinic address.').max(200),
   addressLine2: z.string().trim().max(200).optional(),
   available: boolish.optional(),
   slotDurationMins: numeric('The slot length').int().min(5).max(120).optional(),
 };
 
 export const createDoctorSchema = z.object({
-  name: z.string().trim().min(2, 'Enter the doctor’s name.').max(120),
-  email: z.email('Enter a valid email address.').max(200).transform((v) => v.trim().toLowerCase()),
+  name: required('Enter the doctor’s name.').min(2, 'Enter the doctor’s name.').max(120),
+  email: z
+    .email({ error: 'Enter a valid email address.' })
+    .max(200)
+    .transform((v) => v.trim().toLowerCase()),
   // The admin sets the first password and passes it on; the doctor changes it.
-  password: z.string().min(8, 'Use at least 8 characters.').max(200),
+  password: z
+    .string({ error: 'Set a first password for them.' })
+    .min(8, 'Use at least 8 characters.')
+    .max(200),
   phone: z.string().trim().max(20).optional(),
   ...doctorProfileFields,
 });

@@ -267,3 +267,77 @@ all green. Notable: paging returns disjoint rows with a total that matches
 and when and frees the slot; cancelling or completing twice is a 409; a completed
 consult cannot be cancelled and a cancelled one cannot be completed; and
 completing a cash consult moves the dashboard's revenue up by exactly its fee.
+
+---
+
+## 4.6 — Admin UI
+
+**What changed.** The admin panel itself: a layout shell with a sidebar, the
+dashboard with stat tiles and a latest-bookings table that can cancel, the
+add-doctor form with an image preview, the doctor list with remove/reinstate,
+and the paged appointments table with cancel and complete. Plus
+`client/src/api/admin.ts` and a small shared `components/ui.tsx`.
+
+Also `npm run dev:sandbox`, which runs the real server against a freshly seeded
+in-memory replica set so the app can be opened in a browser without pointing it
+at Atlas.
+
+**Decisions.**
+
+- *A layout route, not a component each page imports.* The sidebar renders once
+  and survives navigation between sections.
+- *Filters live in the URL, not in component state.* A filtered list can then be
+  linked to — which is exactly what the add-doctor form does when it lands on the
+  doctor it just created. Changing any filter also clears the page number, since
+  page 4 of the old result set is rarely page 4 of the new one and is often past
+  the end.
+- *After an action, reload rather than patch the row.* Cancelling from the
+  dashboard changes the tiles too; a screen that quietly disagrees with itself is
+  worse than one extra request.
+- *The object URL for the image preview is revoked.* It is a live handle into the
+  page's memory, not a string — picking a few photos in a row leaks each one
+  otherwise.
+- *Remove is a DELETE, reinstate is a PATCH.* Two verbs for two meanings, rather
+  than one endpoint that flips whatever it finds.
+- *Tables scroll sideways rather than squash.* An appointment row carries a
+  patient, a doctor, a time, a payment and a status; on a narrow screen a
+  horizontal scroll loses less than columns wrapping into each other.
+- *`dev:sandbox` runs under `tsx watch`*, so an edit reloads and reseeds. A
+  sandbox quietly serving a schema the source no longer has is worse than one
+  that resets — which cost a debugging round when a schema fix appeared not to
+  work.
+
+**Two bugs the type checker could not see**, both found by actually opening the
+page — and neither reachable from the check scripts, which assert on status codes
+rather than on what a person reads:
+
+1. *Submitting the form with About empty showed "Invalid input: expected string,
+   received undefined"* — zod's internal wording, written for a programmer and
+   shown to a receptionist. The client drops empty fields rather than sending
+   `""`, so a blank box arrives as **absent**, and the schema only had a message
+   for the present-but-too-short case. Fixed with a `required()` helper that
+   gives every mandatory text field a message for the missing case too.
+2. *That message was styled as a grey hint, not an error.* The About field reused
+   the hint paragraph for its error text, so the one field with a problem looked
+   exactly like the fields without one.
+
+**Files.** `client/src/api/admin.ts`, `client/src/components/ui.tsx`,
+`client/src/pages/admin/{AdminLayout,Dashboard,AddDoctor,Doctors,Appointments}.tsx`,
+`client/src/routes/router.tsx`, `server/src/modules/admin/admin.schema.ts`,
+`server/scripts/dev-sandbox.ts`, `package.json`, `server/package.json`.
+
+**Verification.** `npm run typecheck`, `npm run lint` and `npm run build` clean;
+`check:admin` (87) and `check:upload` (21) still green.
+
+Driven in a real browser against the sandbox — the first visual check this
+project has ever had, and the open item the previous session's handoff flagged.
+The phase 4 exit criterion was walked end to end: a doctor added through the form
+appears in the doctor list, and then signs in with the password the admin typed
+and lands on the doctor route. The dashboard tiles rendered against seeded data,
+the login and doctor list screens were confirmed by eye, and the guards were seen
+working (a signed-in doctor is bounced off `/login`).
+
+**Still unlooked-at:** the appointments table. The phase 3 rate limiter cut the
+session short after repeated sign-ins — which is the limiter behaving correctly,
+not a fault. Its behaviour is covered by the check script; only its rendering is
+unconfirmed.

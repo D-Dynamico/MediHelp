@@ -95,7 +95,7 @@ refresh keeps the user signed in; six bad passwords lock the account.
       so appointment history survives.
 - [x] **4.5 Appointments admin** — paginated list with filters, plus cancel and
       mark-completed actions that go through the shared appointment service.
-- [ ] **4.6 Admin UI** — layout shell with sidebar, stat tiles, latest-bookings
+- [x] **4.6 Admin UI** — layout shell with sidebar, stat tiles, latest-bookings
       table with cancel, add-doctor form with image preview, doctor list,
       appointments table.
 

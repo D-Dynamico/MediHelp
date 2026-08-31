@@ -14,7 +14,8 @@
     "build": "npm run build --workspace server && npm run build --workspace client",
     "seed": "npm run seed --workspace server",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present"
+    "lint": "npm run lint --workspaces --if-present",
+    "dev:sandbox": "concurrently -n server,client -c blue,magenta \"npm run dev:sandbox --workspace server\" \"npm:dev:client\""
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

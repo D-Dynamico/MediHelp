@@ -22,7 +22,8 @@
     "check:atlas": "tsx scripts/check-atlas.ts",
     "check:env": "tsx scripts/check-env.ts",
     "check:admin": "tsx scripts/check-admin.ts",
-    "check:upload": "tsx scripts/check-upload.ts"
+    "check:upload": "tsx scripts/check-upload.ts",
+    "dev:sandbox": "tsx watch scripts/dev-sandbox.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

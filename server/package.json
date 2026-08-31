@@ -14,18 +14,24 @@
     "check:errors": "tsx scripts/check-errors.ts",
     "seed": "tsx src/seed.ts",
     "check:seed": "tsx scripts/check-seed.ts",
-    "check": "npm run check:models && npm run check:errors && npm run check:seed"
+    "check": "npm run check:tokens && npm run check:models && npm run check:errors && npm run check:seed",
+    "check:tokens": "tsx scripts/check-tokens.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "express": "^5.1.0",
+    "express-rate-limit": "^8.7.0",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.4",
     "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.10.5",
     "eslint": "^9.18.0",
     "mongodb-memory-server": "^11.2.0",

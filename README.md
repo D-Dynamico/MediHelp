@@ -12,9 +12,10 @@ payments, plus three features that go past the usual CRUD app:
 - **Auto-waitlist** — a cancelled slot is offered automatically to the next person
   waiting, with a claim window, so it never goes to waste.
 
-> **Status: phase 1 of 13 complete** — the scaffold runs (workspaces, API server,
-> React client, shared types). Features arrive phase by phase; the plan and
-> progress are in `docs/PHASES.md`.
+> **Status: phase 3 of 13 complete** — the scaffold runs, the models and seed are
+> in place, and authentication works end to end (login for all three roles,
+> refresh-token rotation, role guards). Features arrive phase by phase; the plan
+> and progress are in `docs/PHASES.md`.
 
 ## Documentation
 

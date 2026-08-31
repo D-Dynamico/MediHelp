@@ -10,7 +10,8 @@
     "start": "node dist/server/src/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src scripts",
-    "check:models": "tsx scripts/check-models.ts"
+    "check:models": "tsx scripts/check-models.ts",
+    "check:errors": "tsx scripts/check-errors.ts"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

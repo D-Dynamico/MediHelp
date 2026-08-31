@@ -2,10 +2,14 @@ import express from 'express';
 import type { Express } from 'express';
 import { SPECIALITIES } from '@shared/types.js';
 import type { HealthResponse } from '@shared/types.js';
+import { errorHandler, notFound } from './middleware/error.js';
 
 /**
  * Builds the Express app. Kept separate from the server bootstrap so tests and
  * the Socket.IO server (phase 9) can wrap the same app.
+ *
+ * Express 5 forwards rejected promises from handlers to the error middleware on
+ * its own, so route handlers can be plain `async` with no wrapper.
  */
 export function createApp(): Express {
   const app = express();
@@ -20,6 +24,11 @@ export function createApp(): Express {
   app.get('/api/specialities', (_req, res) => {
     res.json({ specialities: SPECIALITIES });
   });
+
+  // Feature routers mount here, above the two handlers below.
+
+  app.use(notFound);
+  app.use(errorHandler);
 
   return app;
 }

@@ -348,3 +348,37 @@ Cloudinary provider are phase 13 and 4.2 work.
 - Verified: four more checks added to `check:models`, thirteen now pass,
   including the TTL index, the queue-session uniqueness, the waitlist
   one-active-entry rule, and rejoining after withdrawal.
+
+## 2.4 Error plumbing
+
+- `utils/apiError.ts` — `ApiError` with named constructors (`badRequest`,
+  `unauthorized`, `forbidden`, `notFound`, `conflict`, `validation`,
+  `tooManyRequests`) and a `toBody()` producing the shared `ApiErrorBody` shape.
+  Carrying the status *with* the error means a service can refuse something
+  without knowing anything about HTTP plumbing.
+- `middleware/error.ts` is the single place an error becomes a response.
+  Known errors keep their message; anything unrecognised is treated as a bug —
+  logged with its stack, answered with a bare 500. Internals never reach the
+  client (in development the message is echoed under `details.dev`, which is
+  gated on `isProduction`).
+- Four failure kinds are translated rather than leaking:
+  - **Mongo duplicate key → 409.** The slot index is matched by name, so a lost
+    booking race answers *"That time was just booked by someone else"* instead of
+    a 500. This is the payoff for enforcing the rule in the database — the race is
+    handled, not just detected.
+  - Mongoose validation → 422 with per-field details.
+  - A malformed ObjectId in a URL → 400, not a crash.
+  - Zod errors → 422 with per-field details, ready for the `validate()` middleware
+    in 3.3.
+- Express 5 forwards rejected promises to the error middleware by itself, so
+  there is no `asyncHandler` wrapper to remember on every route — noted in
+  `app.ts` so nobody adds one back.
+- **The check found a real bug.** `express.json()` throws its own error for an
+  unreadable body, which my first version did not recognise, so malformed JSON
+  returned `500 internal_error`. Added `fromBodyParser()`: unreadable JSON is now
+  400 and an oversized body is 413. It only claims errors that carry both a
+  body-parser `type` and a 4xx status, so it cannot swallow genuine faults.
+- Verified with a new `check:errors` script that boots the real app on an
+  ephemeral port and calls it over HTTP. Six pass: unknown route 404, malformed
+  JSON 400, oversized body 413, validation details, conflict 409, duplicate email
+  mapped to 409 with a plain message.

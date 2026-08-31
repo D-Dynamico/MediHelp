@@ -17,7 +17,13 @@ process.env.NODE_ENV = 'development';
 const { createApp } = await import('../src/app.js');
 const { UserModel } = await import('../src/models/index.js');
 
-await mongoose.connect(mongod.getUri(), { dbName: 'medihelp_rate' });
+// connectDb() rather than mongoose.connect(): it applies the global mongoose
+// settings the real server runs with, so the checks cannot pass on a
+// configuration production never uses.
+const { assertThrowawayDatabase } = await import('./_guard.js');
+assertThrowawayDatabase();
+const { connectDb } = await import('../src/config/db.js');
+await connectDb();
 await UserModel.syncIndexes();
 
 const server = createApp().listen(0);

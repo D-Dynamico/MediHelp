@@ -27,7 +27,12 @@ process.env.ACCESS_TOKEN_TTL = '1s';
 const { createApp } = await import('../../server/src/app.js');
 const { UserModel, RefreshTokenModel } = await import('../../server/src/models/index.js');
 
-await mongoose.connect(mongod.getUri(), { dbName: 'medihelp_client' });
+// connectDb() rather than mongoose.connect(), so the checks run with the same
+// global mongoose settings as the real server.
+const { assertThrowawayDatabase } = await import('../../server/scripts/_guard.js');
+assertThrowawayDatabase();
+const { connectDb } = await import('../../server/src/config/db.js');
+await connectDb();
 await Promise.all([UserModel.syncIndexes(), RefreshTokenModel.syncIndexes()]);
 
 const server = createApp().listen(0);
@@ -85,7 +90,8 @@ check('the caller was never told the session was lost', sessionLost === 0, sessi
 // family, and signs the user out. This is the check that matters most here.
 await sleep(1500);
 const cookieBeforeBurst = jar;
-const revokedBeforeBurst = await RefreshTokenModel.countDocuments({ revokedAt: { $exists: true } });
+const revoked = () => RefreshTokenModel.countDocuments({ revokedAt: { $exists: true } });
+const revokedBeforeBurst = await revoked();
 
 const burst = await Promise.allSettled([
   api.get('/auth/me'),
@@ -102,7 +108,7 @@ check(
 check('the session survived the burst', sessionLost === 0, sessionLost);
 check('the cookie rotated during the burst', jar !== cookieBeforeBurst);
 
-const revokedAfterBurst = await RefreshTokenModel.countDocuments({ revokedAt: { $exists: true } });
+const revokedAfterBurst = await revoked();
 check(
   'the burst spent exactly one refresh token, not five',
   revokedAfterBurst - revokedBeforeBurst === 1,

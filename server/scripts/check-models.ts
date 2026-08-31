@@ -14,7 +14,15 @@ import {
 } from '../src/models/index.js';
 
 const mongod = await MongoMemoryServer.create();
-await mongoose.connect(mongod.getUri(), { dbName: 'medihelp_check' });
+process.env.MONGODB_URI = mongod.getUri();
+process.env.JWT_SECRET ??= 'm'.repeat(48);
+// connectDb() rather than mongoose.connect(): it applies the global mongoose
+// settings the real server runs with, so the checks cannot pass on a
+// configuration production never uses.
+const { assertThrowawayDatabase } = await import('./_guard.js');
+assertThrowawayDatabase();
+const { connectDb } = await import('../src/config/db.js');
+await connectDb();
 
 const results: string[] = [];
 const check = (label: string, ok: boolean) => {

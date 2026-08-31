@@ -16,8 +16,28 @@ export async function connectDb(): Promise<typeof mongoose> {
   const { MONGODB_URI } = getSettings();
 
   mongoose.set('strictQuery', true);
-  // Surface a bad query shape in development instead of silently returning nothing.
-  mongoose.set('sanitizeFilter', true);
+
+  /**
+   * `sanitizeFilter` is deliberately OFF.
+   *
+   * It guards against passing a raw request object straight into a filter, where
+   * `{"email": {"$ne": null}}` would match everyone. We close that at the
+   * boundary instead: every request body, query and param goes through a zod
+   * schema that strips undeclared keys and types each field, so an object can
+   * never arrive where a string is expected. Filters are built here from typed
+   * values, never forwarded.
+   *
+   * Leaving it on cost more than it bought. It rewrites *any* operator object
+   * into an equality match, so every legitimate `$in`, `$gte` or `$exists` needs
+   * `mongoose.trusted()` — and forgetting one fails at runtime, not compile
+   * time. It had already broken refresh-token reuse detection: the family
+   * revocation threw a cast error instead of running, so a replayed token was
+   * never caught. A protection whose failure mode is silently disabling a
+   * security feature is the wrong trade here.
+   *
+   * The rule that replaces it: never build a filter from an object the client
+   * sent. Take validated, typed fields.
+   */
 
   mongoose.connection.on('disconnected', () => logger.warn('Mongo disconnected'));
   mongoose.connection.on('reconnected', () => logger.info('Mongo reconnected'));

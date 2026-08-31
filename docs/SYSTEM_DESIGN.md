@@ -98,6 +98,17 @@ appointment by changing an id in the URL.
 `validate(schema)`. Unknown keys are stripped, so a client cannot smuggle
 `role: "admin"` into a registration.
 
+**Query injection** — the defence is that boundary, not mongoose's
+`sanitizeFilter`, which is deliberately off. Because every field is validated and
+typed before it reaches a service, an object can never arrive where a string is
+expected, and filters are built from typed values rather than forwarded request
+objects. `sanitizeFilter` was tried and removed: it rewrites *any* operator
+object into an equality match, so every legitimate `$in`, `$gte` or `$exists`
+needs `mongoose.trusted()`, and a missed one fails at runtime. It had already
+broken refresh-token reuse detection — the family revocation threw a cast error
+instead of running, so replayed tokens went uncaught. **The rule that replaces
+it: never build a filter from an object the client sent.**
+
 **Transport and headers** — `helmet`, `express-mongo-sanitize`, `hpp`, and a JSON
 body size cap. No CORS layer: client and API share an origin in both environments
 (Vite proxies in development, Express serves the built client in production), so

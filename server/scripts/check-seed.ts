@@ -15,7 +15,13 @@ process.env.LOG_LEVEL = 'warn';
 // Imported after the env is set, because settings parse on first use.
 const { seedDatabase } = await import('../src/seed.js');
 
-await mongoose.connect(mongod.getUri(), { dbName: 'medihelp_seed' });
+// connectDb() rather than mongoose.connect(): it applies the global mongoose
+// settings the real server runs with, so the checks cannot pass on a
+// configuration production never uses.
+const { assertThrowawayDatabase } = await import('./_guard.js');
+assertThrowawayDatabase();
+const { connectDb } = await import('../src/config/db.js');
+await connectDb();
 
 const results: string[] = [];
 const check = (label: string, ok: boolean, got?: unknown) =>

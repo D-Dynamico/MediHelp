@@ -12,7 +12,13 @@ import { ApiError } from '../src/utils/apiError.js';
 const mongod = await MongoMemoryServer.create();
 process.env.MONGODB_URI = mongod.getUri();
 process.env.JWT_SECRET = 'x'.repeat(48);
-await mongoose.connect(mongod.getUri(), { dbName: 'medihelp_errors' });
+// connectDb() rather than mongoose.connect(): it applies the global mongoose
+// settings the real server runs with, so the checks cannot pass on a
+// configuration production never uses.
+const { assertThrowawayDatabase } = await import('./_guard.js');
+assertThrowawayDatabase();
+const { connectDb } = await import('../src/config/db.js');
+await connectDb();
 await UserModel.syncIndexes();
 
 const app = createApp();

@@ -14,7 +14,13 @@ const auth = await import('../src/modules/auth/auth.service.js');
 const { UserModel, RefreshTokenModel } = await import('../src/models/index.js');
 const { verifyAccessToken } = await import('../src/utils/tokens.js');
 
-await mongoose.connect(mongod.getUri(), { dbName: 'medihelp_auth' });
+// connectDb() rather than mongoose.connect(): it applies the global mongoose
+// settings the real server runs with, so the checks cannot pass on a
+// configuration production never uses.
+const { assertThrowawayDatabase } = await import('./_guard.js');
+assertThrowawayDatabase();
+const { connectDb } = await import('../src/config/db.js');
+await connectDb();
 await UserModel.syncIndexes();
 await RefreshTokenModel.syncIndexes();
 

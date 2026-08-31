@@ -1,0 +1,59 @@
+# 2026-08-31 — Project docs and session protocol
+
+## Scope
+
+Set up the written memory for MediHelp before any code is written: `CLAUDE.md`,
+the `docs/` reference set, the phase plan, and a Stop hook that reminds each
+session to keep them current.
+
+## Changes
+
+- **`CLAUDE.md` (85 lines)** — session protocol first, then a documentation map,
+  the stack, ground rules and commands. Deliberately short: it is loaded into
+  every session's context, so detail belongs in `docs/`, not here.
+- **`docs/ARCHITECTURE.md`** — folder layout, layering rules (routes →
+  controllers → services → models), module ownership, and the swappable-provider
+  pattern for payments, storage and AI. Written so a new session can place a file
+  correctly without reading the code.
+- **`docs/SYSTEM_DESIGN.md`** — data models with the indexes that matter, the auth
+  and security design, the three flagship features in depth, and the API surface.
+  This is the file to read before touching behavior.
+- **`docs/WORKFLOW.md`** — commit style (plain language, no conventional-commit
+  prefixes or jargon, with good/bad examples), the session-note template, a
+  docs-upkeep table, and the definition of done.
+- **`docs/PHASES.md`** — twelve phases, each broken into 5–6 numbered substeps
+  (69 in total), with exit criteria. Ordered so the app is runnable early: phases
+  1–7 are the complete hospital system, 8–10 are the three differentiators, 11–12
+  are polish and hardening. Exit criteria are written as observable outcomes, not
+  "implement X", so a phase cannot be ticked off on reading the code alone. The
+  substeps are sized to be one sitting each and ordered so a phase stays runnable
+  partway through — server before client in every phase, so the UI is always built
+  against a working endpoint.
+- **`.claude/settings.local.json`** — Stop hook printing the protocol reminder.
+  Local, not project, settings so it is a personal reminder rather than something
+  imposed on anyone who clones the repo; added to `.gitignore` for the same
+  reason.
+- **`README.md`** — rewritten from a one-line stub into a human-facing intro,
+  doc index and setup steps.
+- **`.gitignore`** — `.env`, `node_modules`, uploads, build output, local settings.
+
+**Why the docs came first**: the session protocol only works if the docs it points
+at exist. Writing them up front also forced the data model, auth design and phase
+boundaries to be settled before any code locks them in.
+
+## Verification
+
+- `CLAUDE.md` is 85 lines, under the 100-line ceiling (`wc -l`).
+- Hook JSON parses and the command resolves correctly
+  (`node -e "require('./.claude/settings.local.json')"` prints the echo command).
+- The hook itself has not been observed firing — a Stop hook fires outside the
+  turn that writes it, and the settings watcher does not pick up a `.claude/`
+  directory that did not exist when the session started. Open `/hooks` once or
+  restart Claude Code to load it.
+
+## Open items
+
+- No code yet. Phase 1 (scaffold) is next.
+- `MONGODB_URI` for an Atlas cluster is still needed before Phase 2 can be
+  verified; there is no local `mongod` on this machine.
+- `.env.example` will be created in Phase 1 — the README already references it.

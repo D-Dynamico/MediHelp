@@ -1,4 +1,4 @@
-import { Schema, model, type InferSchemaType, type HydratedDocument } from 'mongoose';
+import { Schema, model, type InferSchemaType, type HydratedDocument, type Model } from 'mongoose';
 import { ROLES } from '@shared/types.js';
 
 /**
@@ -54,10 +54,19 @@ userSchema.methods.age = function age(this: UserDocument): number | undefined {
   return Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
 };
 
-export type User = InferSchemaType<typeof userSchema>;
-export type UserDocument = HydratedDocument<User> & {
+/**
+ * Declared separately so query results carry the methods — without this,
+ * `findById(...)` returns a document the compiler thinks has no `isLocked()`.
+ */
+export interface UserMethods {
+  /** True while the account is locked out after too many failed logins. */
   isLocked(): boolean;
+  /** Age in whole years, or undefined if no date of birth is on file. */
   age(): number | undefined;
-};
+}
 
-export const UserModel = model<User>('User', userSchema);
+export type User = InferSchemaType<typeof userSchema>;
+export type UserDocument = HydratedDocument<User, UserMethods>;
+type UserModelType = Model<User, object, UserMethods>;
+
+export const UserModel = model<User, UserModelType>('User', userSchema);

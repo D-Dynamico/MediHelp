@@ -58,18 +58,18 @@ inserting two appointments on the same doctor and slot raises a duplicate key er
 
 ## Phase 3 — Authentication
 
-- [ ] **3.1 Password and token utils** — bcrypt hash/compare, access-token
+- [x] **3.1 Password and token utils** — bcrypt hash/compare, access-token
       sign/verify, opaque refresh-token generation and hashing (`utils/tokens.ts`).
-- [ ] **3.2 Auth service** — register (patients only), login, refresh with family
+- [x] **3.2 Auth service** — register (patients only), login, refresh with family
       rotation and reuse detection, logout, `me`.
-- [ ] **3.3 Auth routes and validation** — zod schemas per route, the
+- [x] **3.3 Auth routes and validation** — zod schemas per route, the
       `validate(schema)` middleware, cookie setup (`httpOnly`, `sameSite=strict`,
       scoped to `/api/auth`).
-- [ ] **3.4 Guards** — `requireAuth`, `requireRole`, `requireOwnership`, and an
+- [x] **3.4 Guards** — `requireAuth`, `requireRole`, `requireOwnership`, and an
       `audit()` helper the later modules reuse.
-- [ ] **3.5 Abuse protection** — `express-rate-limit` on `/api/auth/*`, per-account
+- [x] **3.5 Abuse protection** — `express-rate-limit` on `/api/auth/*`, per-account
       `failedLogins` / `lockUntil` with a 6-failure lockout.
-- [ ] **3.6 Client auth** — `AuthContext` holding the access token in memory, axios
+- [x] **3.6 Client auth** — `AuthContext` holding the access token in memory, axios
       instance with a refresh-on-401 interceptor and a single-flight refresh queue,
       `ProtectedRoute` / `RoleRoute`, login and signup pages, silent refresh on app
       load.

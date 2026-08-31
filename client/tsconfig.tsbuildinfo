@@ -1,1 +1,1 @@
-{"root":["./src/main.tsx","./src/pages/home.tsx","./src/routes/router.tsx","./vite.config.ts"],"version":"5.9.3"}
+{"root":["./src/main.tsx","./src/api/client.ts","./src/context/authcontext.tsx","./src/hooks/useauth.ts","./src/pages/home.tsx","./src/pages/placeholder.tsx","./src/pages/auth/login.tsx","./src/pages/auth/signup.tsx","./src/routes/guards.tsx","./src/routes/router.tsx","./scripts/check-auth-client.ts","./vite.config.ts","../server/src/types/express.d.ts"],"version":"5.9.3"}

@@ -1,5 +1,4 @@
 import rateLimit, { type Options } from 'express-rate-limit';
-import type { Request } from 'express';
 import { getSettings } from '../config/env.js';
 import { ApiError } from '../utils/apiError.js';
 
@@ -23,10 +22,11 @@ function refuse(): never {
 const shared: Partial<Options> = {
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  // Behind Render's proxy the socket address is the proxy's, so the forwarded
-  // address is what identifies a caller. `trust proxy` is set in production for
-  // exactly this reason; without it every visitor would share one bucket.
-  keyGenerator: (req: Request) => req.ip ?? 'unknown',
+  // No custom keyGenerator: the library's default already groups IPv6 addresses
+  // by subnet, which a naive `req.ip` key does not — a single IPv6 client can
+  // hold billions of addresses and would otherwise walk straight past the limit.
+  // Behind Render's proxy the forwarded address is what identifies a caller,
+  // which is why `trust proxy` is set in production.
   handler: refuse,
   // Skip in tests so the checks are not throttled by each other.
   skip: () => getSettings().NODE_ENV === 'test',

@@ -21,5 +21,7 @@
       "@shared/*": ["../shared/*"]
     }
   },
-  "include": ["src", "vite.config.ts"]
+  // The client-side auth check imports the real server app, which relies on the
+  // Express request augmentation, so that declaration has to be in this program too.
+  "include": ["src", "scripts", "vite.config.ts", "../server/src/types/express.d.ts"]
 }

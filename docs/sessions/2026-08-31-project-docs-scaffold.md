@@ -121,3 +121,32 @@ with each.
 - **Not verified**: no visual browser check — the Chrome extension is not
   connected in this environment. The production build plus the proxied fetch is
   the strongest check available here.
+
+## 1.4 Shared types
+
+- `shared/types.ts` holds the contract between client and server: roles,
+  appointment statuses, payment modes and statuses, urgencies, specialities,
+  waitlist states, the uniform `ApiErrorBody`, and the DTOs for user, doctor,
+  appointment and slot.
+- Written as `as const` arrays with types derived from them
+  (`type Role = (typeof ROLES)[number]`), so each list is one declaration that
+  serves both runtime validation and the type system. `zod` enums in phase 2/3
+  will be built from these arrays rather than repeating the strings.
+- `ACTIVE_APPOINTMENT_STATUSES` is separated out with a `satisfies` check: it is
+  the set that still occupies a slot, and it drives both the unique-index filter
+  and slot generation. Getting that list wrong in two places is how double
+  bookings appear, so it is declared once.
+- The file has no imports, so it stays usable from either runtime.
+- Wired in on both sides: the server's `/api/health` is typed with
+  `HealthResponse` and a new `/api/specialities` returns the shared list; the home
+  page renders the specialities and types the health response.
+- **Snag**: after installing the client dependencies, `tsx` died with
+  `The package "@esbuild/win32-x64" could not be found`. npm had hoisted a shared
+  esbuild without its platform binary — the known npm optional-dependency bug.
+  Fixed by deleting `node_modules` and `package-lock.json` and reinstalling; the
+  committed lockfile is from that clean install.
+- Verified: both alias directions resolve at runtime, not just in the type
+  checker. `curl localhost:4000/api/specialities` returns all eight from the
+  shared value import through `tsx`, and `Gastroenterologist` appears in the
+  client's production bundle, proving the Vite alias resolves too. Typecheck and
+  lint clean on both workspaces.

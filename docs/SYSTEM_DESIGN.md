@@ -75,6 +75,12 @@ on the client. Never `localStorage`; that is the XSS exfiltration path.
 as an `httpOnly`, `sameSite=strict` cookie (`secure` in production) scoped to
 `/api/auth`. Rotated on every use.
 
+`sameSite=strict` is affordable because the client and API ship on one origin
+(see `docs/DEPLOYMENT.md`) — the cookie is never a cross-site request, so it
+needs no relaxation and the app needs no separate CSRF token layer. Splitting the
+frontend onto its own domain later would force `sameSite=none` and bring that
+requirement back; treat it as a security decision, not a hosting one.
+
 **Reuse detection** — each refresh token belongs to a `family`. Presenting a token
 that was already rotated means it was stolen: the whole family is revoked and the
 user must log in again.
@@ -92,8 +98,11 @@ appointment by changing an id in the URL.
 `validate(schema)`. Unknown keys are stripped, so a client cannot smuggle
 `role: "admin"` into a registration.
 
-**Transport and headers** — `helmet`, `express-mongo-sanitize`, `hpp`, a JSON body
-size cap, and a CORS allowlist from env.
+**Transport and headers** — `helmet`, `express-mongo-sanitize`, `hpp`, and a JSON
+body size cap. No CORS layer: client and API share an origin in both environments
+(Vite proxies in development, Express serves the built client in production), so
+there is no cross-origin request to allowlist. `trust proxy` is set in production
+so `secure` cookies and rate-limit IPs work behind Render's proxy.
 
 **Uploads** — multer with a MIME plus magic-byte check, a 2 MB cap, randomised
 filenames, served from a path that cannot execute anything.

@@ -12,7 +12,7 @@ payments, plus three features that go past the usual CRUD app:
 - **Auto-waitlist** — a cancelled slot is offered automatically to the next person
   waiting, with a claim window, so it never goes to waste.
 
-> **Status: phase 1 of 12 complete** — the scaffold runs (workspaces, API server,
+> **Status: phase 1 of 13 complete** — the scaffold runs (workspaces, API server,
 > React client, shared types). Features arrive phase by phase; the plan and
 > progress are in `docs/PHASES.md`.
 
@@ -25,6 +25,7 @@ payments, plus three features that go past the usual CRUD app:
 | [`docs/SYSTEM_DESIGN.md`](docs/SYSTEM_DESIGN.md) | Data models, auth and security, the three features, API surface |
 | [`docs/WORKFLOW.md`](docs/WORKFLOW.md) | Commit style, session notes, definition of done |
 | [`docs/PHASES.md`](docs/PHASES.md) | Build plan, phase by phase |
+| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | How it goes live: one service on Render, with Atlas and Cloudinary |
 | [`docs/sessions/`](docs/sessions/) | Running log of what changed and why |
 
 ## Stack

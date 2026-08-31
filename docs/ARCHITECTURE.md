@@ -90,7 +90,7 @@ the project boots and demos with just `MONGODB_URI`:
 | Provider | Default (no keys) | Real option |
 |---|---|---|
 | `providers/payment` | `mock` — fake order id, marks paid | Razorpay orders + HMAC signature verification |
-| `providers/storage` | `local` — writes to `server/uploads/` | Cloud object storage |
+| `providers/storage` | `local` — writes to `server/uploads/` | Cloudinary (used in production) |
 | `providers/ai` | `rules` — deterministic offline triage engine | Claude API when `ANTHROPIC_API_KEY` is set |
 
 Adding a real provider must never change a caller. If it does, the interface is
@@ -107,4 +107,17 @@ lives in `.env.example` with a comment.
 
 Root `package.json` runs both packages with `concurrently`. Vite proxies `/api`
 and `/socket.io` to `localhost:4000` in dev, so there is no CORS configuration to
-fight locally. In production the API sets an explicit CORS allowlist from env.
+fight locally.
+
+## Production topology
+
+The same two packages ship as **one service**: Express serves `/api`,
+`/socket.io` and — in production only — the built client from `client/dist`, all
+on one origin. There is no CORS layer in production either, and the refresh
+cookie keeps `sameSite=strict` because nothing is cross-site.
+
+The development proxy exists precisely so the client makes the same same-origin
+relative requests (`/api/...`) in both environments. Nothing in the client knows
+an API base URL, so there is no environment-specific client build.
+
+Deployment target, host settings and caveats: `docs/DEPLOYMENT.md`.

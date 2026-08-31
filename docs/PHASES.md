@@ -5,7 +5,8 @@ stays that way. Each phase breaks into numbered substeps and ends with **exit
 criteria** — observable outcomes, not "implement X". Tick the boxes as they land.
 
 Phases 1–7 are the complete hospital management system. Phases 8–10 are the three
-features that set this apart. Phases 11–12 make it presentable.
+features that set this apart. Phases 11–12 make it presentable, and phase 13 puts
+it online. Deployment target and its consequences are in `docs/DEPLOYMENT.md`.
 
 A substep is done when it runs, not when it compiles.
 
@@ -84,7 +85,10 @@ refresh keeps the user signed in; six bad passwords lock the account.
 - [ ] **4.1 Dashboard stats** — one aggregation returning doctor, patient and
       appointment counts, revenue, today's upcoming, and the latest five bookings.
 - [ ] **4.2 Upload middleware** — multer with MIME plus magic-byte checking, a 2 MB
-      cap, randomised filenames, and the `providers/storage` local implementation.
+      cap, randomised filenames, the `providers/storage` local implementation, and
+      the Cloudinary implementation behind the same interface (local stays the
+      default; Cloudinary activates only when the keys are set, because Render's
+      disk is ephemeral).
 - [ ] **4.3 Add doctor** — multipart endpoint creating the `User` and `Doctor`
       together in one transaction, with a validated speciality list.
 - [ ] **4.4 Doctor management** — list, edit, and soft delete (`isActive: false`)
@@ -273,3 +277,35 @@ spinner-forever state anywhere in the three role journeys.
 
 **Exit**: a clean clone with only `MONGODB_URI` and `JWT_SECRET` set runs the whole
 demo — all three roles, all three flagship features — by following the README alone.
+
+---
+
+## Phase 13 — Deploy
+
+Target: one Render web service serving the API, the websocket and the built
+client from a single origin, with Atlas and Cloudinary. The reasoning, the Render
+settings and the caveats are in `docs/DEPLOYMENT.md`.
+
+- [ ] **13.1 Production build** — root `start` script, `tsc` server build verified
+      from a clean clone, `PORT` read from env and bound on `0.0.0.0`.
+- [ ] **13.2 Serve the client** — in production only, Express serves `client/dist`
+      with cache headers and an SPA fallback, ordered after `/api` and
+      `/socket.io` so neither falls through to `index.html`.
+- [ ] **13.3 Behind a proxy** — `trust proxy`, `secure` cookies in production
+      (off in development so localhost http still works), rate limiting keyed on
+      the forwarded IP rather than the proxy's.
+- [ ] **13.4 Cloudinary provider** — the storage implementation activated by
+      `STORAGE_PROVIDER=cloudinary`, with the local provider untouched as the
+      development default.
+- [ ] **13.5 Seed safety** — the seed script refuses to run against a database
+      that already has users unless `--force` is passed, so seeding production is
+      deliberate and a rerun cannot wipe real data.
+- [ ] **13.6 Ship it** — Atlas network access and user, Render service with build,
+      start and health-check settings, environment variables set, first deploy.
+- [ ] **13.7 Verify live** — the five post-deploy checks in `docs/DEPLOYMENT.md`:
+      all three logins, a booking, the live queue in two browsers, a photo upload
+      that survives a redeploy, and a hard-refreshed deep link.
+
+**Exit**: the deployed URL runs the full demo — three roles, triage, live queue,
+waitlist — with no secret in the repo, an uploaded photo still present after a
+redeploy, and the websocket updating a second browser in real time.

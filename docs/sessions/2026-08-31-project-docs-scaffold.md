@@ -188,3 +188,41 @@ Phase 1 complete; boxes ticked in `docs/PHASES.md`.
 - `MONGODB_URI` for an Atlas cluster is needed before phase 2 can be verified end
   to end; there is no local `mongod` on this machine.
 - Work is on branch `phase-1-scaffold`, not merged to `main`.
+
+---
+
+# Deployment decisions
+
+The project is going to be deployed, which forced three choices before phases
+3, 4 and 7 bake in assumptions that only break in production.
+
+- **One service, one origin** — Express serves `/api`, `/socket.io` and the built
+  client. **Why**: it keeps the refresh cookie at `sameSite=strict`. A split
+  deployment (frontend on Vercel, API elsewhere) would force `sameSite=none`,
+  which sends the cookie cross-site and reopens the CSRF hole `strict` closes for
+  free — meaning a CSRF token layer we otherwise never need. It also removes CORS
+  from both environments and keeps the client free of any API base URL, so there
+  is no environment-specific client build.
+- **Render free tier** — supports websockets and a long-lived process, which
+  Socket.IO and the `node-cron` sweeper both require (Vercel serverless could not
+  host either). It sleeps after 15 minutes: first request takes ~50s, and the
+  sweeper does not run while asleep. Accepted, because the claim window is checked
+  against the clock at claim time rather than trusted to have been swept, so
+  waitlist offers expire *late*, never *wrongly*. Documented rather than papered
+  over with an external pinger.
+- **Cloudinary for images** — Render's disk is ephemeral, so `server/uploads/`
+  would be wiped on every redeploy and doctor photos would vanish. The storage
+  provider interface was already planned, so this is one implementation file plus
+  keys; local disk stays the development default when no keys are set.
+
+Docs changed: new `docs/DEPLOYMENT.md` (topology, Render settings, Atlas and
+Cloudinary setup, pre-deploy checklist, five post-deploy checks);
+`docs/ARCHITECTURE.md` gained a production-topology section; `docs/SYSTEM_DESIGN.md`
+records why `sameSite=strict` is affordable and drops the CORS allowlist that the
+same-origin decision makes unnecessary; `docs/PHASES.md` gained **phase 13**
+(7 substeps) and 4.2 now includes the Cloudinary implementation; `.env.example`
+gained the Cloudinary keys and an honest `CORS_ORIGINS` note; README links the new
+doc and says 13 phases.
+
+No application code changed — the static-serving branch, `trust proxy` and the
+Cloudinary provider are phase 13 and 4.2 work.

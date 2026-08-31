@@ -341,3 +341,42 @@ working (a signed-in doctor is bounced off `/login`).
 session short after repeated sign-ins — which is the limiter behaving correctly,
 not a fault. Its behaviour is covered by the check script; only its rendering is
 unconfirmed.
+
+---
+
+## 5.1 — Doctor profile endpoints
+
+**What changed.** A `doctors` module with `GET /api/doctor/profile` and
+`PATCH /api/doctor/profile` (multipart, optional new photo), mounted at
+`/api/doctor`.
+
+**Decisions.**
+
+- *There is no id in any of these routes.* The doctor being acted on is always
+  the one the verified token belongs to, found by `userId`. Ownership is
+  therefore a property of the query rather than a check bolted on after it —
+  there is no id for anyone to swap for someone else's.
+- *A doctor may change less than an admin may.* They set their own fee, hours,
+  description, address and availability. They cannot touch their speciality,
+  degree or years of experience: those are the clinic's claims about their
+  credentials, and letting the account holder rewrite them would make the public
+  listing self-certified. Those fields are simply absent from the schema, so
+  `validate()` strips them — the check posts all three and asserts nothing moved.
+- *Admins are refused here, not waved through.* These routes act on "whoever is
+  signed in", and an admin has no doctor profile of their own. They manage
+  doctors through `/api/admin/doctors`, where the target is named explicitly.
+- *`workingHours` arrives as a JSON string.* The rest of the form is multipart,
+  which has no agreed way to carry an array of objects; parsing it in the schema
+  keeps that ugliness at the boundary.
+- *A missing profile is a clear 404, not a null dereference.* It should be
+  impossible — the account and the profile are written in one transaction — so if
+  it happens it is a bug that deserves a message naming it.
+
+**Files.** `shared/types.ts` (`DoctorProfileDto`, `WorkingHoursDto`),
+`server/src/modules/doctors/{doctor.schema,doctor.service,doctor.controller,doctor.routes,doctor.mapper}.ts`,
+`server/src/app.ts`, `server/scripts/check-doctor.ts`, `server/package.json`.
+
+**Verification.** `npm run check:doctor --workspace server` — 19 assertions, all
+green: the three guards, a doctor reading and editing only their own record, the
+credential fields being ignored when smuggled in, and a second doctor's record
+being untouched by the first one's edit.

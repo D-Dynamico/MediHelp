@@ -1,4 +1,4 @@
-import type { DoctorDto, Speciality } from '@shared/types.js';
+import type { DoctorDto, DoctorProfileDto, Speciality } from '@shared/types.js';
 import type { DoctorDocument, UserDocument } from '../../models/index.js';
 
 /**
@@ -31,5 +31,26 @@ export function toDoctorDto(doctor: DoctorDocument, user: UserDocument): DoctorD
     },
     available: doctor.available,
     slotDurationMins: doctor.slotDurationMins,
+  };
+}
+
+/**
+ * The same doctor, plus the parts only they need to see: their phone number,
+ * the hours they work, and the consult length the queue's estimate is built
+ * from. None of these belong on the public listing.
+ */
+export function toDoctorProfileDto(
+  doctor: DoctorDocument,
+  user: UserDocument,
+): DoctorProfileDto {
+  return {
+    ...toDoctorDto(doctor, user),
+    ...(user.phone ? { phone: user.phone } : {}),
+    workingHours: (doctor.workingHours ?? []).map((entry) => ({
+      day: entry.day,
+      start: entry.start,
+      end: entry.end,
+    })),
+    medianConsultMins: doctor.medianConsultMins,
   };
 }

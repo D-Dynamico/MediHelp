@@ -117,6 +117,26 @@ export interface DoctorDto {
   slotDurationMins: number;
 }
 
+/** One sitting on one weekday. 0 = Sunday, matching `Date.getDay()`. */
+export interface WorkingHoursDto {
+  day: number;
+  /** "HH:mm", 24-hour, in the clinic's local time. */
+  start: string;
+  end: string;
+}
+
+/**
+ * A doctor's view of their own record. Everything in `DoctorDto` plus the parts
+ * only they need: their phone number, the hours they work, and the consult
+ * length the queue's wait estimate is built from.
+ */
+export interface DoctorProfileDto extends DoctorDto {
+  phone?: string;
+  workingHours: WorkingHoursDto[];
+  /** Minutes. Learned from completed consults, not set by hand. */
+  medianConsultMins: number;
+}
+
 /**
  * A doctor as the admin sees them — the public profile plus the two things only
  * an admin has any business knowing: the phone number and whether the account

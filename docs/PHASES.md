@@ -107,7 +107,7 @@ from the dashboard reopens the slot.
 
 ## Phase 5 — Doctor dashboard
 
-- [ ] **5.1 Profile endpoints** — read and update own profile (about, fees,
+- [x] **5.1 Profile endpoints** — read and update own profile (about, fees,
       address, availability), ownership-checked.
 - [ ] **5.2 Availability model** — working hours per weekday and slot duration, with
       validation that end beats start and windows do not overlap.

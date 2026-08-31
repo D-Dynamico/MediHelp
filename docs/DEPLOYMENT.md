@@ -109,7 +109,21 @@ pinger — that burns the free tier's monthly hours for no real benefit.
 2. **Network Access** → allow `0.0.0.0/0`. Render's free tier has no static
    outbound IP, so an IP allowlist cannot be narrowed. The database user's
    password is the real access control; make it long and random.
-3. Put the connection string in `MONGODB_URI`, including the database name.
+3. Put the connection string in `MONGODB_URI`, including the database name —
+   the part after `.net/`. Without it you land in a database called `test`.
+
+Then check it from your machine:
+
+```bash
+npm run check:atlas --workspace server            # read-only: connect and inspect
+npm run check:atlas --workspace server -- --seed  # also seed, only if empty
+```
+
+It verifies the things only a real cluster can: the `mongodb+srv://` connection,
+the server version, that both partial unique indexes and the TTL index are
+actually created, and that a write round-trips and uniqueness is enforced. It is
+read-only unless you pass `--seed`, and it refuses to seed a database that
+already has data.
 
 Seeding production is a deliberate act, not part of the deploy: run
 `npm run seed` against the production `MONGODB_URI` from your machine, once. The

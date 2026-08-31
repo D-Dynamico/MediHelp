@@ -71,8 +71,22 @@ export type Settings = z.infer<typeof schema> & {
 
 let cached: Settings | null = null;
 
+/**
+ * A key present but empty (`SEED_ADMIN_PASSWORD=` straight out of .env.example)
+ * means "not set", not "set to the empty string". Without this, copying the
+ * example file and filling in only the required keys fails at startup with a
+ * complaint about a field the user was told is optional.
+ */
+function withoutBlanks(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const cleaned: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (value !== undefined && value.trim() !== '') cleaned[key] = value;
+  }
+  return cleaned;
+}
+
 function parse(): Settings {
-  const result = schema.safeParse(process.env);
+  const result = schema.safeParse(withoutBlanks(process.env));
 
   if (!result.success) {
     const lines = result.error.issues.map(

@@ -59,3 +59,14 @@ npm run typecheck        # tsc --noEmit on both packages
 npm run lint
 npm run build            # production build of both
 ```
+
+Checks — these run against a real MongoDB started on the fly, so they need no
+setup:
+
+```bash
+npm run check --workspace server   # models, errors, auth, rate limiting, seed
+npm run check --workspace client   # the browser side of signing in
+```
+
+Once you have an Atlas cluster in `.env`, `npm run check:atlas --workspace server`
+verifies the things only a hosted cluster can show.

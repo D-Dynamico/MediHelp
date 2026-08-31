@@ -93,3 +93,31 @@ with each.
   `server/src/index.ts`.
 - Verified: `npm run typecheck` and `npm run lint` both clean;
   `curl localhost:4000/api/health` → `{"status":"ok","uptime":4.74}`.
+
+## 1.3 Client package
+
+- `client/` on Vite 6 + React 19 + TypeScript, Tailwind 3, React Router 7.
+  A single app with role-guarded route groups, so `routes/router.tsx` is the one
+  place route groups get added in later phases.
+- Vite proxies `/api` and `/socket.io` (with `ws: true`) to `localhost:4000`, so
+  there is no CORS setup in development and the websocket upgrade in phase 9 will
+  already work.
+- Tailwind carries the theme tokens (`brand`, `ink`, `surface`) and
+  `darkMode: 'class'` from the start, so phase 11's polish is a matter of using
+  the tokens rather than retrofitting them.
+- Aliases `@/*` → `src` and `@shared/*` → `../shared` are set in both
+  `vite.config.ts` and `tsconfig.json`; the editor and the bundler have to agree
+  or one of them silently breaks.
+- The home page fetches `/api/health` and shows the result — a live check that the
+  proxy works, not just a static placeholder.
+- Files: `client/package.json`, `vite.config.ts`, `tsconfig.json`,
+  `tailwind.config.js`, `postcss.config.js`, `eslint.config.js`, `index.html`,
+  `src/main.tsx`, `src/index.css`, `src/routes/router.tsx`, `src/pages/Home.tsx`.
+- Verified: `npm run dev` starts both; `curl localhost:5173/` serves the app shell
+  and `curl localhost:5173/api/health` returns the API's response through the
+  proxy. `npm run build --workspace client` succeeds (42 modules) and the built
+  CSS carries the theme tokens (`body{background-color:rgb(246 248 251...)}`,
+  `text-brand-700`).
+- **Not verified**: no visual browser check — the Chrome extension is not
+  connected in this environment. The production build plus the proxied fetch is
+  the strongest check available here.

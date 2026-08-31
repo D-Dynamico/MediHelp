@@ -137,6 +137,18 @@ export interface DoctorProfileDto extends DoctorDto {
   medianConsultMins: number;
 }
 
+/** What a doctor has earned, and off how much work. */
+export interface DoctorEarningsDto {
+  /** Rupees collected across every completed, paid consult. */
+  total: number;
+  /** The same, for the calendar month in progress. */
+  thisMonth: number;
+  /** Completed consults, all time. */
+  appointments: number;
+  /** Distinct people seen, all time — not the same as the consult count. */
+  patients: number;
+}
+
 /**
  * A doctor as the admin sees them — the public profile plus the two things only
  * an admin has any business knowing: the phone number and whether the account

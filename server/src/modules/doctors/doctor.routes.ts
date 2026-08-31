@@ -23,6 +23,7 @@ export const doctorRouter = Router();
 doctorRouter.use(requireAuth, requireRole('doctor'));
 
 doctorRouter.get('/profile', controller.getProfile);
+doctorRouter.get('/earnings', controller.earnings);
 
 // Upload before validation: the body is multipart, so until multer has read it
 // there are no fields for the schema to look at.

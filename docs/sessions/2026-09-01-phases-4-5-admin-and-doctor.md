@@ -503,3 +503,47 @@ completed, cancelled or restarted.
 One check-script fix worth noting: it originally hunted the seed for a booked
 *cash* appointment of this doctor's. Which seeded row happens to be cash is an
 accident of the seed's ordering, so the script now sets up that condition itself.
+
+---
+
+## 5.5 — Earnings
+
+**What changed.** `GET /api/doctor/earnings` — total collected, this month's
+share, completed consults, and distinct patients seen — in one `$facet`
+aggregation.
+
+**Decisions.**
+
+- *Completed **and** paid, both conditions.* Completed alone would count a
+  consult the patient walked out of without paying; paid alone would count a card
+  payment for a booking that was later cancelled and refunded. Neither is money
+  the doctor earned, and the check asserts both cases are excluded.
+- *The amount comes from the appointment's frozen `amount`, not the doctor's
+  current fee.* Otherwise raising the fee today would silently rewrite what every
+  past consult was worth — the same reason `docSnapshot` exists.
+- *"Patients" means distinct people, not consults.* Someone seen monthly all year
+  is one patient. Grouping by `patientId` before counting is what makes that
+  true; the check asserts the patient count never exceeds the consult count.
+- *One aggregation, like the admin dashboard*, for a tile row that loads on every
+  visit to the doctor's home page.
+
+**Files.** `shared/types.ts` (`DoctorEarningsDto`),
+`server/src/modules/doctors/{doctor.service,doctor.controller,doctor.routes}.ts`,
+`server/scripts/check-doctor.ts`.
+
+**Verification.** `check:doctor` now 91 assertions, all green; `check:admin` (87)
+and `check:upload` (21) unchanged. `typecheck`, `lint` and `build` clean.
+
+**The phase 5 exit criterion is asserted directly:** completing one appointment
+raises the earnings total by exactly its fee and the consult count by exactly
+one. That check creates its own appointment rather than borrowing one from the
+seed — by the time it runs, the 5.4 block has completed or cancelled everything
+of this doctor's that was still open, so a check hunting for a leftover booking
+**silently skipped itself**, which is worse than failing because it reads as a
+pass. Two neighbouring assertions had the same weakness and were rewritten; one
+of them had been comparing the same API call against itself and could never have
+failed.
+
+The other half of the exit criterion — a doctor cannot act on another doctor's
+appointment even by editing the id in the URL — is asserted in 5.4 for all three
+actions.

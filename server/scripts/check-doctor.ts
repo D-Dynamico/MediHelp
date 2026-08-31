@@ -503,6 +503,147 @@ check(
   await AuditLogModel.countDocuments({ actorId: anita!._id }),
 );
 
+/* ----------------------------------------------------------- 5.5 earnings --- */
+
+type Earnings = { total: number; thisMonth: number; appointments: number; patients: number };
+const earningsOf = (body: unknown) => body as Earnings;
+
+check(
+  'a patient cannot read a doctor\'s earnings',
+  (await call('/api/doctor/earnings', { token: patientToken })).status === 403,
+);
+check('earnings need a token', (await call('/api/doctor/earnings')).status === 401);
+
+const paidFilter = {
+  doctorId: anitaDoctor!._id,
+  status: 'completed' as const,
+  'payment.status': 'paid' as const,
+};
+
+const money = await call('/api/doctor/earnings', { token: anitaToken });
+check('a doctor reads their own earnings', money.status === 200, money.status);
+
+const expected = await Appts.aggregate<{ total: number; n: number }>([
+  { $match: paidFilter },
+  { $group: { _id: null, total: { $sum: '$amount' }, n: { $sum: 1 } } },
+]);
+check(
+  'the total is the sum of completed, paid consults',
+  earningsOf(money.body).total === (expected[0]?.total ?? 0),
+  { got: earningsOf(money.body).total, expected: expected[0]?.total },
+);
+check(
+  'the consult count matches',
+  earningsOf(money.body).appointments === (expected[0]?.n ?? 0),
+  earningsOf(money.body).appointments,
+);
+check('the doctor has actually earned something', earningsOf(money.body).total > 0, earningsOf(money.body));
+
+// Distinct people, not consults. Someone seen monthly all year is one patient.
+const distinct = await Appts.aggregate<{ _id: null; n: number }>([
+  { $match: paidFilter },
+  { $group: { _id: '$patientId' } },
+  { $count: 'n' },
+]);
+check(
+  'the patient count is distinct people, not consults',
+  earningsOf(money.body).patients === (distinct[0]?.n ?? 0),
+  { got: earningsOf(money.body).patients, expected: distinct[0]?.n },
+);
+check(
+  'there are no more patients than consults',
+  earningsOf(money.body).patients <= earningsOf(money.body).appointments,
+  earningsOf(money.body),
+);
+
+const startOfMonth = new Date(startOfTodayUtc);
+startOfMonth.setUTCDate(1);
+const monthly = await Appts.aggregate<{ total: number }>([
+  { $match: { ...paidFilter, slotStart: { $gte: startOfMonth } } },
+  { $group: { _id: null, total: { $sum: '$amount' } } },
+]);
+check(
+  "this month's figure matches the database",
+  earningsOf(money.body).thisMonth === (monthly[0]?.total ?? 0),
+  { got: earningsOf(money.body).thisMonth, expected: monthly[0]?.total },
+);
+check(
+  'this month is never more than the total',
+  earningsOf(money.body).thisMonth <= earningsOf(money.body).total,
+  earningsOf(money.body),
+);
+
+// The exit criterion for the phase: completing one appointment raises the tile
+// by exactly its fee, and by nothing else.
+//
+// The appointment is created here rather than borrowed from the seed. By this
+// point the earlier blocks have completed or cancelled everything of Anita's
+// that was still open, so a check that looked for a leftover booking would
+// quietly skip itself — which is worse than failing, because it looks like a
+// pass.
+const anitaFee = 777;
+async function bookForAnita(overrides: Record<string, unknown> = {}) {
+  const slot = new Date(Date.now() + Math.random() * 30 * 24 * 60 * 60_000);
+  slot.setUTCMinutes(0, 0, 0);
+  return Appts.create({
+    patientId: (await Users.findOne({ email: 'sneha@medihelp.test' }))!._id,
+    doctorId: anitaDoctor!._id,
+    slotStart: slot,
+    slotEnd: new Date(slot.getTime() + 30 * 60_000),
+    tokenNumber: 1,
+    status: 'booked',
+    amount: anitaFee,
+    payment: { mode: 'cash', status: 'pending_at_desk' },
+    docSnapshot: { name: 'Dr. Anita Rao', speciality: 'General physician', fees: anitaFee },
+    ...overrides,
+  });
+}
+
+const fresh = await bookForAnita();
+const before = earningsOf((await call('/api/doctor/earnings', { token: anitaToken })).body);
+const completedIt = await act(String(fresh._id), 'complete', anitaToken);
+check('the exit-criterion consult completed', completedIt.status === 200, completedIt.body);
+
+const after = earningsOf((await call('/api/doctor/earnings', { token: anitaToken })).body);
+check(
+  'completing an appointment raises the total by exactly its fee',
+  after.total === before.total + anitaFee,
+  { before: before.total, after: after.total, fee: anitaFee },
+);
+check('the consult count went up by exactly one', after.appointments === before.appointments + 1,
+  { before: before.appointments, after: after.appointments });
+check(
+  "this month's figure moved too, since the slot is in this month or the next",
+  after.thisMonth >= before.thisMonth,
+  { before: before.thisMonth, after: after.thisMonth },
+);
+
+// A cancelled consult is not earnings, however it was paid for.
+const paidThenCancelled = await bookForAnita({ status: 'cancelled', payment: { mode: 'razorpay', status: 'paid' } });
+const withCancelled = earningsOf((await call('/api/doctor/earnings', { token: anitaToken })).body);
+check(
+  'a cancelled consult is not earnings even when it was paid for',
+  withCancelled.total === after.total,
+  { before: after.total, after: withCancelled.total, ignored: anitaFee },
+);
+await Appts.deleteOne({ _id: paidThenCancelled._id });
+
+// Nor is a completed consult that was never paid for.
+const completedUnpaid = await bookForAnita({ status: 'completed', payment: { mode: 'cash', status: 'pending_at_desk' } });
+check(
+  'a completed consult that was never paid for is not earnings',
+  earningsOf((await call('/api/doctor/earnings', { token: anitaToken })).body).total === after.total,
+);
+await Appts.deleteOne({ _id: completedUnpaid._id });
+
+// Another doctor's earnings are their own.
+const meeraMoney = earningsOf((await call('/api/doctor/earnings', { token: meeraToken })).body);
+check(
+  "one doctor's earnings are not another's",
+  meeraMoney.total !== earningsOf((await call('/api/doctor/earnings', { token: anitaToken })).body).total,
+  { meera: meeraMoney.total },
+);
+
 console.log(`\n${results.join('\n')}\n`);
 
 server.close();

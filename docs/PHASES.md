@@ -115,7 +115,7 @@ from the dashboard reopens the slot.
       time, payment mode and status; filters for today, upcoming and past.
 - [x] **5.4 Actions** — complete and cancel, guarded by ownership, writing audit
       rows and settling cash payments on completion.
-- [ ] **5.5 Earnings** — aggregation over completed and paid appointments; total,
+- [x] **5.5 Earnings** — aggregation over completed and paid appointments; total,
       this month, and appointment/patient counts.
 - [ ] **5.6 Doctor UI** — earnings and count tiles, appointment table with actions,
       profile editor with the availability grid.

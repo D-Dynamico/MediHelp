@@ -52,3 +52,7 @@ export const cancelAppointment: RequestHandler = async (req, res) => {
   await audit(req, 'appointment.cancel', { type: 'Appointment', id: appointment.id });
   res.json({ appointment });
 };
+
+export const earnings: RequestHandler = async (req, res) => {
+  res.json(await doctorService.earnings(req.auth!.userId));
+};

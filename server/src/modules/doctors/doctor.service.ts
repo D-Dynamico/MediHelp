@@ -1,7 +1,7 @@
-import type { DoctorProfileDto } from '@shared/types.js';
-import { DoctorModel, UserModel } from '../../models/index.js';
+import type { DoctorEarningsDto, DoctorProfileDto } from '@shared/types.js';
+import { AppointmentModel, DoctorModel, UserModel } from '../../models/index.js';
 import { ApiError } from '../../utils/apiError.js';
-import { endOfDayUtc, startOfDayUtc } from '../../utils/dates.js';
+import { endOfDayUtc, startOfDayUtc, startOfMonthUtc } from '../../utils/dates.js';
 import {
   cancelAppointment,
   completeAppointment,
@@ -133,3 +133,54 @@ export async function listOwnAppointments(
  * there, not here.
  */
 export { cancelAppointment, completeAppointment, startConsult };
+
+/* ------------------------------------------------------------ earnings --- */
+
+/** The raw shape the earnings aggregation returns, before it is tidied up. */
+interface EarningsFacets {
+  overall: { total: number; appointments: number }[];
+  month: { total: number }[];
+  patients: { n: number }[];
+}
+
+/**
+ * What this doctor has earned.
+ *
+ * Completed *and* paid, both. Completed alone would count a consult the patient
+ * walked out of without paying; paid alone would count a card payment for a
+ * booking that was later cancelled and refunded. Neither is money the doctor has
+ * earned.
+ *
+ * The amount comes from the appointment's own `amount`, frozen at booking time,
+ * not from the doctor's current fee — otherwise raising the fee today would
+ * silently rewrite what every past consult was worth.
+ */
+export async function earnings(userId: string): Promise<DoctorEarningsDto> {
+  const doctor = await DoctorModel.findOne({ userId }).select('_id');
+  if (!doctor) throw ApiError.notFound('Your doctor profile is missing.');
+
+  const [facets] = await AppointmentModel.aggregate<EarningsFacets>([
+    { $match: { doctorId: doctor._id, status: 'completed', 'payment.status': 'paid' } },
+    {
+      $facet: {
+        overall: [
+          { $group: { _id: null, total: { $sum: '$amount' }, appointments: { $sum: 1 } } },
+        ],
+        month: [
+          { $match: { slotStart: { $gte: startOfMonthUtc() } } },
+          { $group: { _id: null, total: { $sum: '$amount' } } },
+        ],
+        // Distinct people, not consults: someone seen monthly all year is one
+        // patient. Grouping by id first is what makes that true.
+        patients: [{ $group: { _id: '$patientId' } }, { $count: 'n' }],
+      },
+    },
+  ]);
+
+  return {
+    total: facets?.overall[0]?.total ?? 0,
+    thisMonth: facets?.month[0]?.total ?? 0,
+    appointments: facets?.overall[0]?.appointments ?? 0,
+    patients: facets?.patients[0]?.n ?? 0,
+  };
+}

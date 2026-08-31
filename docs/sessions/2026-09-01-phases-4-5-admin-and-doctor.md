@@ -380,3 +380,44 @@ unconfirmed.
 green: the three guards, a doctor reading and editing only their own record, the
 credential fields being ignored when smuggled in, and a second doctor's record
 being untouched by the first one's edit.
+
+---
+
+## 5.2 — Availability validation
+
+**What changed.** `server/src/utils/availability.ts` — one function that finds
+everything wrong with a set of working hours — wired into the profile schema as a
+`superRefine`.
+
+**Decisions.**
+
+- *This is refused at the boundary because of what depends on it.* Slot
+  generation (phase 6) walks each window from start to end in slot-sized steps.
+  It cannot tell a genuine overnight shift from a typo, and two overlapping
+  windows produce the same slot twice — which then races the unique index and
+  surfaces to a patient as a booking that mysteriously fails. Refusing the grid
+  is far cheaper than either.
+- *Touching windows are allowed.* 09:00–13:00 followed by 13:00–17:00 is one long
+  day, not a clash. Only a genuine overlap is refused.
+- *Every problem is reported at once, not just the first.* A doctor filling in a
+  week's grid should be able to fix their whole Tuesday in one pass instead of
+  resubmitting five times. Issues carry the row index as their path, so a form
+  can mark the offending rows.
+- *Validation lives in the schema, not the service.* A bad grid is then a 422
+  with per-field messages like every other validation failure in the app, and it
+  never reaches the database.
+- *Overlaps are found by sorting each day's windows by start time.* Once ordered,
+  a window can only clash with the one immediately before it — one pass per day
+  rather than comparing every pair. The check asserts the same clash is caught
+  whichever order it is submitted in.
+
+**Files.** `server/src/utils/availability.ts`,
+`server/src/modules/doctors/doctor.schema.ts`, `server/scripts/check-doctor.ts`.
+
+**Verification.** `npm run check:doctor --workspace server` — now 35 assertions,
+all green. The availability ones cover: a sensible grid saved and read back,
+back-to-back sittings allowed, backwards and zero-length and too-short sittings
+refused with the day named, overlaps caught in either submission order, the same
+hours on different days allowed, two bad rows both reported, malformed times and
+weekdays refused, unparseable JSON refused — and, after all of those, the stored
+grid is still the last good one.

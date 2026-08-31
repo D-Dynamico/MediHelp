@@ -109,7 +109,7 @@ from the dashboard reopens the slot.
 
 - [x] **5.1 Profile endpoints** — read and update own profile (about, fees,
       address, availability), ownership-checked.
-- [ ] **5.2 Availability model** — working hours per weekday and slot duration, with
+- [x] **5.2 Availability model** — working hours per weekday and slot duration, with
       validation that end beats start and windows do not overlap.
 - [ ] **5.3 Appointment list** — own appointments with patient name, age, date,
       time, payment mode and status; filters for today, upcoming and past.

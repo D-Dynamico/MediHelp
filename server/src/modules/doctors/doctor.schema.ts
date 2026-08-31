@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { findAvailabilityProblems } from '../../utils/availability.js';
 
 /**
  * What a doctor may change about themselves.
@@ -49,7 +50,23 @@ export const updateProfileSchema = z
           return z.NEVER;
         }
       })
-      .pipe(z.array(workingHoursEntrySchema).max(21, 'That is more sittings than a week holds.')),
+      .pipe(
+        z
+          .array(workingHoursEntrySchema)
+          .max(21, 'That is more sittings than a week holds.')
+          // Checked here rather than in the service, so a bad grid is a 422 with
+          // per-row messages like every other validation failure, and never
+          // reaches the database.
+          .superRefine((windows, ctx) => {
+            for (const problem of findAvailabilityProblems(windows)) {
+              ctx.addIssue({
+                code: 'custom',
+                path: [problem.index],
+                message: problem.message,
+              });
+            }
+          }),
+      ),
   })
   .partial()
   .refine((body) => Object.keys(body).length > 0, 'Nothing to change.');

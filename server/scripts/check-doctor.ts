@@ -155,6 +155,105 @@ const meeraBefore = profileOf((await call('/api/doctor/profile', { token: meeraT
 check('a second doctor sees a different record', meeraBefore.email === 'nair@medihelp.test');
 check('the first doctor\'s edit left the second alone', meeraBefore.fees !== 650, meeraBefore.fees);
 
+/* ------------------------------------------------------- 5.2 availability --- */
+
+const hours = (windows: { day: number; start: string; end: string }[]) =>
+  call('/api/doctor/profile', {
+    method: 'PATCH',
+    token: anitaToken,
+    form: { workingHours: JSON.stringify(windows) },
+  });
+
+const detailsOf = (body: unknown) =>
+  (body as { error?: { details?: Record<string, string> } }).error?.details ?? {};
+
+const goodGrid = [
+  { day: 1, start: '09:00', end: '13:00' },
+  { day: 1, start: '16:00', end: '19:00' },
+  { day: 3, start: '10:00', end: '14:00' },
+];
+const saved = await hours(goodGrid);
+check('a sensible grid is accepted', saved.status === 200, saved.body);
+check('the grid came back as saved', profileOf(saved.body).workingHours.length === 3, profileOf(saved.body).workingHours);
+
+// Touching windows are one long day, not a clash.
+const touching = await hours([
+  { day: 2, start: '09:00', end: '13:00' },
+  { day: 2, start: '13:00', end: '17:00' },
+]);
+check('back-to-back sittings are allowed', touching.status === 200, touching.body);
+
+const backwards = await hours([{ day: 1, start: '17:00', end: '09:00' }]);
+check('a sitting that ends before it starts is refused', backwards.status === 422, backwards.status);
+check(
+  'the refusal names the day and the row',
+  String(detailsOf(backwards.body)['workingHours.0']).includes('Monday'),
+  detailsOf(backwards.body),
+);
+
+const zeroLength = await hours([{ day: 1, start: '09:00', end: '09:00' }]);
+check('a zero-length sitting is refused', zeroLength.status === 422, zeroLength.status);
+
+const tooShort = await hours([{ day: 1, start: '09:00', end: '09:03' }]);
+check('a sitting too short for an appointment is refused', tooShort.status === 422, tooShort.status);
+
+const overlapping = await hours([
+  { day: 4, start: '09:00', end: '13:00' },
+  { day: 4, start: '12:00', end: '17:00' },
+]);
+check('overlapping sittings are refused', overlapping.status === 422, overlapping.status);
+check(
+  'the overlap is reported against the later row',
+  'workingHours.1' in detailsOf(overlapping.body),
+  detailsOf(overlapping.body),
+);
+
+// Order must not matter: the same clash written the other way round is still a clash.
+const overlapReversed = await hours([
+  { day: 4, start: '12:00', end: '17:00' },
+  { day: 4, start: '09:00', end: '13:00' },
+]);
+check('an overlap is caught whichever order it is sent in', overlapReversed.status === 422, overlapReversed.status);
+
+// Same clock times, different days, is not an overlap.
+const differentDays = await hours([
+  { day: 5, start: '09:00', end: '13:00' },
+  { day: 6, start: '09:00', end: '13:00' },
+]);
+check('the same hours on different days are fine', differentDays.status === 200, differentDays.body);
+
+const everyProblem = await hours([
+  { day: 1, start: '17:00', end: '09:00' },
+  { day: 2, start: '09:00', end: '13:00' },
+  { day: 2, start: '10:00', end: '11:00' },
+]);
+check(
+  'every bad row is reported at once, not just the first',
+  Object.keys(detailsOf(everyProblem.body)).length === 2,
+  detailsOf(everyProblem.body),
+);
+
+const badTime = await hours([{ day: 1, start: '9am', end: '5pm' }]);
+check('a time that is not a time is refused', badTime.status === 422, badTime.status);
+
+const badDay = await hours([{ day: 9, start: '09:00', end: '13:00' }]);
+check('a day outside the week is refused', badDay.status === 422, badDay.status);
+
+const notJson = await call('/api/doctor/profile', {
+  method: 'PATCH',
+  token: anitaToken,
+  form: { workingHours: 'not json at all' },
+});
+check('unreadable working hours are refused clearly', notJson.status === 422, notJson.status);
+
+// Nothing bad reached the database: the last accepted grid is still what is stored.
+const stored = profileOf((await call('/api/doctor/profile', { token: anitaToken })).body);
+check(
+  'a refused grid never replaced the saved one',
+  stored.workingHours.length === 2 && stored.workingHours.every((w) => w.start === '09:00'),
+  stored.workingHours,
+);
+
 console.log(`\n${results.join('\n')}\n`);
 
 server.close();

@@ -57,3 +57,21 @@ boundaries to be settled before any code locks them in.
 - `MONGODB_URI` for an Atlas cluster is still needed before Phase 2 can be
   verified; there is no local `mongod` on this machine.
 - `.env.example` will be created in Phase 1 — the README already references it.
+
+---
+
+# Phase 1 — Scaffold
+
+Working on branch `phase-1-scaffold`. One commit per substep, this log updated
+with each.
+
+## 1.1 Root workspace
+
+- Root `package.json` with npm workspaces (`server`, `client`) and `concurrently`
+  driving `npm run dev`. Scripts fan out with `--workspaces --if-present` so
+  `typecheck` and `lint` keep working before both packages define them.
+- **Why workspaces**: one `npm install` and one `node_modules` for the whole repo,
+  and the client can depend on shared types without a publish step.
+- Files: `package.json`, `package-lock.json`.
+- Verified: `npm install` clean (0 vulnerabilities), `npx concurrently --version`
+  → 9.2.4.

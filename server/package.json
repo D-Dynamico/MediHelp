@@ -14,14 +14,15 @@
     "check:errors": "tsx scripts/check-errors.ts",
     "seed": "tsx src/seed.ts",
     "check:seed": "tsx scripts/check-seed.ts",
-    "check": "npm run check:env && npm run check:tokens && npm run check:models && npm run check:errors && npm run check:auth && npm run check:auth:http && npm run check:ratelimit && npm run check:seed && npm run check:admin",
+    "check": "npm run check:env && npm run check:tokens && npm run check:models && npm run check:errors && npm run check:auth && npm run check:auth:http && npm run check:ratelimit && npm run check:seed && npm run check:upload && npm run check:admin",
     "check:tokens": "tsx scripts/check-tokens.ts",
     "check:auth": "tsx scripts/check-auth.ts",
     "check:auth:http": "tsx scripts/check-auth-http.ts",
     "check:ratelimit": "tsx scripts/check-ratelimit.ts",
     "check:atlas": "tsx scripts/check-atlas.ts",
     "check:env": "tsx scripts/check-env.ts",
-    "check:admin": "tsx scripts/check-admin.ts"
+    "check:admin": "tsx scripts/check-admin.ts",
+    "check:upload": "tsx scripts/check-upload.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -31,6 +32,7 @@
     "express-rate-limit": "^8.7.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.4",
+    "multer": "^2.3.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
@@ -38,6 +40,7 @@
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.2.0",
     "@types/node": "^22.10.5",
     "eslint": "^9.18.0",
     "mongodb-memory-server": "^11.2.0",

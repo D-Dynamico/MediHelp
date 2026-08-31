@@ -7,6 +7,7 @@ import { getSettings } from './config/env.js';
 import { errorHandler, notFound } from './middleware/error.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { adminRouter } from './modules/admin/admin.routes.js';
+import { UPLOAD_DIR, UPLOAD_URL_PREFIX } from './providers/storage/local.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 
 /**
@@ -25,6 +26,19 @@ export function createApp(): Express {
 
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
+
+  // Locally stored uploads are served by us; on Cloudinary they are served by
+  // Cloudinary and this route would only ever 404.
+  if (!getSettings().useCloudinary) {
+    app.use(
+      UPLOAD_URL_PREFIX,
+      express.static(UPLOAD_DIR, {
+        // These are files strangers uploaded. `nosniff` stops a browser deciding
+        // one of them is really HTML and running it on our own origin.
+        setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff'),
+      }),
+    );
+  }
   app.use('/api', apiLimiter);
 
   app.get('/api/health', (_req, res) => {

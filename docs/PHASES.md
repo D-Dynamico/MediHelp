@@ -84,7 +84,7 @@ refresh keeps the user signed in; six bad passwords lock the account.
 
 - [x] **4.1 Dashboard stats** — one aggregation returning doctor, patient and
       appointment counts, revenue, today's upcoming, and the latest five bookings.
-- [ ] **4.2 Upload middleware** — multer with MIME plus magic-byte checking, a 2 MB
+- [x] **4.2 Upload middleware** — multer with MIME plus magic-byte checking, a 2 MB
       cap, randomised filenames, the `providers/storage` local implementation, and
       the Cloudinary implementation behind the same interface (local stays the
       default; Cloudinary activates only when the keys are set, because Render's

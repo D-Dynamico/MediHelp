@@ -62,3 +62,50 @@ The check script uses `MongoMemoryReplSet`, not `MongoMemoryServer`: 4.3 creates
 the `User` and `Doctor` in one transaction, and transactions need a replica set.
 Verified a single-node replica set starts and commits a transaction here before
 relying on it.
+
+---
+
+## 4.2 — Upload middleware and the storage providers
+
+**What changed.** `uploadImage(field)` middleware built on multer, plus a
+`providers/storage` interface with a local and a Cloudinary implementation
+behind it. Locally stored files are served from `/uploads`.
+
+**Decisions.**
+
+- *`Content-Type` is a claim; the bytes are the fact.* The MIME check is a cheap
+  first pass so an obviously wrong file never reaches memory, but what actually
+  decides is the file's first twelve bytes. A PHP shell announced as
+  `image/png` sails through a MIME check and is stopped only here. The check
+  script uploads exactly that.
+- *SVG is not accepted.* It is a document that can carry script, so an SVG
+  stored and then served from our own origin is a cross-site scripting hole.
+  JPEG, PNG and WebP only.
+- *Files are held in memory, never a temp directory.* They are capped at 2 MB,
+  and the destination may not be a disk at all — nothing should touch the
+  filesystem before it has been checked.
+- *The stored filename is a random UUID.* A client that controls the filename
+  controls the extension and can overwrite someone else's file by reusing a
+  name.
+- *Cloudinary is written against `fetch` and `crypto`, not the SDK.* The SDK
+  would be a hard install on every machine for a path that only runs in
+  production. A signed upload is one SHA-1 over the sorted parameters plus the
+  secret — not worth a dependency.
+- *A misconfigured Cloudinary warns rather than falls back quietly.* Silently
+  writing to the local disk in production means the images vanish on the next
+  deploy, and nobody finds out until a user does.
+- Multer's own error messages are for developers ("File too large"); they are
+  translated into ones aimed at whoever is filling in the form.
+
+**Files.** `server/src/middleware/upload.ts`,
+`server/src/providers/storage/{index,local,cloudinary}.ts`,
+`server/src/types/express.d.ts`, `server/src/app.ts`,
+`server/scripts/check-upload.ts`, `server/package.json` (multer,
+`@types/multer`, `check:upload`).
+
+**Verification.** `npm run check:upload --workspace server` — 21 assertions, all
+green, posting real multipart bodies at a real route: each accepted format, a
+script renamed to `.png` with a PNG content type, an SVG, an oversized file, a
+file in the wrong field, and a request with no file at all. Also asserts the
+bytes on disk match what was sent and that the stored name is not the uploaded
+one. `npm run typecheck` and `npm run lint` clean.

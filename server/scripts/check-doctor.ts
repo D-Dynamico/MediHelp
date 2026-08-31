@@ -254,6 +254,130 @@ check(
   stored.workingHours,
 );
 
+/* -------------------------------------------------- 5.3 appointment list --- */
+
+type Appt = {
+  id: string;
+  status: string;
+  slotStart: string;
+  amount: number;
+  tokenNumber: number;
+  payment: { mode: string; status: string };
+  doctor: { id: string; name: string };
+  patient: { id: string; name: string; age?: number };
+};
+type ApptPage = { items: Appt[]; total: number; page: number; pageSize: number; pages: number };
+const pageOf = (body: unknown) => body as ApptPage;
+
+const { DoctorModel, AppointmentModel: Appts, UserModel: Users } = await import(
+  '../src/models/index.js'
+);
+const anita = await Users.findOne({ email: 'rao@medihelp.test' });
+const anitaDoctor = await DoctorModel.findOne({ userId: anita!._id });
+
+const all = await call('/api/doctor/appointments?when=all', { token: anitaToken });
+check('a doctor lists their own appointments', all.status === 200, all.status);
+check(
+  'the list holds exactly their own',
+  pageOf(all.body).total === (await Appts.countDocuments({ doctorId: anitaDoctor!._id })),
+  pageOf(all.body).total,
+);
+check(
+  'no other doctor appears in it',
+  pageOf(all.body).items.every((row) => row.doctor.id === String(anitaDoctor!._id)),
+);
+check(
+  'each row carries the patient and their age',
+  pageOf(all.body).items.every((row) => row.patient.name.length > 0 && row.patient.age !== undefined),
+  pageOf(all.body).items[0],
+);
+check(
+  'each row carries the time, payment and status',
+  pageOf(all.body).items.every(
+    (row) => row.slotStart.length > 0 && row.payment.mode.length > 0 && row.status.length > 0,
+  ),
+);
+
+// A second doctor's list must be a different set entirely.
+const meeraList = await call('/api/doctor/appointments?when=all', { token: meeraToken });
+const anitaIds = new Set(pageOf(all.body).items.map((row) => row.id));
+check(
+  'another doctor sees none of the same appointments',
+  pageOf(meeraList.body).items.every((row) => !anitaIds.has(row.id)),
+);
+
+const startOfTodayUtc = new Date();
+startOfTodayUtc.setUTCHours(0, 0, 0, 0);
+const startOfTomorrowUtc = new Date(startOfTodayUtc);
+startOfTomorrowUtc.setUTCDate(startOfTomorrowUtc.getUTCDate() + 1);
+
+const today = await call('/api/doctor/appointments?when=today', { token: anitaToken });
+check(
+  'the today filter holds only today',
+  pageOf(today.body).items.every(
+    (row) => row.slotStart.slice(0, 10) === startOfTodayUtc.toISOString().slice(0, 10),
+  ),
+  pageOf(today.body).items.map((r) => r.slotStart),
+);
+check(
+  'the today count matches the database',
+  pageOf(today.body).total ===
+    (await Appts.countDocuments({
+      doctorId: anitaDoctor!._id,
+      slotStart: { $gte: startOfTodayUtc, $lt: startOfTomorrowUtc },
+    })),
+  pageOf(today.body).total,
+);
+
+const past = await call('/api/doctor/appointments?when=past', { token: anitaToken });
+check(
+  'the past filter holds nothing from today onwards',
+  pageOf(past.body).items.every((row) => new Date(row.slotStart) < startOfTodayUtc),
+  pageOf(past.body).items.map((r) => r.slotStart),
+);
+check('past is newest first', pageOf(past.body).items.every(
+  (row, i, rows) => i === 0 || rows[i - 1]!.slotStart >= row.slotStart,
+));
+
+const upcoming = await call('/api/doctor/appointments?when=upcoming', { token: anitaToken });
+check(
+  'the upcoming filter holds nothing before today',
+  pageOf(upcoming.body).items.every((row) => new Date(row.slotStart) >= startOfTodayUtc),
+  pageOf(upcoming.body).items.map((r) => r.slotStart),
+);
+// Soonest first, not newest: a list of what is still to come reads forwards.
+check(
+  'upcoming is soonest first',
+  pageOf(upcoming.body).items.every((row, i, rows) => i === 0 || rows[i - 1]!.slotStart <= row.slotStart),
+  pageOf(upcoming.body).items.map((r) => r.slotStart),
+);
+check(
+  'upcoming includes today, so a late start does not hide the current patient',
+  pageOf(today.body).items.every((row) => pageOf(upcoming.body).items.some((u) => u.id === row.id)),
+);
+check(
+  'today, past and upcoming account for every appointment',
+  pageOf(past.body).total + pageOf(upcoming.body).total === pageOf(all.body).total,
+  { past: pageOf(past.body).total, upcoming: pageOf(upcoming.body).total, all: pageOf(all.body).total },
+);
+
+check('the default scope is upcoming', pageOf(
+  (await call('/api/doctor/appointments', { token: anitaToken })).body,
+).total === pageOf(upcoming.body).total);
+
+check(
+  'an unknown scope is refused',
+  (await call('/api/doctor/appointments?when=someday', { token: anitaToken })).status === 422,
+);
+check(
+  'a patient cannot read a doctor appointment list',
+  (await call('/api/doctor/appointments', { token: patientToken })).status === 403,
+);
+
+const paged = await call('/api/doctor/appointments?when=all&pageSize=1', { token: anitaToken });
+check('the list pages', pageOf(paged.body).items.length === 1 && pageOf(paged.body).pages === pageOf(all.body).total,
+  { items: pageOf(paged.body).items.length, pages: pageOf(paged.body).pages });
+
 console.log(`\n${results.join('\n')}\n`);
 
 server.close();

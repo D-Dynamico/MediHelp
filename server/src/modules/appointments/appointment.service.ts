@@ -28,15 +28,26 @@ export interface AppointmentFilter {
   status?: AppointmentStatus | undefined;
   doctorId?: string | undefined;
   patientId?: string | undefined;
-  /** Inclusive; an ISO date. */
-  from?: string | undefined;
-  /** Inclusive of the whole day; an ISO date. */
-  to?: string | undefined;
+  /**
+   * An instant, not a date. Callers that think in days convert first — the admin
+   * turns its `to=2026-09-30` into the start of the following day — so that
+   * "the whole of the 30th" and "from this moment on" are the same kind of thing
+   * here rather than two overlapping ways to say when.
+   */
+  from?: Date | undefined;
+  /** Exclusive upper bound. */
+  to?: Date | undefined;
 }
 
 export interface Page {
   page: number;
   pageSize: number;
+  /**
+   * History reads best newest-first; a list of what is still to come reads best
+   * soonest-first. Defaults to newest, which is what every backward-looking
+   * caller wants.
+   */
+  order?: 'newest' | 'soonest';
 }
 
 export interface AppointmentPage {
@@ -64,14 +75,8 @@ function matchFor(filter: AppointmentFilter): Record<string, unknown> {
 
   if (filter.from || filter.to) {
     const range: Record<string, Date> = {};
-    if (filter.from) range.$gte = new Date(`${filter.from}T00:00:00.000Z`);
-    if (filter.to) {
-      // `to` is the last day someone wants to see, so the bound is the start of
-      // the day after it. Otherwise "to: today" silently drops today.
-      const end = new Date(`${filter.to}T00:00:00.000Z`);
-      end.setUTCDate(end.getUTCDate() + 1);
-      range.$lt = end;
-    }
+    if (filter.from) range.$gte = filter.from;
+    if (filter.to) range.$lt = filter.to;
     match.slotStart = range;
   }
 
@@ -87,7 +92,7 @@ function matchFor(filter: AppointmentFilter): Record<string, unknown> {
  */
 export async function listAppointments(
   filter: AppointmentFilter,
-  { page, pageSize }: Page,
+  { page, pageSize, order = 'newest' }: Page,
 ): Promise<AppointmentPage> {
   const match = matchFor(filter);
 
@@ -97,7 +102,7 @@ export async function listAppointments(
       $facet: {
         total: [{ $count: 'n' }],
         items: [
-          { $sort: { slotStart: -1 } },
+          { $sort: { slotStart: order === 'newest' ? -1 : 1 } },
           { $skip: (page - 1) * pageSize },
           { $limit: pageSize },
           ...patientLookupStages,

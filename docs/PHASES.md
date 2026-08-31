@@ -111,7 +111,7 @@ from the dashboard reopens the slot.
       address, availability), ownership-checked.
 - [x] **5.2 Availability model** — working hours per weekday and slot duration, with
       validation that end beats start and windows do not overlap.
-- [ ] **5.3 Appointment list** — own appointments with patient name, age, date,
+- [x] **5.3 Appointment list** — own appointments with patient name, age, date,
       time, payment mode and status; filters for today, upcoming and past.
 - [ ] **5.4 Actions** — complete and cancel, guarded by ownership, writing audit
       rows and settling cash payments on completion.

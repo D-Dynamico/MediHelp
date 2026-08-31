@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { uploadImage } from '../../middleware/upload.js';
 import { validate } from '../../middleware/validate.js';
-import { updateProfileSchema } from './doctor.schema.js';
+import { appointmentScopeSchema, updateProfileSchema } from './doctor.schema.js';
 import * as controller from './doctor.controller.js';
 
 /**
@@ -27,4 +27,10 @@ doctorRouter.patch(
   ...uploadImage('image'),
   validate({ body: updateProfileSchema }),
   controller.updateProfile,
+);
+
+doctorRouter.get(
+  '/appointments',
+  validate({ query: appointmentScopeSchema }),
+  controller.listAppointments,
 );

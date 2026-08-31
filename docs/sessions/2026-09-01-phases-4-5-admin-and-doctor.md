@@ -421,3 +421,43 @@ refused with the day named, overlaps caught in either submission order, the same
 hours on different days allowed, two bad rows both reported, malformed times and
 weekdays refused, unparseable JSON refused — and, after all of those, the stored
 grid is still the last good one.
+
+---
+
+## 5.3 — The doctor's appointment list
+
+**What changed.** `GET /api/doctor/appointments?when=today|upcoming|past|all`,
+paged. Plus a small refactor of the shared appointment service that this needed.
+
+**Decisions.**
+
+- *The shared filter now takes instants, not ISO date strings.* The doctor's
+  scopes are anchored to a moment; the admin's are whole days. Rather than have
+  two overlapping ways to say *when*, the service takes `Date` bounds and the
+  admin controller converts its `from`/`to` days into them — including the
+  start-of-next-day trick for `to`, which now lives at the one caller that thinks
+  in days rather than in the shared code.
+- *Sort order is a caller's choice.* History reads newest-first; a list of what is
+  still to come reads soonest-first. `order` defaults to newest, which is what
+  every backward-looking caller wants, and the doctor's today/upcoming lists ask
+  for soonest.
+- *"Upcoming" starts at the beginning of today, not at this instant.* A doctor
+  running twenty minutes late still needs the ten o'clock patient on screen at
+  ten past ten. Anchoring to `now` would drop the patient sitting in front of
+  them.
+- *A named scope, not a free date range.* These are the three questions a doctor
+  actually asks. A date picker would be more general and less useful.
+- *The `doctorId` comes from their own record*, looked up by `userId` — never
+  from the request. There is no id in the URL to tamper with.
+
+**Files.** `server/src/modules/appointments/appointment.service.ts`,
+`server/src/modules/admin/admin.controller.ts`,
+`server/src/modules/doctors/{doctor.service,doctor.controller,doctor.routes,doctor.schema}.ts`,
+`server/scripts/check-doctor.ts`.
+
+**Verification.** `check:doctor` now 53 assertions, `check:admin` still 87, both
+green — the admin suite is what confirms the filter refactor did not change its
+behaviour. New assertions worth naming: another doctor's list shares no rows with
+this one; `past` and `upcoming` between them account for every appointment
+exactly once; `today`'s rows all appear in `upcoming`; past is newest-first and
+upcoming is soonest-first; and every row carries the patient's name and age.

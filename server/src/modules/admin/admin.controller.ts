@@ -66,9 +66,28 @@ export const deactivateDoctor: RequestHandler = async (req, res) => {
 };
 
 export const listAppointments: RequestHandler = async (req, res) => {
-  const { page, pageSize, ...filter } = req.query as unknown as AppointmentListQuery;
-  res.json(await adminService.listAppointments(filter, { page, pageSize }));
+  const { page, pageSize, from, to, ...filter } = req.query as unknown as AppointmentListQuery;
+
+  // The admin picks days; the service takes instants. `to` is the last day they
+  // want to see, so the bound is the start of the day after it — otherwise
+  // "to: today" silently drops today, which is the query they make most.
+  res.json(
+    await adminService.listAppointments(
+      {
+        ...filter,
+        ...(from ? { from: new Date(`${from}T00:00:00.000Z`) } : {}),
+        ...(to ? { to: startOfNextDay(to) } : {}),
+      },
+      { page, pageSize },
+    ),
+  );
 };
+
+function startOfNextDay(isoDate: string): Date {
+  const end = new Date(`${isoDate}T00:00:00.000Z`);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return end;
+}
 
 export const cancelAppointment: RequestHandler = async (req, res) => {
   const appointment = await adminService.cancelAppointment(idParam(req), req.auth!);

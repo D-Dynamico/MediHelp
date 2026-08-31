@@ -1,8 +1,14 @@
 import type { DoctorProfileDto } from '@shared/types.js';
 import { DoctorModel, UserModel } from '../../models/index.js';
 import { ApiError } from '../../utils/apiError.js';
+import { endOfDayUtc, startOfDayUtc } from '../../utils/dates.js';
+import {
+  listAppointments as listAll,
+  type AppointmentPage,
+  type Page,
+} from '../appointments/appointment.service.js';
 import { toDoctorProfileDto } from './doctor.mapper.js';
-import type { UpdateProfileInput } from './doctor.schema.js';
+import type { AppointmentWhen, UpdateProfileInput } from './doctor.schema.js';
 
 /**
  * What a doctor may do to their own record.
@@ -69,4 +75,46 @@ export async function updateProfile(
 
   await Promise.all([user.save(), doctor.save()]);
   return toDoctorProfileDto(doctor, user);
+}
+
+/* -------------------------------------------------------- appointments --- */
+
+/**
+ * The signed-in doctor's own appointments.
+ *
+ * The `doctorId` in the filter is their own, read from their record rather than
+ * from anything in the request, so there is no id to tamper with. The scope is
+ * a named slice rather than a free date range because those are the three
+ * questions a doctor actually asks: what is left today, what is coming, and what
+ * has been.
+ */
+export async function listOwnAppointments(
+  userId: string,
+  when: AppointmentWhen,
+  page: Page,
+): Promise<AppointmentPage> {
+  const doctor = await DoctorModel.findOne({ userId }).select('_id');
+  if (!doctor) throw ApiError.notFound('Your doctor profile is missing.');
+
+  const now = new Date();
+  const filter = { doctorId: String(doctor._id) };
+
+  if (when === 'today') {
+    return listAll(
+      { ...filter, from: startOfDayUtc(now), to: endOfDayUtc(now) },
+      { ...page, order: 'soonest' },
+    );
+  }
+
+  if (when === 'upcoming') {
+    // From the start of today, not from this instant: a doctor running late
+    // still needs to see the ten o'clock patient at ten past ten.
+    return listAll({ ...filter, from: startOfDayUtc(now) }, { ...page, order: 'soonest' });
+  }
+
+  if (when === 'past') {
+    return listAll({ ...filter, to: startOfDayUtc(now) }, page);
+  }
+
+  return listAll(filter, page);
 }

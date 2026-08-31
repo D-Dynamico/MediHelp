@@ -73,9 +73,19 @@ export const updateProfileSchema = z
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 
-/** Which slice of a doctor's appointments to show. */
+/**
+ * Which slice of a doctor's appointments to show.
+ *
+ * A named scope rather than a free date range: these are the three questions a
+ * doctor actually asks — what is left today, what is coming, what has been.
+ */
 export const appointmentScopeSchema = z.object({
   when: z.enum(['today', 'upcoming', 'past', 'all']).default('upcoming'),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 export type AppointmentScope = z.infer<typeof appointmentScopeSchema>;
+
+/** Just the slice, without the paging that travels with it on the query string. */
+export type AppointmentWhen = AppointmentScope['when'];

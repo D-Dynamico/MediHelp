@@ -130,6 +130,16 @@ export interface AppointmentDto {
   urgency?: Urgency;
 }
 
+/** The admin dashboard's headline numbers, from one aggregation. */
+export interface AdminDashboardDto {
+  counts: { doctors: number; patients: number; appointments: number };
+  /** Rupees actually collected — paid appointments only. */
+  revenue: number;
+  /** Appointments still to happen today. */
+  todayUpcoming: number;
+  latestBookings: AppointmentDto[];
+}
+
 /** A bookable slot returned by the doctor availability endpoint. */
 export interface SlotDto {
   start: string;

@@ -14,13 +14,14 @@
     "check:errors": "tsx scripts/check-errors.ts",
     "seed": "tsx src/seed.ts",
     "check:seed": "tsx scripts/check-seed.ts",
-    "check": "npm run check:env && npm run check:tokens && npm run check:models && npm run check:errors && npm run check:auth && npm run check:auth:http && npm run check:ratelimit && npm run check:seed",
+    "check": "npm run check:env && npm run check:tokens && npm run check:models && npm run check:errors && npm run check:auth && npm run check:auth:http && npm run check:ratelimit && npm run check:seed && npm run check:admin",
     "check:tokens": "tsx scripts/check-tokens.ts",
     "check:auth": "tsx scripts/check-auth.ts",
     "check:auth:http": "tsx scripts/check-auth-http.ts",
     "check:ratelimit": "tsx scripts/check-ratelimit.ts",
     "check:atlas": "tsx scripts/check-atlas.ts",
-    "check:env": "tsx scripts/check-env.ts"
+    "check:env": "tsx scripts/check-env.ts",
+    "check:admin": "tsx scripts/check-admin.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

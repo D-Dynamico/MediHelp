@@ -6,6 +6,7 @@ import type { HealthResponse } from '@shared/types.js';
 import { getSettings } from './config/env.js';
 import { errorHandler, notFound } from './middleware/error.js';
 import { authRouter } from './modules/auth/auth.routes.js';
+import { adminRouter } from './modules/admin/admin.routes.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 
 /**
@@ -36,6 +37,7 @@ export function createApp(): Express {
   });
 
   app.use('/api/auth', authRouter);
+  app.use('/api/admin', adminRouter);
   // Further feature routers mount here, above the two handlers below.
 
   app.use(notFound);

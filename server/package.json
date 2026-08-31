@@ -11,15 +11,20 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src scripts",
     "check:models": "tsx scripts/check-models.ts",
-    "check:errors": "tsx scripts/check-errors.ts"
+    "check:errors": "tsx scripts/check-errors.ts",
+    "seed": "tsx src/seed.ts",
+    "check:seed": "tsx scripts/check-seed.ts",
+    "check": "npm run check:models && npm run check:errors && npm run check:seed"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
     "express": "^5.1.0",
     "mongoose": "^9.9.4",
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.5",
     "eslint": "^9.18.0",

@@ -36,17 +36,17 @@ the client renders a placeholder page, and `npm run typecheck` passes on both.
 
 ## Phase 2 — Database and models
 
-- [ ] **2.1 Config layer** — `config/env.ts` parsing `process.env` through zod once
+- [x] **2.1 Config layer** — `config/env.ts` parsing `process.env` through zod once
       into a cached `getSettings()` (plus `reloadSettings()` for tests),
       `config/db.ts` with connect/disconnect and retry, a small logger.
-- [ ] **2.2 Core models** — `User`, `Doctor`, `Appointment` with their fields,
+- [x] **2.2 Core models** — `User`, `Doctor`, `Appointment` with their fields,
       enums and the unique partial index on `{doctorId, slotStart}`.
-- [ ] **2.3 Supporting models** — `Payment`, `RefreshToken` (TTL index),
+- [x] **2.3 Supporting models** — `Payment`, `RefreshToken` (TTL index),
       `AuditLog`, and the three feature models `TriageAssessment`, `QueueSession`,
       `Waitlist`.
-- [ ] **2.4 Error plumbing** — `ApiError`, the central error middleware producing
+- [x] **2.4 Error plumbing** — `ApiError`, the central error middleware producing
       `{ error: { code, message, details } }`, and a `notFound` handler.
-- [ ] **2.5 Seed script** — one admin, ~8 doctors across specialities with working
+- [x] **2.5 Seed script** — one admin, ~8 doctors across specialities with working
       hours, a handful of patients, and sample appointments spanning past and
       future; prints demo credentials at the end.
 

@@ -382,3 +382,50 @@ Cloudinary provider are phase 13 and 4.2 work.
   ephemeral port and calls it over HTTP. Six pass: unknown route 404, malformed
   JSON 400, oversized body 413, validation details, conflict 409, duplicate email
   mapped to 409 with a plain message.
+
+## 2.5 Seed script
+
+- `npm run seed` fills an empty database with an admin, 8 doctors across all
+  specialities (with working hours, fees and avatars), 5 patients, and 12
+  appointments spread over the past and the next few days — completed, cancelled,
+  no-show and upcoming — so every dashboard has something real the moment you log
+  in. Finished consults carry `consultStartedAt`/`consultEndedAt`, which the
+  earnings view and the queue's median both need.
+- **Seed safety, pulled forward from 13.5**: it refuses a database that already
+  has accounts unless `--force` is passed, and the refusal says how to override.
+  Cheap now, and it means production can never be wiped by a stray run.
+- `utils/password.ts` wraps bcryptjs at cost 12. bcryptjs rather than native
+  bcrypt: no compiler toolchain, so installs behave the same on Windows and on
+  Render's build image. Phase 3 builds on this rather than re-deciding it.
+- **Snag**: the first version of the check spawned `npm run seed` as a
+  subprocess. The seed did all its work and printed correctly, but the spawned
+  process never exited on Windows and the check timed out at 90s. Rather than
+  fight it, `seed.ts` now exports `seedDatabase()` and the CLI is a thin wrapper
+  guarded by an `import.meta.url === argv[1]` check — the checks import and call
+  it directly. Better design anyway: the seed is now callable from tests.
+  Confirmed the CLI still runs by pointing it at an unreachable host and seeing
+  the connection error, so the guard did not accidentally disable it.
+- Verified: 19 checks in `check:seed`, all passing — counts, all eight
+  specialities present, passwords hashed and the reported password actually
+  signing in, the fee snapshot matching the amount, working hours present for
+  slot generation, the `--force` guard refusing and then re-seeding without
+  duplicating.
+
+## Phase 2 exit check
+
+`npm run check --workspace server` runs all three check scripts: **38 assertions,
+0 failures.**
+
+| Exit criterion | Result |
+|---|---|
+| `npm run seed` populates the database and prints credentials | Yes — verified against a real MongoDB |
+| A bad `MONGODB_URI` fails at startup with a readable message | Yes — `Could not connect to MongoDB at … ENOTFOUND`, no stack trace |
+| Two appointments on one doctor and slot raise a duplicate key error | Yes — and the error handler maps it to a 409 with a plain message |
+
+**Not verified against Atlas.** There is still no `MONGODB_URI`, so everything was
+proven against a real mongod started by `mongodb-memory-server` rather than a
+hosted cluster. What that does not cover: the Atlas connection string format,
+network access rules, and index creation on a shared cluster. Worth one
+`npm run seed` against Atlas before phase 4 leans on it.
+
+Phase 2 complete; boxes ticked in `docs/PHASES.md`.

@@ -18,6 +18,11 @@ import {
 } from '../appointments/appointment.mapper.js';
 import { toDoctorDto } from '../doctors/doctor.mapper.js';
 import { logoutEverywhere } from '../auth/auth.service.js';
+import {
+  cancelAppointment,
+  completeAppointment,
+  listAppointments,
+} from '../appointments/appointment.service.js';
 import type { CreateDoctorInput, DoctorListQuery, UpdateDoctorInput } from './admin.schema.js';
 
 /** What the admin panel runs on. No HTTP in here. */
@@ -323,3 +328,15 @@ export async function deactivateDoctor(id: string): Promise<DoctorDto> {
 
   return toDoctorDto(doctor, user);
 }
+
+/* -------------------------------------------------------- appointments --- */
+
+/**
+ * The admin's view of the appointments, and their two actions.
+ *
+ * These are thin on purpose: the rules for who may cancel what, and what
+ * completing does to a cash payment, belong to every caller equally and live in
+ * the shared appointment service. Re-exported here so the admin controller has
+ * one module to talk to.
+ */
+export { cancelAppointment, completeAppointment, listAppointments };

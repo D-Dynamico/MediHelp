@@ -206,3 +206,64 @@ deactivated but present, the profile row is there, the appointment count is
 unchanged, `available` is untouched, the doctor is off the default list but on
 the `includeInactive` one, the login is refused, and a reinstate lets them back
 in. Also asserts `.*` in the search box matches nothing.
+
+---
+
+## 4.5 — Appointments admin, and the shared appointment service
+
+**What changed.** `server/src/modules/appointments/appointment.service.ts` — the
+one place that knows who may cancel or complete an appointment and what those
+actions do. On top of it: `GET /api/admin/appointments` (paginated, filtered by
+status, doctor, patient and date range) and
+`PATCH /api/admin/appointments/:id/{cancel,complete}`.
+
+**Decisions.**
+
+- *The rules live in one module because three roles share them.* Patients,
+  doctors and admins all cancel; doctors and admins both complete. Written once
+  per caller those rules drift — one screen forgets the cash settlement, another
+  lets a week-old completed consult be cancelled. Each caller passes an `Actor`
+  and the service decides.
+- *Cancelling releases the slot without doing anything about it.* The unique
+  index that prevents double booking is partial and covers only the active
+  statuses, so moving a row to `cancelled` drops it out of the index and the slot
+  is bookable again. One rule enforced by the database rather than two states to
+  keep in step. The check proves it by inserting the same doctor and time
+  afterwards and asserting no duplicate-key error.
+- *Ownership is checked by looking the doctor up, not by trusting the request.*
+  A doctor with a valid token can put another doctor's appointment id in the URL;
+  `assertMayAct` loads their `Doctor` id and compares. Role checks alone would
+  pass this.
+- *Completing settles cash.* A cash payment is `pending_at_desk` from booking
+  until someone confirms the patient turned up and paid, which is exactly the
+  moment of completion. A card payment was settled by the gateway and is left
+  alone.
+- *Completing also updates the doctor's typical consult length*, since that is
+  the event that produces the measurement. It is a rolling average rather than a
+  true median: a real median needs the whole history on every completion, and
+  this tracks the same signal closely enough for a wait estimate while staying
+  one small write. Consults that read as under a minute or over four hours are
+  ignored as clock problems rather than measurements. Only consults that were
+  actually started count.
+- *The count and the rows come from one `$facet`.* Two separate queries against a
+  live collection will eventually render a total that disagrees with the rows
+  next to it.
+- *A date range's `to` is inclusive of its whole day.* The bound is the start of
+  the following day, because otherwise `to: today` silently drops today — which
+  is the query an admin makes most.
+- *Payment fields are written with `set('payment.status', …)`.* Mongoose types a
+  nested object as optional even where its fields are required, and the path form
+  sidesteps that while being explicit that the change is tracked.
+- Cancelling a paid consult flags it `refunded`. The `Payment` row and the real
+  gateway refund are phase 7; this is the flag the screens read until then.
+
+**Files.** `server/src/modules/appointments/appointment.service.ts`,
+`server/src/modules/admin/{admin.service,admin.controller,admin.routes}.ts`,
+`server/scripts/check-admin.ts`.
+
+**Verification.** `npm run check:admin --workspace server` — now 87 assertions,
+all green. Notable: paging returns disjoint rows with a total that matches
+`countDocuments`; a single-day range includes that day; cancelling records who
+and when and frees the slot; cancelling or completing twice is a 409; a completed
+consult cannot be cancelled and a cancelled one cannot be completed; and
+completing a cash consult moves the dashboard's revenue up by exactly its fee.

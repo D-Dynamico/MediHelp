@@ -1,7 +1,12 @@
 import type { Request, RequestHandler } from 'express';
 import { audit } from '../../middleware/auth.js';
 import * as adminService from './admin.service.js';
-import type { CreateDoctorInput, DoctorListQuery, UpdateDoctorInput } from './admin.schema.js';
+import type {
+  AppointmentListQuery,
+  CreateDoctorInput,
+  DoctorListQuery,
+  UpdateDoctorInput,
+} from './admin.schema.js';
 
 /** The HTTP layer for the admin panel. Rules live in the service. */
 
@@ -58,4 +63,21 @@ export const deactivateDoctor: RequestHandler = async (req, res) => {
   const doctor = await adminService.deactivateDoctor(idParam(req));
   await audit(req, 'doctor.deactivate', { type: 'Doctor', id: doctor.id });
   res.json({ doctor });
+};
+
+export const listAppointments: RequestHandler = async (req, res) => {
+  const { page, pageSize, ...filter } = req.query as unknown as AppointmentListQuery;
+  res.json(await adminService.listAppointments(filter, { page, pageSize }));
+};
+
+export const cancelAppointment: RequestHandler = async (req, res) => {
+  const appointment = await adminService.cancelAppointment(idParam(req), req.auth!);
+  await audit(req, 'appointment.cancel', { type: 'Appointment', id: appointment.id });
+  res.json({ appointment });
+};
+
+export const completeAppointment: RequestHandler = async (req, res) => {
+  const appointment = await adminService.completeAppointment(idParam(req), req.auth!);
+  await audit(req, 'appointment.complete', { type: 'Appointment', id: appointment.id });
+  res.json({ appointment });
 };

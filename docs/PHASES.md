@@ -93,7 +93,7 @@ refresh keeps the user signed in; six bad passwords lock the account.
       together in one transaction, with a validated speciality list.
 - [x] **4.4 Doctor management** — list, edit, and soft delete (`isActive: false`)
       so appointment history survives.
-- [ ] **4.5 Appointments admin** — paginated list with filters, plus cancel and
+- [x] **4.5 Appointments admin** — paginated list with filters, plus cancel and
       mark-completed actions that go through the shared appointment service.
 - [ ] **4.6 Admin UI** — layout shell with sidebar, stat tiles, latest-bookings
       table with cancel, add-doctor form with image preview, doctor list,

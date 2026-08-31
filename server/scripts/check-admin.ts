@@ -424,6 +424,175 @@ check(
   ).status === 200,
 );
 
+/* ---------------------------------------------- appointments, as admin --- */
+
+type Paged = {
+  items: {
+    id: string;
+    status: string;
+    slotStart: string;
+    amount: number;
+    payment: { mode: string; status: string };
+    doctor: { id: string; name: string };
+    patient: { id: string; name: string; age?: number };
+  }[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pages: number;
+};
+const paged = (body: unknown) => body as Paged;
+
+const firstPage = await call('/api/admin/appointments?pageSize=5', { token: adminToken });
+check('an admin lists appointments', firstPage.status === 200, firstPage.status);
+check(
+  'the total matches the database',
+  paged(firstPage.body).total === (await AppointmentModel.countDocuments()),
+  paged(firstPage.body).total,
+);
+check('a page holds at most pageSize rows', paged(firstPage.body).items.length === 5);
+check(
+  'the page count is worked out for the client',
+  paged(firstPage.body).pages === Math.ceil(paged(firstPage.body).total / 5),
+  paged(firstPage.body),
+);
+check(
+  'rows are newest slot first',
+  paged(firstPage.body).items.every(
+    (row, i, rows) => i === 0 || rows[i - 1]!.slotStart >= row.slotStart,
+  ),
+);
+check(
+  'each row carries the patient and the doctor',
+  paged(firstPage.body).items.every((row) => row.patient.name.length > 0 && row.doctor.name.length > 0),
+);
+
+const secondPage = await call('/api/admin/appointments?pageSize=5&page=2', { token: adminToken });
+const firstIds = paged(firstPage.body).items.map((row) => row.id);
+check(
+  'page two holds different rows',
+  paged(secondPage.body).items.every((row) => !firstIds.includes(row.id)),
+);
+
+const cancelledOnly = await call('/api/admin/appointments?status=cancelled', { token: adminToken });
+check(
+  'the status filter works',
+  paged(cancelledOnly.body).items.length > 0 &&
+    paged(cancelledOnly.body).items.every((row) => row.status === 'cancelled'),
+  paged(cancelledOnly.body).items.map((r) => r.status),
+);
+
+const todayIso = new Date().toISOString().slice(0, 10);
+const todayOnly = await call(`/api/admin/appointments?from=${todayIso}&to=${todayIso}`, {
+  token: adminToken,
+});
+check(
+  'a single-day range includes that whole day',
+  paged(todayOnly.body).items.length > 0 &&
+    paged(todayOnly.body).items.every((row) => row.slotStart.slice(0, 10) === todayIso),
+  paged(todayOnly.body).items.map((r) => r.slotStart),
+);
+
+const byDoctor = await call(
+  `/api/admin/appointments?doctorId=${paged(firstPage.body).items[0]!.doctor.id}`,
+  { token: adminToken },
+);
+check(
+  'the doctor filter works',
+  paged(byDoctor.body).items.every(
+    (row) => row.doctor.id === paged(firstPage.body).items[0]!.doctor.id,
+  ),
+);
+
+check(
+  'an oversized page size is refused',
+  (await call('/api/admin/appointments?pageSize=5000', { token: adminToken })).status === 422,
+);
+
+// --- cancelling ----------------------------------------------------------
+async function act(id: string, action: 'cancel' | 'complete', token = adminToken) {
+  const response = await fetch(`${base}/api/admin/appointments/${id}/${action}`, {
+    method: 'PATCH',
+    headers: { authorization: `Bearer ${token}` },
+  });
+  const text = await response.text();
+  return { status: response.status, body: (text ? JSON.parse(text) : {}) as Record<string, never> };
+}
+
+const booked = await AppointmentModel.findOne({ status: 'booked' });
+const bookedId = String(booked!._id);
+
+check('a patient cannot cancel from the admin route', (await act(bookedId, 'cancel', patientToken)).status === 403);
+
+const cancelled2 = await act(bookedId, 'cancel');
+const cancelledRow = (cancelled2.body as unknown as { appointment: { status: string } }).appointment;
+check('an admin cancels a booking', cancelled2.status === 200, cancelled2.body);
+check('the row comes back cancelled', cancelledRow.status === 'cancelled', cancelledRow);
+
+const storedCancel = await AppointmentModel.findById(bookedId);
+check('who cancelled it is recorded', storedCancel?.cancelledBy === 'admin');
+check('when it was cancelled is recorded', storedCancel?.cancelledAt instanceof Date);
+
+// The whole point of cancelling: the slot is free again. The unique index only
+// covers active statuses, so the same doctor and time must now insert cleanly.
+const reopened = await AppointmentModel.create({
+  patientId: storedCancel!.patientId,
+  doctorId: storedCancel!.doctorId,
+  slotStart: storedCancel!.slotStart,
+  slotEnd: storedCancel!.slotEnd,
+  tokenNumber: 99,
+  status: 'booked',
+  amount: storedCancel!.amount,
+  payment: { mode: 'cash', status: 'pending_at_desk' },
+  docSnapshot: storedCancel!.docSnapshot,
+}).catch((error: Error) => error);
+check('cancelling reopened the slot', !(reopened instanceof Error), String(reopened));
+
+check('cancelling twice is refused', (await act(bookedId, 'cancel')).status === 409);
+
+const done = await AppointmentModel.findOne({ status: 'completed' });
+check(
+  'a finished appointment cannot be cancelled',
+  (await act(String(done!._id), 'cancel')).status === 409,
+);
+
+// --- completing ----------------------------------------------------------
+const cashBooking = await AppointmentModel.findOne({
+  status: 'booked',
+  'payment.mode': 'cash',
+  'payment.status': 'pending_at_desk',
+});
+const cashId = String(cashBooking!._id);
+
+const completed = await act(cashId, 'complete');
+const completedRow = (completed.body as unknown as {
+  appointment: { status: string; payment: { status: string } };
+}).appointment;
+check('an admin marks a consult complete', completed.status === 200, completed.body);
+check('the row comes back completed', completedRow.status === 'completed', completedRow);
+check('the cash payment is settled on completion', completedRow.payment.status === 'paid', completedRow.payment);
+check(
+  'the end time was stamped',
+  (await AppointmentModel.findById(cashId))?.consultEndedAt instanceof Date,
+);
+check('completing twice is refused', (await act(cashId, 'complete')).status === 409);
+check(
+  'a cancelled appointment cannot be completed',
+  (await act(bookedId, 'complete')).status === 409,
+);
+
+const revenueAfter = await call('/api/admin/dashboard', { token: adminToken });
+check(
+  'completing a cash consult adds its fee to revenue',
+  (revenueAfter.body as unknown as { revenue: number }).revenue === body.revenue + cashBooking!.amount,
+  { was: body.revenue, now: (revenueAfter.body as unknown as { revenue: number }).revenue },
+);
+
+check(
+  'acting on an appointment that does not exist is a 404',
+  (await act('0'.repeat(24), 'cancel')).status === 404,
+);
+
 console.log(`\n${results.join('\n')}\n`);
 
 server.close();

@@ -3,6 +3,7 @@ import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { uploadImage } from '../../middleware/upload.js';
 import { validate } from '../../middleware/validate.js';
 import {
+  appointmentListQuerySchema,
   createDoctorSchema,
   doctorListQuerySchema,
   objectIdParamSchema,
@@ -56,4 +57,22 @@ adminRouter.delete(
   '/doctors/:id',
   validate({ params: objectIdParamSchema }),
   controller.deactivateDoctor,
+);
+
+adminRouter.get(
+  '/appointments',
+  validate({ query: appointmentListQuerySchema }),
+  controller.listAppointments,
+);
+
+adminRouter.patch(
+  '/appointments/:id/cancel',
+  validate({ params: objectIdParamSchema }),
+  controller.cancelAppointment,
+);
+
+adminRouter.patch(
+  '/appointments/:id/complete',
+  validate({ params: objectIdParamSchema }),
+  controller.completeAppointment,
 );

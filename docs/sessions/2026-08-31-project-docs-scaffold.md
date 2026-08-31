@@ -319,3 +319,32 @@ Cloudinary provider are phase 13 and 4.2 work.
   deliberately-invalid speciality in the check script — that one line now carries
   an explicit cast and a comment saying it is testing the database, not the
   compiler.
+
+## 2.3 Supporting models
+
+- `RefreshToken` — stores only the token's **hash**, so a database leak hands out
+  no sessions. `family` groups every token issued from one login, which is what
+  makes reuse detection possible in 3.2. A TTL index on `expiresAt` lets Mongo
+  clear expired rows itself rather than needing a cleanup job.
+- `Payment` — the audit trail of every attempt, including failures, kept separate
+  from the appointment's current payment state so a disputed payment can be
+  reconciled against the gateway's raw payload.
+- `AuditLog` — `createdAt` only, no `updatedAt`: an audit row that can be updated
+  is not an audit row.
+- `TriageAssessment` — `recommendedSpeciality` is optional on purpose, because an
+  emergency result deliberately has no recommended doctor; the answer there is not
+  an appointment.
+- `QueueSession` — one per doctor per day, unique-indexed. Carries
+  `lastIssuedToken` as well as `currentToken` so token allocation has a single
+  authority instead of counting existing appointments, which would reuse a number
+  after a cancellation.
+- `Waitlist` — unique partial index allows **one active entry per patient per
+  doctor per day** while still letting someone rejoin after withdrawing, and a
+  `{state, offerExpiresAt}` index for the sweeper's query. `offerExpiresAt` is
+  documented as checked against the clock at claim time, so a sleeping host makes
+  offers expire late rather than wrongly — the constraint the deployment decision
+  introduced.
+- `models/index.ts` gives one import site for models and their types.
+- Verified: four more checks added to `check:models`, thirteen now pass,
+  including the TTL index, the queue-session uniqueness, the waitlist
+  one-active-entry rule, and rejoining after withdrawal.

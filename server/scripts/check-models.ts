@@ -4,9 +4,14 @@
  */
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
-import { UserModel } from '../src/models/User.js';
-import { DoctorModel } from '../src/models/Doctor.js';
-import { AppointmentModel } from '../src/models/Appointment.js';
+import {
+  UserModel,
+  DoctorModel,
+  AppointmentModel,
+  RefreshTokenModel,
+  QueueSessionModel,
+  WaitlistModel,
+} from '../src/models/index.js';
 
 const mongod = await MongoMemoryServer.create();
 await mongoose.connect(mongod.getUri(), { dbName: 'medihelp_check' });
@@ -21,6 +26,9 @@ await Promise.all([
   UserModel.syncIndexes(),
   DoctorModel.syncIndexes(),
   AppointmentModel.syncIndexes(),
+  RefreshTokenModel.syncIndexes(),
+  QueueSessionModel.syncIndexes(),
+  WaitlistModel.syncIndexes(),
 ]);
 
 // --- the partial unique index actually exists ---
@@ -107,6 +115,50 @@ try {
   badEnum = (e as Error).name === 'ValidationError';
 }
 check('unknown speciality rejected', badEnum);
+
+// --- refresh tokens expire themselves ---
+const refreshIndexes = await RefreshTokenModel.collection.indexes();
+check(
+  'refresh tokens have a TTL index',
+  refreshIndexes.some((i) => i.expireAfterSeconds === 0 && i.key.expiresAt === 1),
+);
+
+// --- one queue session per doctor per day ---
+const day = new Date('2026-09-01T00:00:00.000Z');
+await QueueSessionModel.create({ doctorId: doctor._id, date: day });
+let duplicateSession = false;
+try {
+  await QueueSessionModel.create({ doctorId: doctor._id, date: day });
+} catch (e) {
+  duplicateSession = (e as { code?: number }).code === 11000;
+}
+check('second queue session for the same day rejected', duplicateSession);
+
+// --- one active waitlist entry per patient, but rejoining after leaving is fine ---
+const waitEntry = await WaitlistModel.create({
+  doctorId: doctor._id,
+  patientId: patient._id,
+  date: day,
+  position: 1,
+});
+let duplicateWait = false;
+try {
+  await WaitlistModel.create({ doctorId: doctor._id, patientId: patient._id, date: day, position: 2 });
+} catch (e) {
+  duplicateWait = (e as { code?: number }).code === 11000;
+}
+check('second active waitlist entry rejected', duplicateWait);
+
+waitEntry.state = 'withdrawn';
+await waitEntry.save();
+let rejoined = false;
+try {
+  await WaitlistModel.create({ doctorId: doctor._id, patientId: patient._id, date: day, position: 2 });
+  rejoined = true;
+} catch {
+  rejoined = false;
+}
+check('can rejoin the waitlist after withdrawing', rejoined);
 
 console.log(`\n${results.join('\n')}\n`);
 

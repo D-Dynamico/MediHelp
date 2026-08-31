@@ -45,9 +45,32 @@ if (!settings.MONGODB_URI.startsWith('mongodb+srv://')) {
   process.exit(1);
 }
 
+// Placeholders straight out of Atlas's "Connect" dialog are the most common
+// first-run mistake, so name them rather than letting the driver say "bad auth".
+if (/<[^>]+>/.test(settings.MONGODB_URI)) {
+  console.error(
+    '\n  The connection string still has Atlas placeholders in it, like <db_username>.\n' +
+      '  Replace them with your database user and password in .env, then run this again.\n',
+  );
+  process.exit(1);
+}
+
 console.log(`\n  Connecting to ${redactUri(settings.MONGODB_URI)}\n`);
 
-await connectDb();
+try {
+  await connectDb();
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`  ${message}\n`);
+  if (message.includes('bad auth')) {
+    console.error(
+      '  The cluster answered, so the hostname and network access are fine — it is the\n' +
+        '  username or password. Check Atlas → Database Access, and remember that a\n' +
+        '  password containing @ : / or ? must be percent-encoded in the URI.\n',
+    );
+  }
+  process.exit(1);
+}
 check('connects to Atlas over mongodb+srv', mongoose.connection.readyState === 1);
 
 const admin = mongoose.connection.db!.admin();

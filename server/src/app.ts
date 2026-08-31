@@ -1,8 +1,10 @@
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import type { Express } from 'express';
 import { SPECIALITIES } from '@shared/types.js';
 import type { HealthResponse } from '@shared/types.js';
 import { errorHandler, notFound } from './middleware/error.js';
+import { authRouter } from './modules/auth/auth.routes.js';
 
 /**
  * Builds the Express app. Kept separate from the server bootstrap so tests and
@@ -15,6 +17,7 @@ export function createApp(): Express {
   const app = express();
 
   app.use(express.json({ limit: '100kb' }));
+  app.use(cookieParser());
 
   app.get('/api/health', (_req, res) => {
     const body: HealthResponse = { status: 'ok', uptime: process.uptime() };
@@ -25,7 +28,8 @@ export function createApp(): Express {
     res.json({ specialities: SPECIALITIES });
   });
 
-  // Feature routers mount here, above the two handlers below.
+  app.use('/api/auth', authRouter);
+  // Further feature routers mount here, above the two handlers below.
 
   app.use(notFound);
   app.use(errorHandler);

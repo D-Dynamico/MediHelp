@@ -12,10 +12,11 @@ payments, plus three features that go past the usual CRUD app:
 - **Auto-waitlist** — a cancelled slot is offered automatically to the next person
   waiting, with a claim window, so it never goes to waste.
 
-> **Status: phase 3 of 13 complete** — the scaffold runs, the models and seed are
-> in place, and authentication works end to end (login for all three roles,
-> refresh-token rotation, role guards). Features arrive phase by phase; the plan
-> and progress are in `docs/PHASES.md`.
+> **Status: phase 4 of 13 complete, phase 5 nearly** — authentication works end to
+> end for all three roles, the admin panel runs (dashboard, doctor management,
+> appointments), and the doctor's own endpoints are in place: profile, clinic
+> hours, appointment list, actions and earnings. The doctor's screens are the
+> next piece. The plan and progress are in `docs/PHASES.md`.
 
 ## Documentation
 
@@ -44,6 +45,14 @@ npm run dev              # API on :4000, client on :5173
 
 Then open http://localhost:5173 — the page shows the live API status, so you can
 see both halves are talking.
+
+To click around without touching your real database, use the sandbox instead. It
+runs the same server against a throwaway in-memory one, seeds it, and prints the
+demo logins:
+
+```bash
+npm run dev:sandbox
+```
 
 MongoDB Atlas is the only service you must configure. Payments, image hosting and
 the AI provider all have keyless local fallbacks, so the full demo runs without any

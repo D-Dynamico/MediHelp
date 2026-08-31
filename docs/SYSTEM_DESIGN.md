@@ -249,16 +249,22 @@ POST   /api/waitlist/:id/claim         take an offered slot
 DELETE /api/waitlist/:id               withdraw
 
 GET    /api/doctor/profile
-PATCH  /api/doctor/profile
-GET    /api/doctor/appointments
+PATCH  /api/doctor/profile             multipart, own record only
 GET    /api/doctor/earnings
+GET    /api/doctor/appointments        ?when=today|upcoming|past|all
+PATCH  /api/doctor/appointments/:id/start     stamps consultStartedAt
+PATCH  /api/doctor/appointments/:id/complete
+PATCH  /api/doctor/appointments/:id/cancel
 
 GET    /api/admin/dashboard
-GET    /api/admin/doctors
-POST   /api/admin/doctors              multipart, creates User + Doctor
-PATCH  /api/admin/doctors/:id
+GET    /api/admin/doctors              ?speciality=&search=&includeInactive=
+GET    /api/admin/doctors/:id
+POST   /api/admin/doctors              multipart, creates User + Doctor in one transaction
+PATCH  /api/admin/doctors/:id          multipart; isActive:true reinstates
 DELETE /api/admin/doctors/:id          soft delete, keeps appointment history
-GET    /api/admin/appointments
+GET    /api/admin/appointments         paged; ?status=&doctorId=&patientId=&from=&to=
+PATCH  /api/admin/appointments/:id/cancel
+PATCH  /api/admin/appointments/:id/complete
 ```
 
 Errors are uniform — `{ error: { code, message, details } }` with the right status.

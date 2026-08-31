@@ -5,6 +5,7 @@ import { ZodError } from 'zod';
 import { ApiError, isApiError } from '../utils/apiError.js';
 import { logger } from '../config/logger.js';
 import { getSettings } from '../config/env.js';
+import { storage } from '../providers/storage/index.js';
 
 /** Anything that reaches here matched no route. */
 export const notFound: RequestHandler = (req, _res, next) => {
@@ -86,6 +87,16 @@ function normalise(error: unknown): ApiError | null {
  * internals never reach the client.
  */
 export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
+  // The upload middleware stores the file before the handler runs, so a request
+  // that fails afterwards — a taken email, a rejected field, an aborted
+  // transaction — would leave the image behind with nothing pointing at it.
+  // This is the one place every one of those paths passes through.
+  if (req.uploadedImage) {
+    const { key } = req.uploadedImage;
+    delete req.uploadedImage;
+    void storage().remove(key);
+  }
+
   const known = normalise(error);
 
   if (known) {

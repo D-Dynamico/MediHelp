@@ -89,7 +89,7 @@ refresh keeps the user signed in; six bad passwords lock the account.
       the Cloudinary implementation behind the same interface (local stays the
       default; Cloudinary activates only when the keys are set, because Render's
       disk is ephemeral).
-- [ ] **4.3 Add doctor** — multipart endpoint creating the `User` and `Doctor`
+- [x] **4.3 Add doctor** — multipart endpoint creating the `User` and `Doctor`
       together in one transaction, with a validated speciality list.
 - [ ] **4.4 Doctor management** — list, edit, and soft delete (`isActive: false`)
       so appointment history survives.

@@ -1,5 +1,8 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
+import { uploadImage } from '../../middleware/upload.js';
+import { validate } from '../../middleware/validate.js';
+import { createDoctorSchema } from './admin.schema.js';
 import * as controller from './admin.controller.js';
 
 /**
@@ -13,3 +16,12 @@ export const adminRouter = Router();
 adminRouter.use(requireAuth, requireRole('admin'));
 
 adminRouter.get('/dashboard', controller.dashboard);
+
+// The upload runs before validation because the body is multipart: until multer
+// has read it, there are no fields for the schema to look at.
+adminRouter.post(
+  '/doctors',
+  ...uploadImage('image'),
+  validate({ body: createDoctorSchema }),
+  controller.createDoctor,
+);

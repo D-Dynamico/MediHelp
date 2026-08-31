@@ -1,12 +1,23 @@
+import mongoose from 'mongoose';
 import { ACTIVE_APPOINTMENT_STATUSES } from '@shared/types.js';
-import type { AdminDashboardDto } from '@shared/types.js';
-import { AppointmentModel } from '../../models/index.js';
+import type { AdminDashboardDto, DoctorDto } from '@shared/types.js';
+import {
+  AppointmentModel,
+  DoctorModel,
+  UserModel,
+  type DoctorDocument,
+  type UserDocument,
+} from '../../models/index.js';
+import { ApiError } from '../../utils/apiError.js';
+import { hashPassword } from '../../utils/password.js';
 import { endOfDayUtc, startOfDayUtc } from '../../utils/dates.js';
 import {
   patientLookupStages,
   toAppointmentDto,
   type AppointmentRow,
 } from '../appointments/appointment.mapper.js';
+import { toDoctorDto } from '../doctors/doctor.mapper.js';
+import type { CreateDoctorInput } from './admin.schema.js';
 
 /** What the admin panel runs on. No HTTP in here. */
 
@@ -92,4 +103,76 @@ export async function dashboard(): Promise<AdminDashboardDto> {
     todayUpcoming: facets?.todayUpcoming[0]?.n ?? 0,
     latestBookings: (facets?.latest ?? []).map(toAppointmentDto),
   };
+}
+
+/* ------------------------------------------------------------- doctors --- */
+
+/**
+ * Creating a doctor writes two documents: the `User` they log in with and the
+ * `Doctor` profile the clinic shows. Either both land or neither does.
+ *
+ * Without a transaction the failure is not theoretical: a duplicate speciality
+ * or a bad fee would leave behind a `User` with the role "doctor" and no
+ * profile — an account that can log in, reaches the doctor dashboard, and
+ * crashes it, and that also blocks the email from being used to try again.
+ */
+export async function createDoctor(
+  input: CreateDoctorInput,
+  image?: string,
+): Promise<DoctorDto> {
+  // Checked up front so the common mistake gets a clear message rather than a
+  // duplicate-key error surfacing from inside an aborted transaction.
+  if (await UserModel.exists({ email: input.email })) {
+    throw ApiError.conflict('An account with that email already exists.');
+  }
+
+  const passwordHash = await hashPassword(input.password);
+  const session = await mongoose.startSession();
+
+  try {
+    let created: { user: UserDocument; doctor: DoctorDocument } | null = null;
+
+    await session.withTransaction(async () => {
+      const [user] = await UserModel.create(
+        [
+          {
+            name: input.name,
+            email: input.email,
+            passwordHash,
+            role: 'doctor',
+            ...(input.phone ? { phone: input.phone } : {}),
+            ...(image ? { image } : {}),
+          },
+        ],
+        { session },
+      );
+
+      const [doctor] = await DoctorModel.create(
+        [
+          {
+            userId: user!._id,
+            speciality: input.speciality,
+            degree: input.degree,
+            experience: input.experience,
+            about: input.about,
+            fees: input.fees,
+            address: {
+              line1: input.addressLine1,
+              ...(input.addressLine2 ? { line2: input.addressLine2 } : {}),
+            },
+            available: input.available ?? true,
+            ...(input.slotDurationMins ? { slotDurationMins: input.slotDurationMins } : {}),
+          },
+        ],
+        { session },
+      );
+
+      created = { user: user!, doctor: doctor! };
+    });
+
+    const { user, doctor } = created!;
+    return toDoctorDto(doctor, user);
+  } finally {
+    await session.endSession();
+  }
 }

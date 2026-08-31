@@ -109,3 +109,51 @@ script renamed to `.png` with a PNG content type, an SVG, an oversized file, a
 file in the wrong field, and a request with no file at all. Also asserts the
 bytes on disk match what was sent and that the stored name is not the uploaded
 one. `npm run typecheck` and `npm run lint` clean.
+
+---
+
+## 4.3 — Add doctor
+
+**What changed.** `POST /api/admin/doctors`, multipart, creating the `User` and
+the `Doctor` in one transaction. Plus `admin.schema.ts`, which is where the
+admin module's request shapes now live, and a doctor mapper shared with the
+public and doctor-facing modules to come.
+
+**Decisions.**
+
+- *One transaction, because the half-made state is genuinely bad.* If the
+  `Doctor` write fails after the `User` write, what is left is an account that
+  can log in, has the doctor role, has no profile — so the doctor dashboard has
+  nothing to render — and holds the email address hostage against a retry. The
+  check script forces exactly that failure and asserts the account is gone.
+- *Multipart means every field arrives as a string.* `fees` comes in as `"500"`,
+  `available` as `"true"`. The zod schema is the one place that becomes typed
+  data; nothing downstream re-parses strings.
+- *Speciality is an enum, not free text.* It drives the public filter and, later,
+  triage routing — a typo would make a doctor unfindable rather than
+  mis-labelled.
+- *The address is flat on the wire* (`addressLine1`, `addressLine2`) and nested
+  in the model. Nested objects through multipart are a bracket-notation
+  convention no form library agrees on.
+- *A stranded upload is cleaned up in the error handler.* The image is stored
+  before the handler runs, so a rejected field, a taken email or an aborted
+  transaction would each leave a file with nothing pointing at it. Every one of
+  those paths ends at `errorHandler`, so that is where the file is reclaimed —
+  one place rather than one per failure mode. The controller clears the marker
+  on success so a later error cannot delete a live doctor's photo.
+- *The duplicate email is checked before the transaction opens*, so the common
+  mistake gets a clear 409 instead of a duplicate-key error surfacing out of an
+  aborted transaction.
+- The upload middleware runs *before* validation, because until multer has read
+  the multipart body there are no fields for the schema to look at.
+
+**Files.** `server/src/modules/admin/{admin.schema,admin.service,admin.controller,admin.routes}.ts`,
+`server/src/modules/doctors/doctor.mapper.ts`, `server/src/middleware/error.ts`,
+`server/scripts/check-admin.ts`.
+
+**Verification.** `npm run check:admin --workspace server` — 31 assertions, all
+green. The ones that matter: a doctor added through the endpoint logs in with the
+password the admin typed and comes back with the doctor role; a forced failure of
+the second write leaves no account and frees the email again; a refused create
+leaves no file in the upload directory; and the returned `id` is the `Doctor` id,
+not the `User` id.

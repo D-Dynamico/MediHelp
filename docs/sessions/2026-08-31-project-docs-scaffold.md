@@ -226,3 +226,46 @@ doc and says 13 phases.
 
 No application code changed — the static-serving branch, `trust proxy` and the
 Cloudinary provider are phase 13 and 4.2 work.
+
+---
+
+# Phase 2 — Database and models
+
+## 2.1 Config layer
+
+- `config/env.ts` parses `process.env` through a zod schema once and caches it in
+  `getSettings()`; `reloadSettings()` re-reads for scripts and tests. `.env` is
+  read from the repo root, resolved from the module's own path rather than `cwd`,
+  because npm runs the server with `cwd` set to `server/`.
+- Required keys carry their own error text, so a missing one says what to do
+  rather than "expected string, received undefined". Everything else has a
+  default, which is what makes "only MONGODB_URI and JWT_SECRET are required"
+  true rather than aspirational.
+- `useCloudinary` is derived, not configured: it is true only when the provider is
+  chosen *and* all three keys are present. A half-configured Cloudinary silently
+  falling back to local disk in production is exactly the bug this prevents.
+- `config/db.ts` connects with a 10s server-selection timeout and wraps failures
+  in a message naming the three things that are usually wrong (URI, database user,
+  Atlas network access). `redactUri()` masks the password so a connection string
+  can appear in a log line safely. `autoIndex` is on outside production —
+  index builds should be a deliberate act against a live database.
+- `config/logger.ts` is a ~30 line level-filtered logger. It reads the level
+  lazily and falls back to `debug` if settings have not parsed, so a
+  configuration error is never swallowed by the logger that is meant to report it.
+- `index.ts` now connects before listening, binds `0.0.0.0` (Render's health check
+  cannot reach `localhost`), and prints startup failures as a message rather than
+  a stack trace.
+- **Snag, recurring**: adding dependencies broke `tsx` again with
+  `The package "@esbuild/win32-x64" could not be found` — npm's optional-dependency
+  bug, and `npm install` does not self-heal it. Fixed durably by declaring
+  `@esbuild/win32-x64` as an **optional** dependency of the server workspace;
+  optional means Linux hosts skip it on the platform check, so Render is
+  unaffected. If it recurs after a future dependency bump, match the version to
+  `npm ls esbuild`.
+- Verified, all three startup paths:
+  - no `.env` → `MONGODB_URI: required — a MongoDB Atlas connection string…` and
+    the `JWT_SECRET` generate-one hint, then exit 1.
+  - unreachable host → `Could not connect to MongoDB at … getaddrinfo ENOTFOUND`
+    plus the three things to check. No stack trace.
+  - a URI with a password → logged as `mongodb+srv://dbuser:***@cluster0…`.
+- Typecheck and lint clean.

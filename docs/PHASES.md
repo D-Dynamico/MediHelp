@@ -117,7 +117,7 @@ from the dashboard reopens the slot.
       rows and settling cash payments on completion.
 - [x] **5.5 Earnings** — aggregation over completed and paid appointments; total,
       this month, and appointment/patient counts.
-- [ ] **5.6 Doctor UI** — earnings and count tiles, appointment table with actions,
+- [x] **5.6 Doctor UI** — earnings and count tiles, appointment table with actions,
       profile editor with the availability grid.
 
 **Exit**: completing an appointment raises the earnings tile by exactly the fee; a

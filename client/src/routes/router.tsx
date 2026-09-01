@@ -9,6 +9,10 @@ import { AdminDashboard } from '../pages/admin/Dashboard';
 import { AdminDoctors } from '../pages/admin/Doctors';
 import { AddDoctor } from '../pages/admin/AddDoctor';
 import { AdminAppointments } from '../pages/admin/Appointments';
+import { DoctorLayout } from '../pages/doctor/DoctorLayout';
+import { DoctorDashboard } from '../pages/doctor/Dashboard';
+import { DoctorAppointments } from '../pages/doctor/Appointments';
+import { DoctorProfile } from '../pages/doctor/Profile';
 
 /**
  * Route groups by role. The guards keep people off pages that would only show
@@ -32,7 +36,16 @@ export const router = createBrowserRouter([
 
   {
     element: <RoleRoute roles={['doctor']} />,
-    children: [{ path: '/doctor', element: <Placeholder title="Doctor dashboard" /> }],
+    children: [
+      {
+        element: <DoctorLayout />,
+        children: [
+          { path: '/doctor', element: <DoctorDashboard /> },
+          { path: '/doctor/appointments', element: <DoctorAppointments /> },
+          { path: '/doctor/profile', element: <DoctorProfile /> },
+        ],
+      },
+    ],
   },
 
   {

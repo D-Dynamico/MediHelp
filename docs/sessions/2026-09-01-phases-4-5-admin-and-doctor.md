@@ -547,3 +547,64 @@ failed.
 The other half of the exit criterion — a doctor cannot act on another doctor's
 appointment even by editing the id in the URL — is asserted in 5.4 for all three
 actions.
+
+---
+
+## 5.6 — the doctor UI
+
+**What changed.** `/doctor` stopped being a placeholder. It is now a layout route
+with three screens: the day view (earnings tiles and today's list), the full
+appointment book in four slices, and a profile editor with the clinic-hours grid.
+A signed-in doctor also has a sign-out button for the first time.
+
+**Decisions.**
+
+- *The doctor shell is the admin shell, deliberately.* Same header, same sidebar,
+  same active-link treatment — three sections instead of four. Two dashboards in
+  one app that navigate differently is a thing a user has to learn twice.
+- *One `AppointmentTable`, shared by the day view and the book.* The two screens
+  differ in which appointments they ask for, not in what a row looks like or what
+  a doctor may do to it. The action rules live in one place with them.
+- *An action reloads the screen rather than patching the row.* Completing a
+  consult also moves the earnings tiles and can drop the row out of the slice
+  being shown; a screen that quietly disagrees with itself is worse than one
+  extra request. That is `useAppointmentActions`, shared by both screens.
+- *"Start" is hidden on a consult already in progress.* The server would accept
+  it as a no-op, but offering it makes the row dishonest about what is left to do.
+- *The slice and page live in the URL.* A doctor who reloads the tab, or keeps
+  last week's list open in a second one, gets back what they were looking at.
+- *The profile editor is narrower than the admin's form, by design.* Speciality,
+  degree and experience are shown but not editable — they are the clinic's claims
+  about a doctor's credentials, and letting the account holder rewrite them would
+  make the public listing self-certified. Fee, hours, photo and description are
+  the doctor's own. This mirrors what `updateProfileSchema` already allows; the
+  form does not decide it.
+- *Clinic hours are a list of sittings, not a week-long grid of cells.* A morning
+  clinic and an evening one with a gap between them is the normal case, and it is
+  exactly what slot generation walks. A row per sitting says that in one click;
+  a grid of half-hour checkboxes would say it in forty-eight.
+- *The grid validates nothing itself.* Overlaps and backwards windows are the
+  server's answer, returned per row as `workingHours.<index>`; the component's
+  only job is putting each message back on the row it came from and reddening it.
+  A second copy of those rules in the client is a second thing to get wrong.
+- *Rows are keyed by index on purpose.* They have no id of their own, and the
+  server addresses them by position too. Editing is what happens here; reordering
+  is not.
+- *After a save, the form resets from the response, not the draft.* The server
+  trims, coerces, and may have stored a different photo URL than the one just
+  uploaded.
+
+**Files.** New: `client/src/api/doctor.ts`,
+`client/src/pages/doctor/{DoctorLayout,Dashboard,Appointments,Profile,AppointmentTable,AvailabilityGrid}.tsx`,
+`client/src/pages/doctor/useAppointmentActions.ts`. Changed:
+`client/src/routes/router.tsx`, `docs/PHASES.md`.
+
+**Verification.** `typecheck`, `lint` and `build` all clean. The full server
+check suite re-run at 325 assertions, all green — 5.6 touched no server file, so
+this confirms the contracts the new screens call are the ones that were already
+proven. Both phase 5 exit criteria are asserted server-side in 5.4 and 5.5 and
+are unchanged.
+
+**Still to be looked at by a human.** Every doctor screen is new and none has been
+rendered in a browser. The admin appointments table is still unviewed from the
+previous batch.

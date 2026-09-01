@@ -14,7 +14,7 @@
     "check:errors": "tsx scripts/check-errors.ts",
     "seed": "tsx src/seed.ts",
     "check:seed": "tsx scripts/check-seed.ts",
-    "check": "npm run check:env && npm run check:tokens && npm run check:models && npm run check:errors && npm run check:auth && npm run check:auth:http && npm run check:ratelimit && npm run check:seed && npm run check:upload && npm run check:admin && npm run check:doctor",
+    "check": "npm run check:env && npm run check:tokens && npm run check:models && npm run check:errors && npm run check:auth && npm run check:auth:http && npm run check:ratelimit && npm run check:seed && npm run check:upload && npm run check:admin && npm run check:doctor && npm run check:booking",
     "check:tokens": "tsx scripts/check-tokens.ts",
     "check:auth": "tsx scripts/check-auth.ts",
     "check:auth:http": "tsx scripts/check-auth-http.ts",
@@ -24,7 +24,8 @@
     "check:admin": "tsx scripts/check-admin.ts",
     "check:upload": "tsx scripts/check-upload.ts",
     "dev:sandbox": "tsx watch scripts/dev-sandbox.ts",
-    "check:doctor": "tsx scripts/check-doctor.ts"
+    "check:doctor": "tsx scripts/check-doctor.ts",
+    "check:booking": "tsx scripts/check-booking.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

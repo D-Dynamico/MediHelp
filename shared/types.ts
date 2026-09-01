@@ -129,6 +129,16 @@ export interface DoctorDto {
   slotDurationMins: number;
 }
 
+/**
+ * A doctor as an unauthenticated visitor sees them: `DoctorDto` without the
+ * email address.
+ *
+ * The catalogue is open to anyone, and a doctor's email is their login. A public
+ * list of every staff login address is the first half of a password-stuffing
+ * run, and a patient choosing a dermatologist has no use for it.
+ */
+export type PublicDoctorDto = Omit<DoctorDto, 'email'>;
+
 /** One sitting on one weekday. 0 = Sunday, matching `Date.getDay()`. */
 export interface WorkingHoursDto {
   day: number;

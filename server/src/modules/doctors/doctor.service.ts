@@ -1,4 +1,6 @@
-import type { DoctorEarningsDto, DoctorProfileDto } from '@shared/types.js';
+import type { PipelineStage } from 'mongoose';
+import { Types } from 'mongoose';
+import type { DoctorEarningsDto, DoctorProfileDto, PublicDoctorDto } from '@shared/types.js';
 import { AppointmentModel, DoctorModel, UserModel } from '../../models/index.js';
 import { ApiError } from '../../utils/apiError.js';
 import { endOfDayUtc, startOfDayUtc, startOfMonthUtc } from '../../utils/dates.js';
@@ -11,7 +13,11 @@ import {
   type Page,
 } from '../appointments/appointment.service.js';
 import { toDoctorProfileDto } from './doctor.mapper.js';
-import type { AppointmentWhen, UpdateProfileInput } from './doctor.schema.js';
+import type {
+  AppointmentWhen,
+  PublicDoctorQuery,
+  UpdateProfileInput,
+} from './doctor.schema.js';
 
 /**
  * What a doctor may do to their own record.
@@ -183,4 +189,112 @@ export async function earnings(userId: string): Promise<DoctorEarningsDto> {
     appointments: facets?.overall[0]?.appointments ?? 0,
     patients: facets?.patients[0]?.n ?? 0,
   };
+}
+
+/* ------------------------------------------------------ public catalogue --- */
+
+/**
+ * The stages that turn a `Doctor` into what a visitor may see.
+ *
+ * Written once and shared by the list and the detail page. Two copies of a
+ * projection is how a field ends up public on one route and not the other —
+ * which for `email` would be exactly the leak this projection exists to
+ * prevent.
+ */
+function publicStages(): PipelineStage[] {
+  return [
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'userId',
+        foreignField: '_id',
+        as: 'account',
+        pipeline: [{ $project: { name: 1, image: 1, isActive: 1 } }],
+      },
+    },
+    { $unwind: '$account' },
+    // A deactivated doctor keeps their history but must never be bookable.
+    { $match: { 'account.isActive': true } },
+    {
+      $project: {
+        _id: 0,
+        id: { $toString: '$_id' },
+        name: '$account.name',
+        image: '$account.image',
+        speciality: 1,
+        degree: 1,
+        experience: 1,
+        about: 1,
+        fees: 1,
+        address: 1,
+        available: 1,
+        slotDurationMins: 1,
+      },
+    },
+  ];
+}
+
+/**
+ * The doctors a visitor can browse and book.
+ *
+ * The email address is never projected: it is a doctor's login, and a public
+ * list of staff logins is the first half of a password-stuffing run. A patient
+ * choosing a dermatologist has no use for it.
+ *
+ * `available: false` is *not* filtered out. A doctor not currently taking
+ * bookings still has a page worth reading, and their slot list simply comes back
+ * empty. Hiding them entirely would make a patient think the clinic had lost
+ * their doctor.
+ */
+export async function listPublic(query: PublicDoctorQuery): Promise<PublicDoctorDto[]> {
+  const search = query.search
+    ? // Escaped, so punctuation in the term stays literal, and unanchored so it
+      // matches anywhere. Deliberately not searched over email, unlike the
+      // admin's list: the field is not returned, and searching it would leak it
+      // by inference.
+      [
+        {
+          $match: {
+            $or: [
+              { name: new RegExp(escapeRegExp(query.search), 'i') },
+              { speciality: new RegExp(escapeRegExp(query.search), 'i') },
+              { degree: new RegExp(escapeRegExp(query.search), 'i') },
+            ],
+          },
+        },
+      ]
+    : [];
+
+  return DoctorModel.aggregate<PublicDoctorDto>([
+    ...(query.speciality ? [{ $match: { speciality: query.speciality } }] : []),
+    ...publicStages(),
+    // After the projection, so `name` is the account's name rather than a field
+    // the doctor document does not have.
+    ...search,
+    // Available first, then by name: a patient scanning the list should meet the
+    // bookable doctors before the ones who are not taking anyone.
+    { $sort: { available: -1, name: 1 } },
+  ]);
+}
+
+/**
+ * One doctor's public page.
+ *
+ * A deactivated doctor is a 404 rather than a 403: answering "that doctor exists
+ * but you may not see them" tells an anonymous visitor which ids are real, and
+ * there is nothing here to be granted access to anyway.
+ */
+export async function getPublic(id: string): Promise<PublicDoctorDto> {
+  const [doctor] = await DoctorModel.aggregate<PublicDoctorDto>([
+    { $match: { _id: new Types.ObjectId(id) } },
+    ...publicStages(),
+  ]);
+
+  if (!doctor) throw ApiError.notFound('No doctor with that id.');
+  return doctor;
+}
+
+/** Regex-escapes a search term so punctuation in it stays literal. */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

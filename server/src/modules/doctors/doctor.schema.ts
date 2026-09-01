@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SPECIALITIES } from '@shared/types.js';
 import { findAvailabilityProblems } from '../../utils/availability.js';
 
 /**
@@ -110,3 +111,35 @@ export type AppointmentWhen = AppointmentScope['when'];
 export const objectIdParamSchema = z.object({
   id: z.string().length(24, 'That is not a valid id.'),
 });
+
+/* ------------------------------------------------------ public catalogue --- */
+
+/**
+ * What a visitor may narrow the doctor list by.
+ *
+ * The speciality is an enum rather than free text — it is what the list filters
+ * on, and a typo would silently return nothing rather than saying so. The search
+ * term is capped because it becomes a regex, and an unbounded one is a pattern
+ * the database has to build on every request.
+ */
+export const publicDoctorQuerySchema = z.object({
+  speciality: z.enum(SPECIALITIES).optional(),
+  search: z.string().trim().max(80, 'That search is too long.').optional(),
+});
+
+export type PublicDoctorQuery = z.infer<typeof publicDoctorQuerySchema>;
+
+/** The date a patient is asking a doctor's free slots for. */
+export const slotQuerySchema = z.object({
+  /**
+   * A plain calendar day, not an instant. Slots are generated from the doctor's
+   * wall-clock working hours for that weekday, so the time of day a client
+   * happened to ask at has no place in the question.
+   */
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a date like 2026-09-15.')
+    .optional(),
+});
+
+export type SlotQuery = z.infer<typeof slotQuerySchema>;

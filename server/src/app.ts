@@ -8,6 +8,7 @@ import { errorHandler, notFound } from './middleware/error.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { adminRouter } from './modules/admin/admin.routes.js';
 import { doctorRouter } from './modules/doctors/doctor.routes.js';
+import { publicDoctorRouter } from './modules/doctors/public.routes.js';
 import { UPLOAD_DIR, UPLOAD_URL_PREFIX } from './providers/storage/local.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 
@@ -54,6 +55,8 @@ export function createApp(): Express {
   app.use('/api/auth', authRouter);
   app.use('/api/admin', adminRouter);
   app.use('/api/doctor', doctorRouter);
+  // Plural and public: the catalogue a patient browses before signing up.
+  app.use('/api/doctors', publicDoctorRouter);
   // Further feature routers mount here, above the two handlers below.
 
   app.use(notFound);

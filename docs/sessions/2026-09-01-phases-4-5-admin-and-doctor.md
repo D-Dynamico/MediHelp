@@ -676,3 +676,45 @@ rather than dropped. **It must be fixed before phase 13 deploys anything.**
 
 **Verification.** Full suite 328 assertions (325 + the 3 new fee ones), all
 green. `typecheck`, `lint` and `build` clean, run as their own step.
+
+---
+
+# Phase 6 — patient booking
+
+## 6.1 — the public doctor catalogue
+
+**What changed.** `GET /api/doctors` and `GET /api/doctors/:id`, unauthenticated,
+with a speciality filter and a name/speciality/degree search.
+
+**Decisions.**
+
+- *No token required.* A patient deciding whether this clinic has a dermatologist
+  should not have to sign up first. That page is where someone lands from a
+  search engine, and a login in front of it loses the person before the clinic
+  has said anything.
+- *`PublicDoctorDto` is `DoctorDto` minus the email.* A doctor's email is their
+  login, so a public list of every staff address is the first half of a
+  password-stuffing run — and a patient choosing a specialist has no use for it.
+  Search deliberately does not match on email either: matching a field you do not
+  return leaks it by inference, one query at a time. Both are asserted.
+- *One projection, shared by the list and the detail page.* Two copies is how a
+  field ends up public on one route and not the other — which for `email` is
+  precisely the leak the projection exists to prevent.
+- *Deactivated doctors are excluded; unavailable ones are not.* A removed doctor
+  must not be bookable, but a doctor who has merely switched off bookings still
+  has a page worth reading, and their slot list will simply come back empty.
+  Hiding them would make a patient think the clinic had lost their doctor.
+- *An unknown or deactivated doctor is a 404, never a 403.* "That doctor exists
+  but you may not see them" tells an anonymous visitor which ids are real.
+- *Plural `/api/doctors` against singular `/api/doctor`.* Different audiences,
+  different projections; the naming is the reminder.
+
+**Files.** `shared/types.ts` (`PublicDoctorDto`),
+`server/src/modules/doctors/{doctor.service,doctor.schema}.ts`,
+new `server/src/modules/doctors/{public.routes,public.controller}.ts`,
+`server/src/app.ts`, new `server/scripts/check-booking.ts`, `server/package.json`.
+
+**Verification.** `check:booking`, 16 assertions, all green — including that no
+list or detail response carries an email, that `search=R.o` matches nothing
+(the term is escaped, not run as a pattern), and that a soft-deleted doctor
+disappears from the list and 404s on their page. `typecheck` and `lint` clean.

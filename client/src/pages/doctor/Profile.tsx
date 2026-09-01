@@ -79,6 +79,23 @@ export function DoctorProfile() {
     setSaved(false);
   }
 
+  /**
+   * Changing the sittings drops every message about them.
+   *
+   * The server addresses those messages by row position, so deleting the first
+   * sitting would slide "Tuesday has two sittings that overlap" onto whichever
+   * row happened to land in that slot — marking a row the server never
+   * complained about while the broken one renders clean.
+   */
+  function setWorkingHours(next: WorkingHoursDto[]) {
+    set('workingHours', next);
+    setFieldErrors((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([key]) => !key.startsWith('workingHours')),
+      ),
+    );
+  }
+
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!draft) return;
@@ -238,7 +255,7 @@ export function DoctorProfile() {
           <AvailabilityGrid
             value={draft.workingHours}
             errors={fieldErrors}
-            onChange={(next) => set('workingHours', next)}
+            onChange={setWorkingHours}
           />
 
           <div className="flex gap-2">

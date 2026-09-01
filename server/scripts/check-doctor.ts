@@ -150,6 +150,31 @@ check(
     .status === 422,
 );
 
+// A blank fee box is a mistake, not a free consultation. `Number('')` is 0 and
+// zod's coercion takes it, so without the guard a doctor who cleared the field
+// to retype it and mis-clicked Save would have been stored as free to book --
+// and told the save succeeded.
+const blankFee = await call('/api/doctor/profile', {
+  method: 'PATCH',
+  token: anitaToken,
+  form: { fees: '' },
+});
+check('a blank fee is refused rather than read as zero', blankFee.status === 422, blankFee.body);
+check(
+  'the fee is still what it was',
+  profileOf((await call('/api/doctor/profile', { token: anitaToken })).body).fees === 650,
+);
+check(
+  'a blank appointment length is refused too',
+  (
+    await call('/api/doctor/profile', {
+      method: 'PATCH',
+      token: anitaToken,
+      form: { slotDurationMins: '   ' },
+    })
+  ).status === 422,
+);
+
 // One doctor's edit must not touch another's record.
 const meeraBefore = profileOf((await call('/api/doctor/profile', { token: meeraToken })).body);
 check('a second doctor sees a different record', meeraBefore.email === 'nair@medihelp.test');

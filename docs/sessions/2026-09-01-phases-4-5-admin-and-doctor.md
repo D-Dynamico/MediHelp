@@ -608,3 +608,71 @@ are unchanged.
 **Still to be looked at by a human.** Every doctor screen is new and none has been
 rendered in a browser. The admin appointments table is still unviewed from the
 previous batch.
+
+---
+
+## Review pass over 4–5, and the fixes it produced
+
+Ran `/code-review high` over the 5.6 diff and a security review over the whole
+branch, both before pushing.
+
+**The one that mattered.** `fees` was `z.coerce.number()`, and `Number('')` is
+`0` — which zod accepts, because `min(0)` is satisfied. The doctor's profile
+form always sends every field, so clearing the fee box to retype it and
+mis-clicking Save would have stored the doctor as **free to book** and answered
+"Saved." The admin form never hit this only by accident: its `toFormData` drops
+empty values, so a blank fee arrives as *absent* and `.partial()` reads it as
+"not changed".
+
+The fix is server-side, not a client guard, because the fee is money and the
+project's rule is that money is never the client's word: `filled()` in
+`doctor.schema.ts` turns a blank string into `undefined` before coercion, so an
+empty box is refused with a message instead of silently becoming a number nobody
+typed. `slotDurationMins` got the same treatment. Three new assertions prove a
+blank fee is a 422, that the stored fee is unchanged after one, and that a
+whitespace-only appointment length is refused too.
+
+**The rest, all client-side.**
+
+- *Per-row grid errors were only half wired.* The grid read
+  `workingHours.<index>`, which is what `superRefine` produces for an overlap —
+  but a field that fails on its own, such as a time box left empty, comes back
+  as `workingHours.<index>.start`. That key matched nothing, so the doctor saw
+  "Some fields need fixing" with no row marked at all. `problemsIn()` now reads
+  both, and reddens the individual time input.
+- *Those errors went stale.* They are addressed by row position, so deleting a
+  sitting slid an overlap message onto a row the server never complained about.
+  Any change to the list now drops every `workingHours*` message — which is the
+  cost of index-keyed rows, and cheaper than giving them ids they have no other
+  use for.
+- *`?page=abc` bricked the screen.* `Number('abc')` is `NaN`, sent as `page=NaN`,
+  refused by the server, leaving "Could not load your appointments" and no way
+  back except editing the URL. `pageFrom()` now falls back to 1, the way
+  `scopeFrom()` already did for the slice.
+- *An out-of-range page stranded the doctor.* The pager sat inside the
+  has-rows branch, so a tab left open on `?when=upcoming&page=2` across a few
+  days came back to an empty page with no control to leave it. The pager now
+  renders whenever the slice has any rows at all.
+- *One `busyId` mis-tracked two clicks.* Completing row A then cancelling row B
+  before A returned re-enabled B's buttons the moment A answered, and a second
+  click earned a 409 the doctor did nothing to deserve. It is a set of in-flight
+  ids now.
+- *The open-status list was duplicated.* `OPEN_STATUSES` lived in the appointment
+  service with a client copy asserting parity that nothing enforced. It is
+  `OPEN_APPOINTMENT_STATUSES` in `shared/types.ts` now, imported by both, so
+  adding a status cannot leave the doctor's rows quietly without buttons.
+- *`client/tsconfig.tsbuildinfo` was a tracked build artifact.* Untracked, and
+  `*.tsbuildinfo` added to `.gitignore`.
+
+**Security review.** One candidate: `npm run seed` writes the hardcoded
+`Password123!` into every doctor and patient account, with no override, and the
+admin falls back to it whenever `SEED_ADMIN_PASSWORD` is unset — which is the
+blank value `.env.example` ships and `env.ts` normalises to absent. Nothing gates
+on `NODE_ENV`, and `docs/DEPLOYMENT.md` makes running the seed against production
+a documented step. The verification pass scored it **7/10** — below the bar for
+the formal report, on the grounds that this is a pre-deployment branch so the
+exposure is prospective — but the mechanism is real and it is written down here
+rather than dropped. **It must be fixed before phase 13 deploys anything.**
+
+**Verification.** Full suite 328 assertions (325 + the 3 new fee ones), all
+green. `typecheck`, `lint` and `build` clean, run as their own step.

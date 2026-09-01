@@ -25,10 +25,23 @@ function scopeFrom(raw: string | null): AppointmentWhen {
   return SCOPES.some((scope) => scope.value === raw) ? (raw as AppointmentWhen) : 'upcoming';
 }
 
+/**
+ * The page number, or 1 for anything that is not one.
+ *
+ * The URL is a text box a doctor can type into, and `Number('abc')` is `NaN`,
+ * which axios sends as `page=NaN` for the server to reject — leaving the screen
+ * stuck on "Could not load your appointments" with nothing to click. So the
+ * same fallback the slice gets.
+ */
+function pageFrom(raw: string | null): number {
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1;
+}
+
 export function DoctorAppointments() {
   const [params, setParams] = useSearchParams();
   const when = scopeFrom(params.get('when'));
-  const page = Number(params.get('page') ?? '1');
+  const page = pageFrom(params.get('page'));
 
   const [data, setData] = useState<AppointmentPage | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -86,34 +99,46 @@ export function DoctorAppointments() {
 
         {!data ? (
           <Loading />
-        ) : data.items.length === 0 ? (
-          <Empty>Nothing here yet.</Empty>
         ) : (
           <>
-            <AppointmentTable items={data.items} busyId={actions.busyId} onAct={actions.act} />
+            {data.items.length === 0 ? (
+              <Empty>Nothing here yet.</Empty>
+            ) : (
+              <AppointmentTable
+                items={data.items}
+                busyIds={actions.busyIds}
+                onAct={actions.act}
+              />
+            )}
 
-            <div className="flex items-center justify-between pt-2 text-sm text-ink-muted">
-              <span>
-                {data.total} appointment{data.total === 1 ? '' : 's'} · page {data.page} of{' '}
-                {data.pages}
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  variant="quiet"
-                  disabled={data.page <= 1}
-                  onClick={() => setParam('page', String(data.page - 1))}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="quiet"
-                  disabled={data.page >= data.pages}
-                  onClick={() => setParam('page', String(data.page + 1))}
-                >
-                  Next
-                </Button>
+            {/* Shown even when this page came back empty. The upcoming slice
+                shrinks as the days pass, so a tab left open on page 2 can find
+                itself past the end — and a pager hidden by the empty state
+                strands the doctor with no way back to page 1. */}
+            {data.total > 0 && (
+              <div className="flex items-center justify-between pt-2 text-sm text-ink-muted">
+                <span>
+                  {data.total} appointment{data.total === 1 ? '' : 's'} · page {data.page} of{' '}
+                  {data.pages}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="quiet"
+                    disabled={data.page <= 1}
+                    onClick={() => setParam('page', String(data.page - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="quiet"
+                    disabled={data.page >= data.pages}
+                    onClick={() => setParam('page', String(data.page + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
           </>
         )}
       </Card>

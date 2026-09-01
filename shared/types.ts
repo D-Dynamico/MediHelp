@@ -23,6 +23,18 @@ export const APPOINTMENT_STATUSES = [
 ] as const;
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
 
+/**
+ * Statuses an appointment can still be acted on from — started, completed or
+ * cancelled. Shared rather than server-only: the doctor's table decides which
+ * buttons a row gets from exactly this list, and a copy of it in the client
+ * would quietly stop agreeing the first time a status is added here.
+ */
+export const OPEN_APPOINTMENT_STATUSES = [
+  'booked',
+  'checked_in',
+  'in_progress',
+] as const satisfies readonly AppointmentStatus[];
+
 /** Statuses that still occupy a slot. A cancelled or no-show slot is bookable. */
 export const ACTIVE_APPOINTMENT_STATUSES = [
   'booked',

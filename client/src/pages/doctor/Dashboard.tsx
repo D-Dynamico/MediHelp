@@ -70,7 +70,7 @@ export function DoctorDashboard() {
         {today.length === 0 ? (
           <Empty>Nothing booked for today.</Empty>
         ) : (
-          <AppointmentTable items={today} busyId={actions.busyId} onAct={actions.act} />
+          <AppointmentTable items={today} busyIds={actions.busyIds} onAct={actions.act} />
         )}
       </Card>
     </div>

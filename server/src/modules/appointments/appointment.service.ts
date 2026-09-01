@@ -1,6 +1,7 @@
 import type { PipelineStage } from 'mongoose';
 import { Types } from 'mongoose';
 import type { AppointmentDto, AppointmentStatus, Role } from '@shared/types.js';
+import { OPEN_APPOINTMENT_STATUSES } from '@shared/types.js';
 import { AppointmentModel, DoctorModel } from '../../models/index.js';
 import { ApiError } from '../../utils/apiError.js';
 import { logger } from '../../config/logger.js';
@@ -21,8 +22,12 @@ export interface Actor {
   role: Role;
 }
 
-/** Statuses an appointment can still be acted on from. */
-export const OPEN_STATUSES: readonly AppointmentStatus[] = ['booked', 'checked_in', 'in_progress'];
+/**
+ * Statuses an appointment can still be acted on from. Re-exported from the
+ * shared types rather than declared here: the doctor's table reads the same
+ * list to decide which buttons a row gets.
+ */
+export const OPEN_STATUSES: readonly AppointmentStatus[] = OPEN_APPOINTMENT_STATUSES;
 
 export interface AppointmentFilter {
   status?: AppointmentStatus | undefined;

@@ -1,4 +1,5 @@
-import type { AppointmentDto } from '@shared/types';
+import type { AppointmentDto, AppointmentStatus } from '@shared/types';
+import { OPEN_APPOINTMENT_STATUSES } from '@shared/types';
 import {
   Button,
   StatusChip,
@@ -10,23 +11,29 @@ import {
 import type { AppointmentAction } from './useAppointmentActions';
 
 /**
+ * The statuses a consult can still be acted on from — the server's own list,
+ * imported rather than retyped, so adding a status there cannot leave these
+ * rows silently without buttons.
+ */
+function isOpen(status: AppointmentStatus): boolean {
+  return (OPEN_APPOINTMENT_STATUSES as readonly AppointmentStatus[]).includes(status);
+}
+
+/**
  * A doctor's appointments, with the three things they can do to one.
  *
  * Shared by the day view and the full list rather than written twice — the two
  * screens differ in which appointments they ask for, not in how a row looks or
  * what a doctor may do to it.
  */
-
-/** The statuses a consult can still be acted on from. Matches the server's. */
-const OPEN = ['booked', 'checked_in', 'in_progress'];
-
 export function AppointmentTable({
   items,
-  busyId,
+  busyIds,
   onAct,
 }: {
   items: AppointmentDto[];
-  busyId: string | null;
+  /** Every row with an action still in flight, not just the latest one. */
+  busyIds: ReadonlySet<string>;
   onAct: (id: string, action: AppointmentAction) => void;
 }) {
   return (
@@ -42,8 +49,8 @@ export function AppointmentTable({
       }
     >
       {items.map((appointment) => {
-        const open = OPEN.includes(appointment.status);
-        const busy = busyId === appointment.id;
+        const open = isOpen(appointment.status);
+        const busy = busyIds.has(appointment.id);
 
         return (
           <tr key={appointment.id}>

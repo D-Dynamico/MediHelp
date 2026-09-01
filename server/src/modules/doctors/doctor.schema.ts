@@ -15,6 +15,19 @@ const time = z
   .string()
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a 24-hour time like 09:00.');
 
+/**
+ * A number that arrived as text, where a blank box is a mistake rather than a
+ * zero.
+ *
+ * `Number('')` is 0 and zod's coercion accepts it happily, so a doctor who
+ * cleared the fee box to retype it and mis-clicked Save would have stored
+ * themselves as free to book — and been told "Saved." An absent field still
+ * means "not changed"; that is what `.partial()` below is for. An empty one is
+ * refused before coercion can turn it into a number nobody typed.
+ */
+const filled = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((raw) => (typeof raw === 'string' && raw.trim() === '' ? undefined : raw), schema);
+
 export const workingHoursEntrySchema = z.object({
   /** 0 = Sunday, matching `Date.getDay()`. */
   day: z.coerce.number().int().min(0, 'Pick a weekday.').max(6, 'Pick a weekday.'),
@@ -27,15 +40,19 @@ export const updateProfileSchema = z
     name: z.string().trim().min(2, 'Enter your name.').max(120),
     phone: z.string().trim().max(20),
     about: z.string().trim().min(20, 'Write at least a sentence or two.').max(2000),
-    fees: z.coerce.number({ error: 'The fee must be a number.' }).int().min(0).max(1_000_000),
+    fees: filled(
+      z.coerce.number({ error: 'Enter the fee.' }).int().min(0).max(1_000_000),
+    ),
     addressLine1: z.string().trim().min(3, 'Enter the clinic address.').max(200),
     addressLine2: z.string().trim().max(200),
     available: z.union([z.boolean(), z.enum(['true', 'false'])]).transform((v) => v === true || v === 'true'),
-    slotDurationMins: z.coerce
-      .number({ error: 'The appointment length must be a number.' })
-      .int()
-      .min(5, 'Appointments cannot be shorter than 5 minutes.')
-      .max(120, 'Appointments cannot be longer than 2 hours.'),
+    slotDurationMins: filled(
+      z.coerce
+        .number({ error: 'Enter the appointment length.' })
+        .int()
+        .min(5, 'Appointments cannot be shorter than 5 minutes.')
+        .max(120, 'Appointments cannot be longer than 2 hours.'),
+    ),
     /**
      * Sent as a JSON string, because the rest of the form is multipart and
      * multipart has no agreed way to carry an array of objects.

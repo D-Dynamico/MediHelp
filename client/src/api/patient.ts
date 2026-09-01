@@ -109,3 +109,49 @@ function definedOnly<T extends object>(input: T): Partial<T> {
     Object.entries(input).filter(([, value]) => value !== undefined && value !== ''),
   ) as Partial<T>;
 }
+
+/* ------------------------------------------------------------ payments --- */
+
+/** What the server hands back to start a payment. */
+export interface PaymentOrder {
+  appointmentId: string;
+  orderId: string;
+  /** Paise. The gateway's widget needs the same number the order was made with. */
+  amountMinor: number;
+  currency: 'INR';
+  /** Present only with a real gateway; identifies the merchant to the widget. */
+  keyId?: string;
+  /** True when there is no gateway and the server settles it on request. */
+  autoSettled: boolean;
+  provider: 'mock' | 'razorpay';
+}
+
+export async function createPaymentOrder(appointmentId: string): Promise<PaymentOrder> {
+  const { data } = await api.post<{ order: PaymentOrder }>('/payments/order', { appointmentId });
+  return data.order;
+}
+
+/**
+ * Settles a payment when there is no gateway configured.
+ *
+ * The server refuses this outright once real keys are set, which is the only
+ * reason it is safe to have at all.
+ */
+export async function confirmMockPayment(appointmentId: string): Promise<void> {
+  await api.post('/payments/confirm-mock', { appointmentId });
+}
+
+/**
+ * Hands the gateway's answer back for checking.
+ *
+ * None of these three values means anything until the server recomputes the
+ * signature over them, which is why they travel as opaque strings.
+ */
+export async function verifyPayment(input: {
+  appointmentId: string;
+  orderId: string;
+  paymentId: string;
+  signature: string;
+}): Promise<void> {
+  await api.post('/payments/verify', input);
+}

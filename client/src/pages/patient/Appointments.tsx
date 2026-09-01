@@ -4,6 +4,7 @@ import { OPEN_APPOINTMENT_STATUSES } from '@shared/types';
 import type { AppointmentDto, AppointmentStatus } from '@shared/types';
 import { messageFrom } from '../../api/client';
 import { cancelMyAppointment, fetchMyAppointments, type AppointmentPage } from '../../api/patient';
+import { PaymentAbandoned, payForAppointment } from '../../api/checkout';
 import {
   Button,
   Card,
@@ -49,6 +50,7 @@ export function MyAppointments() {
   const [data, setData] = useState<AppointmentPage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const paymentNote = params.get('payment');
 
   const load = useCallback(async () => {
     try {
@@ -75,6 +77,28 @@ export function MyAppointments() {
     }
   }
 
+  /**
+   * Pays an appointment that is booked but still owing.
+   *
+   * The same call the booking screen makes, offered again here because a
+   * payment can fail or be closed without the appointment being lost — the slot
+   * is held either way, and this is where a patient comes back to finish.
+   */
+  async function onPay(appointment: AppointmentDto) {
+    setBusyId(appointment.id);
+    setError(null);
+    try {
+      await payForAppointment(appointment.id, appointment.doctor.name);
+      await load();
+    } catch (caught) {
+      if (!(caught instanceof PaymentAbandoned)) {
+        setError(messageFrom(caught, 'The payment did not go through.'));
+      }
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   function setScope(next: Scope) {
     const params = new URLSearchParams();
     params.set('when', next);
@@ -96,8 +120,19 @@ export function MyAppointments() {
             {booked.doctor.name} · {whenOf(booked.slotStart)} · token {booked.tokenNumber}
           </p>
           <p className="mt-1 text-sm text-green-900">
-            {money(booked.amount)} to pay at the clinic. Bring your token number.
+            {booked.payment.status === 'paid'
+              ? `${money(booked.amount)} paid. Bring your token number.`
+              : `${money(booked.amount)} to pay at the clinic. Bring your token number.`}
           </p>
+          {/* The slot is held whatever happened to the payment, so this says
+              what is outstanding rather than implying the booking failed. */}
+          {paymentNote && (
+            <p className="mt-2 text-sm font-medium text-amber-900">
+              {paymentNote === 'unpaid'
+                ? 'The payment window was closed, so this is still unpaid. You can pay below, or at the clinic.'
+                : `${paymentNote} The appointment is still yours — you can pay below, or at the clinic.`}
+            </p>
+          )}
         </Card>
       )}
 
@@ -141,6 +176,7 @@ export function MyAppointments() {
               highlighted={appointment.id === justBooked}
               busy={busyId === appointment.id}
               onCancel={() => void onCancel(appointment.id)}
+              onPay={() => void onPay(appointment)}
             />
           ))}
         </div>
@@ -154,12 +190,22 @@ function AppointmentRow({
   highlighted,
   busy,
   onCancel,
+  onPay,
 }: {
   appointment: AppointmentDto;
   highlighted: boolean;
   busy: boolean;
   onCancel: () => void;
+  onPay: () => void;
 }) {
+  // Only an online booking that is still open and still owing has anything to
+  // pay here. Cash is settled at the desk, and a finished consult is not a
+  // checkout.
+  const owing =
+    appointment.payment.mode === 'razorpay' &&
+    isOpen(appointment.status) &&
+    appointment.payment.status !== 'paid';
+
   return (
     <Card className={highlighted ? 'border-green-300' : ''}>
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -177,9 +223,16 @@ function AppointmentRow({
         </div>
 
         {isOpen(appointment.status) && (
-          <Button variant="danger" onClick={onCancel} disabled={busy}>
-            {busy ? 'Cancelling…' : 'Cancel'}
-          </Button>
+          <div className="flex gap-2">
+            {owing && (
+              <Button onClick={onPay} disabled={busy}>
+                Pay now
+              </Button>
+            )}
+            <Button variant="danger" onClick={onCancel} disabled={busy}>
+              Cancel
+            </Button>
+          </div>
         )}
       </div>
     </Card>

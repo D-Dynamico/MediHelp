@@ -16,6 +16,14 @@ declare global {
       };
       /** Where `uploadImage()` put the file, if the request carried one. */
       uploadedImage?: StoredImage;
+      /**
+       * The exact bytes of a JSON body, kept by the parser.
+       *
+       * A gateway webhook is signed over its raw payload, so re-serialising the
+       * parsed object would break the signature the first time a key came back
+       * in a different order.
+       */
+      rawBody?: Buffer;
     }
   }
 }

@@ -67,6 +67,12 @@ export type Settings = z.infer<typeof schema> & {
   isProduction: boolean;
   /** Cloudinary is only usable when the provider is chosen and all keys are set. */
   useCloudinary: boolean;
+  /**
+   * Razorpay is only usable when the provider is chosen and both keys are set.
+   * The webhook secret is not required for that: orders and checkout work
+   * without it, and the webhook route refuses on its own when it is missing.
+   */
+  useRazorpay: boolean;
 };
 
 let cached: Settings | null = null;
@@ -106,6 +112,9 @@ function parse(): Settings {
     useCloudinary:
       env.STORAGE_PROVIDER === 'cloudinary' &&
       Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET),
+    useRazorpay:
+      env.PAYMENT_PROVIDER === 'razorpay' &&
+      Boolean(env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET),
   };
 }
 

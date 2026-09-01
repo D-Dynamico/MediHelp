@@ -12,11 +12,14 @@ payments, plus three features that go past the usual CRUD app:
 - **Auto-waitlist** — a cancelled slot is offered automatically to the next person
   waiting, with a claim window, so it never goes to waste.
 
-> **Status: phase 4 of 13 complete, phase 5 nearly** — authentication works end to
-> end for all three roles, the admin panel runs (dashboard, doctor management,
-> appointments), and the doctor's own endpoints are in place: profile, clinic
-> hours, appointment list, actions and earnings. The doctor's screens are the
-> next piece. The plan and progress are in `docs/PHASES.md`.
+> **Status: phases 1-7 of 13 complete** — authentication works end to end for all
+> three roles; the admin panel runs (dashboard, doctor management, appointments);
+> doctors have their own dashboard, clinic hours, appointment actions and
+> earnings; patients can browse doctors, book a slot, cancel, and manage their
+> details; and payments work both ways — cash settled at the desk, and online
+> through a provider that falls back to a keyless mock so the whole flow demos
+> with nothing configured. AI triage is next. The plan and progress are in
+> `docs/PHASES.md`.
 
 ## Documentation
 

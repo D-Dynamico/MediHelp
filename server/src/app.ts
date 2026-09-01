@@ -11,6 +11,7 @@ import { doctorRouter } from './modules/doctors/doctor.routes.js';
 import { publicDoctorRouter } from './modules/doctors/public.routes.js';
 import { appointmentRouter } from './modules/appointments/appointment.routes.js';
 import { patientRouter } from './modules/patients/patient.routes.js';
+import { paymentRouter } from './modules/payments/payment.routes.js';
 import { UPLOAD_DIR, UPLOAD_URL_PREFIX } from './providers/storage/local.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 
@@ -28,7 +29,17 @@ export function createApp(): Express {
   // rate limiting and `secure` cookies both depend on.
   if (getSettings().isProduction) app.set('trust proxy', 1);
 
-  app.use(express.json({ limit: '100kb' }));
+  app.use(
+    express.json({
+      limit: '100kb',
+      // Keeps the raw bytes for the payment webhook, which is signed over the
+      // payload exactly as sent. Re-serialising the parsed object would break
+      // that signature the first time a key came back in a different order.
+      verify: (req, _res, buffer) => {
+        (req as express.Request).rawBody = Buffer.from(buffer);
+      },
+    }),
+  );
   app.use(cookieParser());
 
   // Locally stored uploads are served by us; on Cloudinary they are served by
@@ -61,6 +72,7 @@ export function createApp(): Express {
   app.use('/api/doctors', publicDoctorRouter);
   app.use('/api/appointments', appointmentRouter);
   app.use('/api/patient', patientRouter);
+  app.use('/api/payments', paymentRouter);
   // Further feature routers mount here, above the two handlers below.
 
   app.use(notFound);

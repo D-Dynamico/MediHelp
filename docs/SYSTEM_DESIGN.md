@@ -239,7 +239,8 @@ PATCH  /api/appointments/:id/complete  doctor or admin
 
 POST   /api/payments/order             create a gateway order
 POST   /api/payments/verify            verify signature
-POST   /api/payments/webhook           gateway callback
+POST   /api/payments/confirm-mock      settle a mock order; refused once real keys are set
+POST   /api/payments/webhook           gateway callback, HMAC over the raw body
 
 GET    /api/queue/:doctorId            current queue state
 POST   /api/queue/:doctorId/next       doctor calls the next token
@@ -247,6 +248,9 @@ POST   /api/queue/:doctorId/next       doctor calls the next token
 POST   /api/waitlist                   join
 POST   /api/waitlist/:id/claim         take an offered slot
 DELETE /api/waitlist/:id               withdraw
+
+GET    /api/patient/profile
+PATCH  /api/patient/profile            multipart, own account only
 
 GET    /api/doctor/profile
 PATCH  /api/doctor/profile             multipart, own record only

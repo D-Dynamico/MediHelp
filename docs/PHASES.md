@@ -147,17 +147,17 @@ exactly one appointment and one clean 409.
 
 ## Phase 7 — Payments
 
-- [ ] **7.1 Provider interface** — `createOrder`, `verifySignature`, `refund`, with
+- [x] **7.1 Provider interface** — `createOrder`, `verifySignature`, `refund`, with
       the provider chosen from env at startup.
-- [ ] **7.2 Mock provider** — the default: fake order id, immediate paid status, so
+- [x] **7.2 Mock provider** — the default: fake order id, immediate paid status, so
       the whole flow demos with no keys.
-- [ ] **7.3 Razorpay provider** — real order creation and HMAC-SHA256 signature
+- [x] **7.3 Razorpay provider** — real order creation and HMAC-SHA256 signature
       verification, activated only when the keys are present.
-- [ ] **7.4 Cash flow** — `pending_at_desk` on booking, settled when the doctor or
+- [x] **7.4 Cash flow** — `pending_at_desk` on booking, settled when the doctor or
       admin completes the appointment.
-- [ ] **7.5 Payment records and refunds** — a `Payment` row per attempt, voided or
+- [x] **7.5 Payment records and refunds** — a `Payment` row per attempt, voided or
       refunded on cancellation, with the webhook route made idempotent.
-- [ ] **7.6 Checkout UI** — payment-mode choice at booking, gateway handoff, clear
+- [x] **7.6 Checkout UI** — payment-mode choice at booking, gateway handoff, clear
       paid / pending / failed status on the appointment card.
 
 **Exit**: both modes complete end to end with no keys set; sending a tampered

@@ -861,3 +861,81 @@ The scaffold `Home.tsx` is gone — the catalogue replaced it.
 **Verification.** `typecheck`, `lint` and `build` clean. The server side these
 screens call is covered by `check:booking`'s 81 assertions. **No patient screen
 has been rendered in a browser** — that is the open item.
+
+---
+
+# Phase 7 — payments
+
+**What changed.** A payment provider behind an interface, with a mock default
+and a Razorpay implementation; `POST /api/payments/{order,verify,confirm-mock,webhook}`;
+refunds on cancellation; and the checkout in the client.
+
+**Decisions.**
+
+- *The amount is never in a request, anywhere.* It is read from the appointment,
+  which took it from the doctor record at booking time. There is no field for a
+  client to tamper with, which is stronger than validating one.
+- *Only a recomputed HMAC marks anything paid.* `settle()` is the one function
+  that writes `paid`, and it is reached from exactly two places: a verified
+  checkout signature and a verified webhook.
+- *The mock verifies signatures properly rather than returning `true`.* It signs
+  with a per-process secret and checks with the same constant-time comparison the
+  real provider uses. A rubber-stamp mock would let every assertion pass while
+  the one failure that matters — accepting a payment nobody made — went
+  untested. The check forges a signature against the mock and asserts it is
+  refused.
+- *Hence `confirm-mock`.* Because the mock's secret is genuinely unavailable to
+  the browser, there is no signature a client could send, and the demo would
+  stall at "pending" forever. So there is one endpoint that settles a mock order
+  — **gated hard on the provider actually being the mock**. Reachable under a
+  real gateway it would be an endpoint for marking anything paid without paying,
+  which is the worst thing this module could offer.
+- *The webhook is signed over the raw bytes, with a different secret.* The JSON
+  parser now keeps `req.rawBody`, because re-serialising the parsed object would
+  break the signature the first time a key came back in a different order. The
+  webhook secret is separate from the API secret, and a missing one makes the
+  route refuse rather than accept unverifiable callbacks.
+- *Any event that verifies gets a 200, even ones we ignore.* A non-2xx makes the
+  gateway retry a payload we were never going to act on. A bad signature is the
+  one thing that does not get a 200 — that is somebody probing.
+- *Refunds are best effort and never block a cancellation.* The appointment is
+  off either way; a gateway that will not refund right now is a person's job, not
+  a 500 for the patient who cancelled. It is logged loudly and the `Payment` row
+  keeps the trail.
+- *Booking and paying are separate steps in the UI.* The slot is held the moment
+  the appointment is written, so a payment that fails or a checkout the patient
+  closes does not lose it. They land on the appointments page with the booking
+  intact and a "Pay now" button on the row.
+- *Razorpay is written but has never run against a real account*, exactly like
+  the Cloudinary provider. Both signature functions are pinned in the checks to
+  fixed HMAC values, so a change to either payload format fails loudly; the live
+  round trip is untested until someone sets keys. **This is the part I could not
+  do without you** — it needs a Razorpay account.
+
+**Files.** New `server/src/providers/payment/{index,mock,razorpay}.ts`, new
+`server/src/modules/payments/*`, new `client/src/api/checkout.ts`;
+`server/src/config/env.ts` (`useRazorpay`), `server/src/app.ts` (raw body),
+`server/src/types/express.d.ts`, `appointment.service.ts` (refund on cancel),
+`client/src/api/patient.ts`, `client/src/pages/public/DoctorDetail.tsx`,
+`client/src/pages/patient/Appointments.tsx`, new
+`server/scripts/check-payments.ts`.
+
+**Verification.** `check:payments`, 39 assertions, all green. Whole suite
+**448 assertions across 13 scripts, zero failures**. `typecheck`, `lint` and
+`build` clean.
+
+**All three phase 7 exit criteria are asserted directly.** Both modes complete
+end to end with no keys set (cash settles on consult completion; online settles
+through the mock). A tampered amount changes nothing — the order is created for
+the doctor's fee in paise regardless of what the request said. And replaying a
+webhook returns `handled: false` the second time, with exactly one paid row still
+in the collection.
+
+## Open items after phases 6 and 7
+
+- **No patient or payment screen has been rendered in a browser.** Everything is
+  proven over HTTP; nothing has been clicked. `npm run dev:sandbox`, then sign in
+  as `rahul@medihelp.test`.
+- **The Razorpay provider has never spoken to Razorpay.** Needs an account.
+- The seed's default passwords still block deployment — see the security note
+  above, and `MEMORY.md`.

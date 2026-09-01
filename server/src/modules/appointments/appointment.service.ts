@@ -12,6 +12,7 @@ import { ApiError } from '../../utils/apiError.js';
 import { logger } from '../../config/logger.js';
 import { startOfDayUtc } from '../../utils/dates.js';
 import { horizonEnd, isOfferedSlot, slotsFor } from '../../utils/slots.js';
+import { refundFor } from '../payments/payment.service.js';
 import { patientLookupStages, toAppointmentDto, type AppointmentRow } from './appointment.mapper.js';
 
 /**
@@ -199,13 +200,20 @@ export async function cancelAppointment(id: string, actor: Actor): Promise<Appoi
   appointment.cancelledBy = actor.role;
   appointment.cancelledAt = new Date();
 
-  // Money that was actually taken has to go back. The `Payment` row and the real
-  // gateway refund arrive with phase 7; this is the flag the screens read.
+  // Money that was actually taken has to go back. The gateway call happens
+  // first, while the row still says `paid` — `refundFor` reads that to decide
+  // whether there is anything to refund, and it never throws: a gateway that
+  // will not refund right now is a person's job, not a 500 for the patient who
+  // cancelled.
   //
-  // Written through `set()` rather than by assignment: Mongoose types a nested
-  // object as optional even where its fields are required, and the path form
-  // both sidesteps that and is unambiguous about the change being tracked.
-  if (appointment.payment?.status === 'paid') appointment.set('payment.status', 'refunded');
+  // The status is then written through `set()` rather than by assignment:
+  // Mongoose types a nested object as optional even where its fields are
+  // required, and the path form both sidesteps that and is unambiguous about
+  // the change being tracked.
+  if (appointment.payment?.status === 'paid') {
+    await refundFor(appointment);
+    appointment.set('payment.status', 'refunded');
+  }
 
   await appointment.save();
   return present(appointment._id);

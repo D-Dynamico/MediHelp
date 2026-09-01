@@ -760,3 +760,60 @@ are asserted against the pure function directly — a part-slot at the end of a
 sitting, two sittings on one day entered out of order, a slot that has already
 started — rather than through HTTP, where the seed's own hours would decide what
 the test could see.
+
+## 6.3 and 6.4 — booking, a patient's own list, and their account
+
+**What changed.** `POST /api/appointments`, `GET /api/appointments/mine`,
+`PATCH /api/appointments/:id/cancel`, and `GET|PATCH /api/patient/profile`.
+
+**Decisions.**
+
+- *Three things are never taken from the request.* The fee comes from the doctor
+  record, the token number is derived, and the slot is re-generated and matched
+  exactly. The check sends `amount: 1` and `tokenNumber: 999` and asserts both
+  are ignored — zod strips them before a handler sees the body, so they are not
+  fields anyone has to remember not to trust.
+- *"Free" and "offered" are different questions.* Nothing occupies 03:17 on a
+  Sunday, so an availability check alone would accept it. Booking re-runs the
+  same slot generator the patient's grid was drawn from and demands an exact
+  match. Asserted directly.
+- *The unique index has the last word on a race, not the check above it.* Both
+  requests pass availability; one insert wins and the other returns a duplicate
+  key, which becomes a clean 409. The duplicate is matched **by index name**, so
+  some other duplicate-key bug can never be reported to a patient as "someone
+  just took that time."
+- *The token is the slot's position in the doctor's day, not a running count.*
+  A counter needs a lock or a second unique index to survive two people booking
+  at once, and it numbers patients by who clicked first — which is not the order
+  anyone is seen in. Position is race-free by construction, needs no counter, and
+  makes the board read in time order. Numbers therefore have gaps when slots go
+  unbooked, which is honest: token 7 is the seventh slot of the day, not the
+  seventh patient. `now` is pinned to the start of the day inside `tokenFor` so
+  the same slot never numbers differently depending on when it was booked.
+- *Booking is restricted to the patient role*, not to anyone signed in. A doctor
+  booking themselves in would produce an appointment whose `patientId` points at
+  a doctor account, which every list in the app would then have to render.
+- *Cancelling is open to every role*, because the shared appointment service
+  already decides who may cancel what, against the verified token.
+- *Cancelling releases the slot for free.* The unique index is partial over the
+  active statuses, so moving a row to `cancelled` takes it out of the index. The
+  check books, cancels, and books the same slot again with a different patient.
+- *A patient cannot change their own email.* It is the account identifier, and
+  changing it is a recovery flow that must prove the new address first — a typo
+  otherwise locks someone out of their own medical history. The field is simply
+  absent from the schema; the check sends one anyway, plus `role: 'admin'`, and
+  asserts neither lands.
+
+**Files.** New `server/src/modules/appointments/{appointment.routes,appointment.controller,appointment.schema}.ts`,
+new `server/src/modules/patients/*`, `appointment.service.ts` (booking),
+`shared/types.ts` (`GENDERS`, `PatientProfileDto`), `server/src/models/User.ts`,
+`server/src/app.ts`, `server/scripts/check-booking.ts`.
+
+**Verification.** `check:booking` at **81 assertions**, all green.
+
+**Both halves of the phase 6 exit criterion are asserted directly.** A booked
+slot disappears from the available list and appears on both the patient's and
+the doctor's screens. Two simultaneous bookings for one slot — fired with
+`Promise.all`, two different patients — produce one 201 and one 409, and a
+direct count against the collection confirms exactly one appointment exists for
+that slot.

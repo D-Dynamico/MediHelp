@@ -38,12 +38,20 @@ const results: string[] = [];
 const check = (label: string, ok: boolean, got?: unknown) =>
   results.push(`${ok ? 'PASS' : 'FAIL'}  ${label}${ok ? '' : `  (got ${JSON.stringify(got)})`}`);
 
-async function call(path: string, options: { method?: string; body?: unknown; token?: string } = {}) {
+async function call(
+  path: string,
+  options: { method?: string; body?: unknown; token?: string; form?: Record<string, string> } = {},
+) {
   const headers: Record<string, string> = {};
   if (options.token) headers.authorization = `Bearer ${options.token}`;
 
-  let body: string | undefined;
-  if (options.body !== undefined) {
+  let body: FormData | string | undefined;
+  if (options.form) {
+    // The profile endpoints are multipart, because they may carry a photo.
+    const form = new FormData();
+    for (const [key, value] of Object.entries(options.form)) form.append(key, value);
+    body = form;
+  } else if (options.body !== undefined) {
     headers['content-type'] = 'application/json';
     body = JSON.stringify(options.body);
   }
@@ -64,6 +72,9 @@ async function tokenFor(email: string, password = 'Password123!') {
 }
 
 const adminToken = await tokenFor('admin@medihelp.test');
+
+/** Midnight UTC today, the boundary the upcoming/past split uses. */
+const startOfToday = new Date(new Date().toISOString().slice(0, 10)).getTime();
 
 interface PublicDoctor {
   id: string;
@@ -315,6 +326,355 @@ await Doctors.updateOne({ _id: anitaId }, { $set: { available: true } });
 check(
   'slots for an unknown doctor are a 404',
   (await call(`/api/doctors/${'a'.repeat(24)}/slots`)).status === 404,
+);
+
+/* --------------------------------------------------------- 6.3 booking --- */
+
+interface Appointment {
+  id: string;
+  doctor: { id: string; name: string };
+  patient: { id: string; name: string };
+  slotStart: string;
+  slotEnd: string;
+  tokenNumber: number;
+  status: string;
+  amount: number;
+  payment: { mode: string; status: string };
+}
+
+const apptOf = (body: unknown) => (body as { appointment: Appointment }).appointment;
+const pageOf = (body: unknown) => body as { items: Appointment[]; total: number };
+
+const rahulToken = await tokenFor('rahul@medihelp.test');
+const snehaToken = await tokenFor('sneha@medihelp.test');
+const anitaToken = await tokenFor('rao@medihelp.test');
+
+/** A slot this doctor still has free on the day three days out. */
+async function freeSlot(): Promise<string> {
+  const body = (await call(`/api/doctors/${anita.id}/slots?date=${soonDate}`)).body;
+  return slotsOf(body).find((slot) => slot.available)!.start;
+}
+
+check(
+  'booking needs a token',
+  (await call('/api/appointments', {
+    method: 'POST',
+    body: { doctorId: anita.id, slotStart: await freeSlot(), mode: 'cash' },
+  })).status === 401,
+);
+
+check(
+  'a doctor cannot book themselves in as a patient',
+  (await call('/api/appointments', {
+    method: 'POST',
+    token: anitaToken,
+    body: { doctorId: anita.id, slotStart: await freeSlot(), mode: 'cash' },
+  })).status === 403,
+);
+
+check(
+  'nor can an admin',
+  (await call('/api/appointments', {
+    method: 'POST',
+    token: adminToken,
+    body: { doctorId: anita.id, slotStart: await freeSlot(), mode: 'cash' },
+  })).status === 403,
+);
+
+const wanted = await freeSlot();
+const booked = await call('/api/appointments', {
+  method: 'POST',
+  token: rahulToken,
+  // A fee and a token number are sent deliberately. Both must be ignored.
+  body: { doctorId: anita.id, slotStart: wanted, mode: 'cash', amount: 1, tokenNumber: 999 },
+});
+
+check('a patient books a free slot', booked.status === 201, booked.body);
+check('the appointment starts at the slot asked for', apptOf(booked.body).slotStart === wanted);
+check(
+  'the fee is the doctor\'s, not the one in the request',
+  apptOf(booked.body).amount === anita.fees,
+  { got: apptOf(booked.body).amount, fee: anita.fees },
+);
+check(
+  'the token number is the server\'s, not the one in the request',
+  apptOf(booked.body).tokenNumber !== 999 && apptOf(booked.body).tokenNumber >= 1,
+  apptOf(booked.body).tokenNumber,
+);
+check('a cash booking is owed at the desk', apptOf(booked.body).payment.status === 'pending_at_desk');
+check('the consult is one slot long',
+  new Date(apptOf(booked.body).slotEnd).getTime() - new Date(wanted).getTime() ===
+    anita.slotDurationMins * 60_000,
+);
+
+// The exit criterion, first half: the slot leaves the available list.
+const afterBooking = slotsOf((await call(`/api/doctors/${anita.id}/slots?date=${soonDate}`)).body);
+check(
+  'the booked slot is no longer available',
+  afterBooking.find((slot) => slot.start === wanted)?.available === false,
+  afterBooking.find((slot) => slot.start === wanted),
+);
+
+// ...and shows up on both sides.
+const mine = await call('/api/appointments/mine', { token: rahulToken });
+check('it appears on the patient\'s own list',
+  pageOf(mine.body).items.some((appointment) => appointment.id === apptOf(booked.body).id),
+);
+const doctorDay = await call('/api/doctor/appointments?when=all&pageSize=100', { token: anitaToken });
+check('and on the doctor\'s',
+  pageOf(doctorDay.body).items.some((appointment) => appointment.id === apptOf(booked.body).id),
+);
+
+/* ------------------------------------------- what booking refuses to do --- */
+
+check(
+  'the same slot cannot be booked twice',
+  (await call('/api/appointments', {
+    method: 'POST',
+    token: snehaToken,
+    body: { doctorId: anita.id, slotStart: wanted, mode: 'cash' },
+  })).status === 409,
+);
+
+// Free is not the same question as offered: nothing occupies 03:17, and the
+// doctor does not see patients then either.
+const oddHour = `${soonDate}T03:17:00.000Z`;
+check(
+  'a time the doctor does not sit is refused even though nothing occupies it',
+  (await call('/api/appointments', {
+    method: 'POST',
+    token: rahulToken,
+    body: { doctorId: anita.id, slotStart: oddHour, mode: 'cash' },
+  })).status === 409,
+);
+
+const gone = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+check(
+  'a time that has already passed is refused',
+  (await call('/api/appointments', {
+    method: 'POST',
+    token: rahulToken,
+    body: { doctorId: anita.id, slotStart: gone, mode: 'cash' },
+  })).status === 409,
+);
+
+const beyond = new Date();
+beyond.setUTCDate(beyond.getUTCDate() + BOOKING_HORIZON_DAYS + 7);
+check(
+  'a time past the booking horizon is refused',
+  (await call('/api/appointments', {
+    method: 'POST',
+    token: rahulToken,
+    body: { doctorId: anita.id, slotStart: beyond.toISOString(), mode: 'cash' },
+  })).status === 409,
+);
+
+check(
+  'a booking with no payment mode is refused',
+  (await call('/api/appointments', {
+    method: 'POST',
+    token: rahulToken,
+    body: { doctorId: anita.id, slotStart: await freeSlot() },
+  })).status === 422,
+);
+
+check(
+  'a booking for an unknown doctor is a 404',
+  (await call('/api/appointments', {
+    method: 'POST',
+    token: rahulToken,
+    body: { doctorId: 'a'.repeat(24), slotStart: await freeSlot(), mode: 'cash' },
+  })).status === 404,
+);
+
+// A doctor who has stopped taking bookings cannot be booked by an old link.
+await Doctors.updateOne({ _id: anitaId }, { $set: { available: false } });
+check(
+  'a doctor not taking bookings cannot be booked',
+  (await call('/api/appointments', {
+    method: 'POST',
+    token: rahulToken,
+    body: { doctorId: anita.id, slotStart: wanted, mode: 'cash' },
+  })).status === 409,
+);
+await Doctors.updateOne({ _id: anitaId }, { $set: { available: true } });
+
+/* ---------------------- the exit criterion: two bookings, one slot, once --- */
+
+const contested = await freeSlot();
+const [first, second] = await Promise.all([
+  call('/api/appointments', {
+    method: 'POST',
+    token: rahulToken,
+    body: { doctorId: anita.id, slotStart: contested, mode: 'cash' },
+  }),
+  call('/api/appointments', {
+    method: 'POST',
+    token: snehaToken,
+    body: { doctorId: anita.id, slotStart: contested, mode: 'razorpay' },
+  }),
+]);
+
+const statuses = [first.status, second.status].sort((a, b) => a - b);
+check(
+  'two simultaneous bookings for one slot give one 201 and one 409',
+  statuses[0] === 201 && statuses[1] === 409,
+  { first: first.status, second: second.status, firstBody: first.body, secondBody: second.body },
+);
+
+const Appointments = mongoose.connection.collection('appointments');
+const held = await Appointments.countDocuments({
+  doctorId: anitaId,
+  slotStart: new Date(contested),
+  status: { $in: ['booked', 'checked_in', 'in_progress', 'completed'] },
+});
+check('exactly one appointment exists for that slot', held === 1, held);
+
+/* -------------------------------------------- 6.4 a patient's own list --- */
+
+check(
+  'a patient cannot read the list without a token',
+  (await call('/api/appointments/mine')).status === 401,
+);
+check(
+  'a doctor has no patient list of their own',
+  (await call('/api/appointments/mine', { token: anitaToken })).status === 403,
+);
+
+const upcoming = await call('/api/appointments/mine?when=upcoming', { token: rahulToken });
+check('the upcoming list is the patient\'s own only',
+  pageOf(upcoming.body).items.every((appointment) => appointment.patient.name === 'Rahul Verma'),
+  pageOf(upcoming.body).items.map((appointment) => appointment.patient.name),
+);
+check('it reads soonest first',
+  pageOf(upcoming.body).items.every(
+    (appointment, i, all) => i === 0 || all[i - 1]!.slotStart <= appointment.slotStart,
+  ),
+);
+check('nothing upcoming is in the past',
+  pageOf(upcoming.body).items.every(
+    (appointment) => new Date(appointment.slotStart).getTime() >= startOfToday,
+  ),
+);
+
+const past = await call('/api/appointments/mine?when=past', { token: rahulToken });
+check('the past list holds only what has been',
+  pageOf(past.body).items.every(
+    (appointment) => new Date(appointment.slotStart).getTime() < startOfToday,
+  ),
+);
+
+/* ---------------------------------------------- cancelling one's own --- */
+
+const toCancel = apptOf(booked.body).id;
+check(
+  "a patient cannot cancel another patient's appointment",
+  (await call(`/api/appointments/${toCancel}/cancel`, { method: 'PATCH', token: snehaToken }))
+    .status === 403,
+);
+
+const cancelled = await call(`/api/appointments/${toCancel}/cancel`, {
+  method: 'PATCH',
+  token: rahulToken,
+});
+check('a patient cancels their own', cancelled.status === 200, cancelled.body);
+check('it is marked cancelled', apptOf(cancelled.body).status === 'cancelled');
+
+// Cancelling releases the slot, because the unique index only covers the
+// active statuses. This is the rule stated once and relied on everywhere.
+const released = slotsOf((await call(`/api/doctors/${anita.id}/slots?date=${soonDate}`)).body);
+check(
+  'the cancelled slot is bookable again',
+  released.find((slot) => slot.start === wanted)?.available === true,
+  released.find((slot) => slot.start === wanted),
+);
+check(
+  'and someone else can take it',
+  (await call('/api/appointments', {
+    method: 'POST',
+    token: snehaToken,
+    body: { doctorId: anita.id, slotStart: wanted, mode: 'cash' },
+  })).status === 201,
+);
+
+check(
+  'cancelling twice is refused rather than silently repeated',
+  (await call(`/api/appointments/${toCancel}/cancel`, { method: 'PATCH', token: rahulToken }))
+    .status === 409,
+);
+
+/* --------------------------------------------- 6.4 a patient's account --- */
+
+interface PatientProfile {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  phone?: string;
+  dob?: string;
+  gender?: string;
+}
+
+const profileOf = (body: unknown) => (body as { profile: PatientProfile }).profile;
+
+check('the account needs a token', (await call('/api/patient/profile')).status === 401);
+check(
+  'a doctor has no patient account of their own',
+  (await call('/api/patient/profile', { token: anitaToken })).status === 403,
+);
+
+const account = await call('/api/patient/profile', { token: rahulToken });
+check('a patient reads their own account', account.status === 200, account.status);
+check('it is their own record', profileOf(account.body).email === 'rahul@medihelp.test');
+check('the date of birth is a plain date, with no time on it',
+  /^\d{4}-\d{2}-\d{2}$/.test(profileOf(account.body).dob ?? ''),
+  profileOf(account.body).dob,
+);
+check('no password hash comes back with it',
+  !Object.keys(profileOf(account.body)).some((key) => key.toLowerCase().includes('password')),
+  Object.keys(profileOf(account.body)),
+);
+
+const edited = await call('/api/patient/profile', {
+  method: 'PATCH',
+  token: rahulToken,
+  form: { phone: '9876500011', gender: 'male' },
+});
+check('a patient edits their own account', edited.status === 200, edited.body);
+check('the phone number changed', profileOf(edited.body).phone === '9876500011');
+check('the name was left alone', profileOf(edited.body).name === 'Rahul Verma');
+
+// The email is the account identifier; changing it is a recovery flow of its
+// own, so the field is simply not in the schema and zod drops it.
+const smuggled = await call('/api/patient/profile', {
+  method: 'PATCH',
+  token: rahulToken,
+  form: { email: 'someone-else@medihelp.test', role: 'admin', phone: '9876500012' },
+});
+check('an email in the body is ignored rather than applied',
+  profileOf(smuggled.body).email === 'rahul@medihelp.test',
+  profileOf(smuggled.body).email,
+);
+check('so is a role', profileOf(smuggled.body).role === 'patient', profileOf(smuggled.body).role);
+
+check(
+  'a birthday in the future is refused',
+  (await call('/api/patient/profile', {
+    method: 'PATCH',
+    token: rahulToken,
+    form: { dob: '2999-01-01' },
+  })).status === 422,
+);
+check(
+  'an edit that changes nothing is refused',
+  (await call('/api/patient/profile', { method: 'PATCH', token: rahulToken, form: {} })).status ===
+    422,
+);
+
+// One patient's edit must not touch another's record.
+check(
+  "the other patient's number is still their own",
+  profileOf((await call('/api/patient/profile', { token: snehaToken })).body).phone !== '9876500011',
 );
 
 console.log(`\n${results.join('\n')}\n`);

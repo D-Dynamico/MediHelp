@@ -1,10 +1,17 @@
 import type { PipelineStage } from 'mongoose';
 import { Types } from 'mongoose';
-import type { AppointmentDto, AppointmentStatus, Role } from '@shared/types.js';
+import type { AppointmentDto, AppointmentStatus, PaymentMode, Role } from '@shared/types.js';
 import { OPEN_APPOINTMENT_STATUSES } from '@shared/types.js';
-import { AppointmentModel, DoctorModel } from '../../models/index.js';
+import {
+  AppointmentModel,
+  DoctorModel,
+  UserModel,
+  type DoctorDocument,
+} from '../../models/index.js';
 import { ApiError } from '../../utils/apiError.js';
 import { logger } from '../../config/logger.js';
+import { startOfDayUtc } from '../../utils/dates.js';
+import { horizonEnd, isOfferedSlot, slotsFor } from '../../utils/slots.js';
 import { patientLookupStages, toAppointmentDto, type AppointmentRow } from './appointment.mapper.js';
 
 /**
@@ -303,4 +310,141 @@ async function present(id: Types.ObjectId): Promise<AppointmentDto> {
   ]);
   if (!row) throw ApiError.notFound('No appointment with that id.');
   return toAppointmentDto(row);
+}
+
+/* ------------------------------------------------------------- booking --- */
+
+/** What booking needs. Every value is either from the token or re-derived. */
+export interface BookingRequest {
+  doctorId: string;
+  /** The exact start of an offered slot. Checked, never trusted. */
+  slotStart: Date;
+  mode: PaymentMode;
+  triageId?: string | undefined;
+}
+
+/**
+ * Books a slot.
+ *
+ * Three things are deliberately *not* taken from the request. The fee comes
+ * from the doctor record, so a client sending `amount: 1` changes nothing. The
+ * token number is derived, so it cannot be chosen. And the slot is re-generated
+ * from the doctor's hours and matched exactly, so a request naming 03:17 on a
+ * Sunday is refused even though no appointment occupies it — "free" and
+ * "offered" are different questions, and only checking the first would let
+ * anyone book any instant they liked.
+ *
+ * The last word on a race belongs to the unique index, not to the availability
+ * check above it. Two requests for one slot both pass that check; one insert
+ * wins and the other comes back as a duplicate key, which becomes a clean 409.
+ */
+export async function bookAppointment(
+  patientId: string,
+  request: BookingRequest,
+): Promise<AppointmentDto> {
+  const doctor = await DoctorModel.findById(request.doctorId);
+  if (!doctor) throw ApiError.notFound('No doctor with that id.');
+
+  const account = await UserModel.findById(doctor.userId).select('name image isActive');
+  // Same answer as the catalogue gives, so a removed doctor cannot be booked by
+  // anyone who kept an old link.
+  if (!account?.isActive) throw ApiError.notFound('No doctor with that id.');
+
+  if (!doctor.available) {
+    throw ApiError.conflict('That doctor is not taking bookings at the moment.');
+  }
+
+  const day = startOfDayUtc(request.slotStart);
+  if (day >= horizonEnd()) {
+    throw ApiError.conflict('That is further ahead than the clinic books.');
+  }
+
+  // The same generator the patient's grid was drawn from, asked whether this
+  // exact instant is one of the times on it.
+  const offered = isOfferedSlot(
+    {
+      workingHours: doctor.workingHours ?? [],
+      slotDurationMins: doctor.slotDurationMins,
+      date: request.slotStart,
+    },
+    request.slotStart,
+  );
+  if (!offered) {
+    throw ApiError.conflict('That is not a time this doctor sees patients.');
+  }
+
+  const slotEnd = new Date(request.slotStart.getTime() + doctor.slotDurationMins * 60_000);
+
+  try {
+    const appointment = await AppointmentModel.create({
+      patientId: new Types.ObjectId(patientId),
+      doctorId: doctor._id,
+      slotStart: request.slotStart,
+      slotEnd,
+      tokenNumber: tokenFor(doctor, request.slotStart),
+      status: 'booked',
+      // From the doctor record, never from the request body.
+      amount: doctor.fees,
+      payment: {
+        mode: request.mode,
+        // Cash is owed at the desk from the moment it is booked; a gateway
+        // payment is owed to the gateway and stays pending until it clears.
+        status: request.mode === 'cash' ? 'pending_at_desk' : 'pending',
+      },
+      ...(request.triageId ? { triageId: new Types.ObjectId(request.triageId) } : {}),
+      docSnapshot: {
+        name: account.name,
+        speciality: doctor.speciality,
+        fees: doctor.fees,
+        ...(account.image ? { image: account.image } : {}),
+      },
+    });
+
+    return await present(appointment._id);
+  } catch (caught) {
+    if (isDuplicateSlot(caught)) {
+      throw ApiError.conflict('Someone just took that time. Pick another.');
+    }
+    throw caught;
+  }
+}
+
+/**
+ * The token a slot carries.
+ *
+ * Its position in the doctor's own day, not a running count of bookings. A
+ * counter would need either a lock or a second unique index to survive two
+ * people booking at once, and it would number patients by who clicked first —
+ * which is not the order anybody is seen in. Position means token 1 is the
+ * first appointment of the morning whoever booked it, the board reads in time
+ * order, and no two concurrent bookings can be handed the same number.
+ *
+ * Numbers therefore have gaps when slots go unbooked, which is honest: token 7
+ * is the seventh slot of the day, not the seventh patient.
+ */
+function tokenFor(doctor: DoctorDocument, slotStart: Date): number {
+  const slots = slotsFor({
+    workingHours: doctor.workingHours ?? [],
+    slotDurationMins: doctor.slotDurationMins,
+    date: slotStart,
+    taken: [],
+    // From the start of the day, so the token does not depend on the hour the
+    // booking happened to be made — otherwise the same slot would number
+    // differently in the morning than it does at noon.
+    now: new Date(startOfDayUtc(slotStart).getTime() - 1),
+  });
+
+  const at = slots.findIndex((slot) => slot.start === slotStart.toISOString());
+  return at + 1;
+}
+
+/**
+ * Whether an error is the unique index refusing a second booking for one slot.
+ *
+ * Narrowed to that specific index by name. Any other duplicate key here is a
+ * different bug and must not be reported to a patient as "someone took it".
+ */
+function isDuplicateSlot(caught: unknown): boolean {
+  const error = caught as { code?: number; message?: string };
+  return error?.code === 11000 && String(error.message).includes('one_active_appointment_per_slot');
 }

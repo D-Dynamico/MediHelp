@@ -74,6 +74,11 @@ export const SPECIALITIES = [
 ] as const;
 export type Speciality = (typeof SPECIALITIES)[number];
 
+/* --------------------------------------------------------------- people --- */
+
+export const GENDERS = ['male', 'female', 'other', 'prefer_not_to_say'] as const;
+export type Gender = (typeof GENDERS)[number];
+
 /* ------------------------------------------------------------- waitlist --- */
 
 export const WAITLIST_STATES = [
@@ -127,6 +132,17 @@ export interface DoctorDto {
   address: { line1: string; line2?: string };
   available: boolean;
   slotDurationMins: number;
+}
+
+/**
+ * A patient's own account, as they see it. `UserDto` plus the two fields only
+ * they and their doctor need: the date of birth an age is shown from, and how
+ * they would like to be referred to.
+ */
+export interface PatientProfileDto extends UserDto {
+  /** A plain calendar date, "YYYY-MM-DD" — no time, because none was given. */
+  dob?: string;
+  gender?: Gender;
 }
 
 /**

@@ -9,6 +9,8 @@ import { authRouter } from './modules/auth/auth.routes.js';
 import { adminRouter } from './modules/admin/admin.routes.js';
 import { doctorRouter } from './modules/doctors/doctor.routes.js';
 import { publicDoctorRouter } from './modules/doctors/public.routes.js';
+import { appointmentRouter } from './modules/appointments/appointment.routes.js';
+import { patientRouter } from './modules/patients/patient.routes.js';
 import { UPLOAD_DIR, UPLOAD_URL_PREFIX } from './providers/storage/local.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 
@@ -57,6 +59,8 @@ export function createApp(): Express {
   app.use('/api/doctor', doctorRouter);
   // Plural and public: the catalogue a patient browses before signing up.
   app.use('/api/doctors', publicDoctorRouter);
+  app.use('/api/appointments', appointmentRouter);
+  app.use('/api/patient', patientRouter);
   // Further feature routers mount here, above the two handlers below.
 
   app.use(notFound);

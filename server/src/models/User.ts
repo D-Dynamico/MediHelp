@@ -1,5 +1,5 @@
 import { Schema, model, type InferSchemaType, type HydratedDocument, type Model } from 'mongoose';
-import { ROLES } from '@shared/types.js';
+import { GENDERS, ROLES } from '@shared/types.js';
 
 /**
  * One account per person, whatever their role. Doctors get a `User` for
@@ -30,7 +30,7 @@ const userSchema = new Schema(
 
     phone: { type: String, trim: true },
     dob: { type: Date },
-    gender: { type: String, enum: ['male', 'female', 'other', 'prefer_not_to_say'] },
+    gender: { type: String, enum: GENDERS },
     image: { type: String },
 
     /** Soft delete. Deactivated accounts keep their history but cannot log in. */

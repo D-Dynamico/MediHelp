@@ -127,16 +127,16 @@ doctor cannot act on another doctor's appointment even by editing the id in the 
 
 ## Phase 6 — Patient booking
 
-- [ ] **6.1 Public doctor endpoints** — list with speciality filter and search,
+- [x] **6.1 Public doctor endpoints** — list with speciality filter and search,
       detail by id, both excluding inactive doctors.
-- [ ] **6.2 Slot generation** — `utils/slots.ts` building candidate slots from
+- [x] **6.2 Slot generation** — `utils/slots.ts` building candidate slots from
       working hours and slot duration, minus non-cancelled appointments, minus
       anything in the past.
-- [ ] **6.3 Booking service** — availability re-check, fee and speciality snapshot,
+- [x] **6.3 Booking service** — availability re-check, fee and speciality snapshot,
       token allocation, appointment write, with the duplicate-key error mapped to a
       409.
-- [ ] **6.4 Patient endpoints** — my-appointments, cancel own, profile read/update.
-- [ ] **6.5 Patient UI** — doctor browse and filter, doctor detail with a date strip
+- [x] **6.4 Patient endpoints** — my-appointments, cancel own, profile read/update.
+- [x] **6.5 Patient UI** — doctor browse and filter, doctor detail with a date strip
       and slot grid, booking confirmation, my-appointments with cancel.
 
 **Exit**: a booked slot disappears from the available list and appears on both the

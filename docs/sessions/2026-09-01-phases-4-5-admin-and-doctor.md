@@ -817,3 +817,47 @@ the doctor's screens. Two simultaneous bookings for one slot — fired with
 `Promise.all`, two different patients — produce one 201 and one 409, and a
 direct count against the collection confirms exactly one appointment exists for
 that slot.
+
+## 6.5 — the patient UI
+
+**What changed.** The public side of the app: a `SiteLayout` shell, the doctor
+catalogue as the front page, a doctor's page with a date strip and slot grid,
+booking, the patient's own appointment list with cancel, and their account page.
+The scaffold `Home.tsx` is gone — the catalogue replaced it.
+
+**Decisions.**
+
+- *The catalogue is `/`.* Someone arriving from a search engine should meet the
+  doctors, not a login. The shell shows Sign in until there is someone to greet
+  and never puts the browse links behind it.
+- *Booking signs you in mid-flow rather than blocking the page.* An anonymous
+  visitor can pick a doctor, a day and a time; the button then reads "Sign in to
+  book" and carries `from` so they come back to the doctor they were looking at.
+- *The confirmation is the appointment list with `?booked=<id>`, not a page of
+  its own.* What a patient wants immediately after booking — the time, the token,
+  what to pay — is what the row already shows, and it lands them where the
+  appointment will always live. Changing the filter clears the banner: it belongs
+  to the booking just made, not to whatever list is browsed next.
+- *A date strip of the next fortnight, not a calendar widget.* A clinic books
+  weeks out, not years; a strip is one tap where a picker is three. It stays
+  comfortably inside the server's 60-day horizon.
+- *A failed booking reloads the grid and clears the choice.* The overwhelmingly
+  likely cause is that someone took the slot a second earlier, so the honest next
+  screen is the fresh grid rather than the stale one with an error over it.
+- *Cash only for now.* The API takes both modes, but offering "pay online"
+  before phase 7 has a gateway behind it would be a button that lies. 7.6 adds
+  the choice along with the handoff that makes it real.
+- *Unavailable doctors are shown, labelled "Not booking now".* Same reasoning as
+  the endpoint: their page is still what someone was looking for.
+- *The email field on the account page is `readOnly` with a note.* The server
+  refuses to change it; saying so on the field beats letting a patient discover
+  it from a 422.
+
+**Files.** New `client/src/api/patient.ts`,
+`client/src/pages/public/{SiteLayout,Doctors,DoctorDetail}.tsx`,
+`client/src/pages/patient/{Appointments,Account}.tsx`;
+`client/src/routes/router.tsx`; deleted `client/src/pages/Home.tsx`.
+
+**Verification.** `typecheck`, `lint` and `build` clean. The server side these
+screens call is covered by `check:booking`'s 81 assertions. **No patient screen
+has been rendered in a browser** — that is the open item.

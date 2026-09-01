@@ -1,8 +1,12 @@
 import { createBrowserRouter } from 'react-router-dom';
-import { Home } from '../pages/Home';
+import { SiteLayout } from '../pages/public/SiteLayout';
+import { Doctors } from '../pages/public/Doctors';
+import { DoctorDetail } from '../pages/public/DoctorDetail';
+import { MyAppointments } from '../pages/patient/Appointments';
+import { Account } from '../pages/patient/Account';
 import { Login } from '../pages/auth/Login';
 import { Signup } from '../pages/auth/Signup';
-import { GuestOnlyRoute, ProtectedRoute, RoleRoute } from './guards';
+import { GuestOnlyRoute, RoleRoute } from './guards';
 import { Placeholder } from '../pages/Placeholder';
 import { AdminLayout } from '../pages/admin/AdminLayout';
 import { AdminDashboard } from '../pages/admin/Dashboard';
@@ -19,8 +23,6 @@ import { DoctorProfile } from '../pages/doctor/Profile';
  * them errors; the server is what actually decides who may do what.
  */
 export const router = createBrowserRouter([
-  { path: '/', element: <Home /> },
-
   {
     element: <GuestOnlyRoute />,
     children: [
@@ -30,8 +32,23 @@ export const router = createBrowserRouter([
   },
 
   {
-    element: <ProtectedRoute />,
-    children: [{ path: '/account', element: <Placeholder title="Your account" /> }],
+    // The public side. The catalogue is the clinic's front page: someone who
+    // arrives from a search engine should meet the doctors, not a login.
+    element: <SiteLayout />,
+    children: [
+      { path: '/', element: <Doctors /> },
+      { path: '/doctors/:id', element: <DoctorDetail /> },
+
+      {
+        // A patient's own pages live inside the same shell, so booking and then
+        // looking at the booking is one continuous place rather than two.
+        element: <RoleRoute roles={['patient']} />,
+        children: [
+          { path: '/my/appointments', element: <MyAppointments /> },
+          { path: '/account', element: <Account /> },
+        ],
+      },
+    ],
   },
 
   {

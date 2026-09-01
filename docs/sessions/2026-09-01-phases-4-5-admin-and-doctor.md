@@ -718,3 +718,45 @@ new `server/src/modules/doctors/{public.routes,public.controller}.ts`,
 list or detail response carries an email, that `search=R.o` matches nothing
 (the term is escaped, not run as a pattern), and that a soft-deleted doctor
 disappears from the list and 404s on their page. `typecheck` and `lint` clean.
+
+## 6.2 — slot generation
+
+**What changed.** `server/src/utils/slots.ts` — a pure function turning working
+hours and a consult length into the day's slots — and
+`GET /api/doctors/:id/slots?date=`.
+
+**Decisions.**
+
+- *One function, used by both the grid and the booking check.* This is the whole
+  point of making it pure. If the code that draws the patient's grid and the code
+  that validates a booking were separate, a client could post any instant it
+  liked and get a consult at 03:17 on a Sunday. `isOfferedSlot()` is the same
+  generator asked a yes/no question.
+- *Taken slots are returned marked, not dropped.* A patient looking at a day with
+  two free times out of twelve should see a busy day, not a suspiciously short
+  list.
+- *Past slots are dropped entirely.* They are not a choice, and greying out this
+  morning for the rest of the day is noise. `now` is injected so the same inputs
+  always give the same answer, which is what makes the edge cases testable.
+- *Only whole slots.* A sitting ending at 10:20 with a 30-minute consult offers
+  one slot, not one and a stub — otherwise the last booking of the morning runs
+  into the doctor's lunch.
+- *A 60-day booking horizon.* Without a limit the diary fills with appointments
+  made two years out that nobody keeps, each holding a slot the unique index
+  defends. Two months covers a follow-up while the doctor's hours are still
+  roughly the hours they will work.
+- *A doctor not taking bookings returns an empty day, not an error.* Their page
+  still reads; "no times" is the honest answer.
+- *Taken means* `ACTIVE_APPOINTMENT_STATUSES`, the same list the unique index
+  uses. Reading it any other way would show a slot as taken that the database
+  would happily let someone book.
+
+**Files.** New `server/src/utils/slots.ts`,
+`server/src/modules/doctors/{doctor.service,doctor.schema,public.controller,public.routes}.ts`,
+`server/scripts/check-booking.ts`.
+
+**Verification.** `check:booking` now 37 assertions, all green. The awkward cases
+are asserted against the pure function directly — a part-slot at the end of a
+sitting, two sittings on one day entered out of order, a slot that has already
+started — rather than through HTTP, where the seed's own hours would decide what
+the test could see.

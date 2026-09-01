@@ -1,9 +1,16 @@
 import type { PipelineStage } from 'mongoose';
 import { Types } from 'mongoose';
-import type { DoctorEarningsDto, DoctorProfileDto, PublicDoctorDto } from '@shared/types.js';
+import { ACTIVE_APPOINTMENT_STATUSES } from '@shared/types.js';
+import type {
+  DoctorEarningsDto,
+  DoctorProfileDto,
+  PublicDoctorDto,
+  SlotDto,
+} from '@shared/types.js';
 import { AppointmentModel, DoctorModel, UserModel } from '../../models/index.js';
 import { ApiError } from '../../utils/apiError.js';
 import { endOfDayUtc, startOfDayUtc, startOfMonthUtc } from '../../utils/dates.js';
+import { horizonEnd, slotsFor } from '../../utils/slots.js';
 import {
   cancelAppointment,
   completeAppointment,
@@ -297,4 +304,42 @@ export async function getPublic(id: string): Promise<PublicDoctorDto> {
 /** Regex-escapes a search term so punctuation in it stays literal. */
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/* ----------------------------------------------------------------- slots --- */
+
+/**
+ * A doctor's free slots on one day.
+ *
+ * The taken list is every *active* appointment in the day — cancelled and
+ * no-show ones release their slot, which is the same rule the unique index
+ * enforces. Reading it any other way would show a slot as taken that the
+ * database would happily let someone book.
+ *
+ * A doctor not currently taking bookings returns an empty day rather than an
+ * error: their page is still readable, and "no times" is the honest answer.
+ */
+export async function slotsOn(id: string, date: Date): Promise<SlotDto[]> {
+  const doctor = await DoctorModel.findById(id);
+  if (!doctor) throw ApiError.notFound('No doctor with that id.');
+
+  const account = await UserModel.findById(doctor.userId).select('isActive');
+  if (!account?.isActive) throw ApiError.notFound('No doctor with that id.');
+
+  if (!doctor.available) return [];
+  // Past days and anything beyond the booking horizon have no slots to offer.
+  if (date >= horizonEnd()) return [];
+
+  const taken = await AppointmentModel.find({
+    doctorId: doctor._id,
+    status: { $in: [...ACTIVE_APPOINTMENT_STATUSES] },
+    slotStart: { $gte: startOfDayUtc(date), $lt: endOfDayUtc(date) },
+  }).select('slotStart');
+
+  return slotsFor({
+    workingHours: doctor.workingHours ?? [],
+    slotDurationMins: doctor.slotDurationMins,
+    date,
+    taken: taken.map((appointment) => appointment.slotStart),
+  });
 }

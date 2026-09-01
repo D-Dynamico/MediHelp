@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { validate } from '../../middleware/validate.js';
-import { objectIdParamSchema, publicDoctorQuerySchema } from './doctor.schema.js';
+import { objectIdParamSchema, publicDoctorQuerySchema, slotQuerySchema } from './doctor.schema.js';
 import * as controller from './public.controller.js';
 
 /**
@@ -27,4 +27,10 @@ publicDoctorRouter.get(
   '/:id',
   validate({ params: objectIdParamSchema }),
   controller.detail,
+);
+
+publicDoctorRouter.get(
+  '/:id/slots',
+  validate({ params: objectIdParamSchema, query: slotQuerySchema }),
+  controller.slots,
 );

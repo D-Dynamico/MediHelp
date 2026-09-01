@@ -24,6 +24,7 @@ assertThrowawayDatabase();
 const { createApp } = await import('../src/app.js');
 const { connectDb } = await import('../src/config/db.js');
 const { seedDatabase } = await import('../src/seed.js');
+const { slotsFor, BOOKING_HORIZON_DAYS } = await import('../src/utils/slots.js');
 
 await connectDb();
 await mongoose.connection.syncIndexes();
@@ -168,6 +169,153 @@ await call(`/api/admin/doctors/${removed.id}`, {
   token: adminToken,
   body: { isActive: true },
 });
+
+/* ------------------------------------------------- 6.2 slot generation --- */
+
+interface Slot {
+  start: string;
+  end: string;
+  available: boolean;
+}
+
+const slotsOf = (body: unknown) => (body as { slots: Slot[] }).slots;
+
+// The pure function first, where the awkward cases are cheap to state.
+const monday = new Date('2026-09-07T00:00:00.000Z');
+const longAgo = new Date('2000-01-01T00:00:00.000Z');
+
+const wholeSlots = slotsFor({
+  workingHours: [{ day: 1, start: '09:00', end: '10:00' }],
+  slotDurationMins: 30,
+  date: monday,
+  taken: [],
+  now: longAgo,
+});
+check('an hour at half-hour consults is two slots', wholeSlots.length === 2, wholeSlots);
+check(
+  'the first one starts when the sitting opens',
+  wholeSlots[0]?.start === '2026-09-07T09:00:00.000Z',
+  wholeSlots[0],
+);
+
+// A sitting with a remainder must not offer a consult that runs past closing.
+const remainder = slotsFor({
+  workingHours: [{ day: 1, start: '09:00', end: '10:20' }],
+  slotDurationMins: 30,
+  date: monday,
+  taken: [],
+  now: longAgo,
+});
+check(
+  'a part-slot at the end of a sitting is not offered',
+  remainder.length === 2 && remainder[1]?.end === '2026-09-07T10:00:00.000Z',
+  remainder,
+);
+
+// Two sittings in a day, entered out of order, read back as one ordered list.
+const twoSittings = slotsFor({
+  workingHours: [
+    { day: 1, start: '17:00', end: '18:00' },
+    { day: 1, start: '09:00', end: '10:00' },
+    { day: 2, start: '09:00', end: '18:00' },
+  ],
+  slotDurationMins: 60,
+  date: monday,
+  taken: [],
+  now: longAgo,
+});
+check('only the asked-for weekday is used', twoSittings.length === 2, twoSittings);
+check(
+  'sittings entered out of order come back in time order',
+  twoSittings[0]!.start < twoSittings[1]!.start,
+  twoSittings.map((slot) => slot.start),
+);
+
+const withTaken = slotsFor({
+  workingHours: [{ day: 1, start: '09:00', end: '10:00' }],
+  slotDurationMins: 30,
+  date: monday,
+  taken: [new Date('2026-09-07T09:00:00.000Z')],
+  now: longAgo,
+});
+check(
+  'a taken slot is shown as taken rather than hidden',
+  withTaken.length === 2 && withTaken[0]?.available === false && withTaken[1]?.available === true,
+  withTaken,
+);
+
+// "Now" is midway through the sitting, so the first slot is already gone.
+const halfPast = slotsFor({
+  workingHours: [{ day: 1, start: '09:00', end: '10:00' }],
+  slotDurationMins: 30,
+  date: monday,
+  taken: [],
+  now: new Date('2026-09-07T09:15:00.000Z'),
+});
+check('a slot that has already started is dropped, not greyed out', halfPast.length === 1, halfPast);
+
+/* --------------------------------------------------- the slots endpoint --- */
+
+const today = new Date();
+const soon = new Date(today);
+soon.setUTCDate(soon.getUTCDate() + 3);
+const soonDate = soon.toISOString().slice(0, 10);
+
+const day = await call(`/api/doctors/${anita.id}/slots?date=${soonDate}`);
+check('slots need no token either', day.status === 200, day.status);
+check('the day echoes back the date asked for', (day.body as unknown as { date: string }).date === soonDate);
+check('a working day offers slots', slotsOf(day.body).length > 0, slotsOf(day.body).length);
+check(
+  'every slot is one consult long',
+  slotsOf(day.body).every(
+    (slot) =>
+      new Date(slot.end).getTime() - new Date(slot.start).getTime() ===
+      anita.slotDurationMins * 60_000,
+  ),
+);
+check(
+  'no slot is in the past',
+  slotsOf(day.body).every((slot) => new Date(slot.start).getTime() > Date.now()),
+);
+
+check(
+  'a badly formed date is refused',
+  (await call(`/api/doctors/${anita.id}/slots?date=next-tuesday`)).status === 422,
+);
+
+const yesterday = new Date(today);
+yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+check(
+  'a day that has gone offers nothing',
+  slotsOf(
+    (await call(`/api/doctors/${anita.id}/slots?date=${yesterday.toISOString().slice(0, 10)}`)).body,
+  ).length === 0,
+);
+
+const tooFar = new Date(today);
+tooFar.setUTCDate(tooFar.getUTCDate() + BOOKING_HORIZON_DAYS + 1);
+check(
+  'a day past the booking horizon offers nothing',
+  slotsOf(
+    (await call(`/api/doctors/${anita.id}/slots?date=${tooFar.toISOString().slice(0, 10)}`)).body,
+  ).length === 0,
+);
+
+// A doctor who has switched off bookings still has a page, but no times.
+const Doctors = mongoose.connection.collection('doctors');
+const anitaId = new mongoose.Types.ObjectId(anita.id);
+await Doctors.updateOne({ _id: anitaId }, { $set: { available: false } });
+check(
+  'a doctor not taking bookings offers no slots',
+  slotsOf((await call(`/api/doctors/${anita.id}/slots?date=${soonDate}`)).body).length === 0,
+);
+check('but their page still loads', (await call(`/api/doctors/${anita.id}`)).status === 200);
+await Doctors.updateOne({ _id: anitaId }, { $set: { available: true } });
+
+check(
+  'slots for an unknown doctor are a 404',
+  (await call(`/api/doctors/${'a'.repeat(24)}/slots`)).status === 404,
+);
 
 console.log(`\n${results.join('\n')}\n`);
 

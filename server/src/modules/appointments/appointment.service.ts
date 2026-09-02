@@ -210,8 +210,11 @@ export async function cancelAppointment(id: string, actor: Actor): Promise<Appoi
   // Mongoose types a nested object as optional even where its fields are
   // required, and the path form both sidesteps that and is unambiguous about
   // the change being tracked.
-  if (appointment.payment?.status === 'paid') {
-    await refundFor(appointment);
+  //
+  // Only marked refunded when the money actually went back. A gateway that
+  // refused leaves the row saying `paid`, which is the truth and the only thing
+  // that lets anyone notice the refund still needs doing.
+  if (appointment.payment?.status === 'paid' && (await refundFor(appointment))) {
     appointment.set('payment.status', 'refunded');
   }
 

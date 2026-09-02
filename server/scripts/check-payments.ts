@@ -429,6 +429,103 @@ check(
     createHmac('sha256', 'b').update('x').digest('hex'),
 );
 
+/* ------------------------ money that arrives after a cancellation --- */
+
+// The race the review found: the patient opens checkout, the appointment is
+// cancelled while the payment is still `pending` — so cancelling saw nothing to
+// refund — and the capture then lands. It used to flip the cancelled
+// appointment to `paid` and keep the money.
+const late = await book(rahulToken, 'razorpay');
+const lateId = apptOf(late.body).id;
+const lateOrder = orderOf(
+  (await call('/api/payments/order', { method: 'POST', token: rahulToken, body: { appointmentId: lateId } })).body,
+).orderId;
+
+const lateCancel = await call(`/api/appointments/${lateId}/cancel`, {
+  method: 'PATCH',
+  token: rahulToken,
+});
+check('an unpaid online appointment can still be cancelled', lateCancel.status === 200, lateCancel.body);
+check(
+  'cancelling before payment leaves nothing to refund',
+  apptOf(lateCancel.body).payment.status === 'pending',
+  apptOf(lateCancel.body).payment,
+);
+
+const lateVerify = await call('/api/payments/verify', {
+  method: 'POST',
+  token: rahulToken,
+  body: {
+    appointmentId: lateId,
+    orderId: lateOrder,
+    paymentId: 'pay_late',
+    signature: mockSignatureFor(lateOrder, 'pay_late'),
+  },
+});
+check('a capture that lands after the cancellation is accepted', lateVerify.status === 200, lateVerify.body);
+check(
+  'and is refunded on the spot rather than kept',
+  (lateVerify.body as unknown as { status: string }).status === 'refunded',
+  lateVerify.body,
+);
+
+const lateRow = await Payments.findOne({ gatewayOrderId: lateOrder });
+check('the payment row records the money as refunded', lateRow?.status === 'refunded', lateRow?.status);
+check('and carries the gateway refund id', Boolean(lateRow?.gatewayRefundId), lateRow?.gatewayRefundId);
+
+const lateAppt = (await call('/api/appointments/mine?when=all&pageSize=100', {
+  token: rahulToken,
+})).body as unknown as { items: Appointment[] };
+const lateFound = lateAppt.items.find((appointment) => appointment.id === lateId);
+check('the appointment stays cancelled', lateFound?.status === 'cancelled', lateFound?.status);
+check('and does not read as paid', lateFound?.payment.status === 'refunded', lateFound?.payment);
+
+// The mock's own confirm endpoint settles on the button press, so there is no
+// money in flight to hand back — it refuses instead.
+const mockLate = await book(snehaToken, 'razorpay');
+const mockLateId = apptOf(mockLate.body).id;
+await call('/api/payments/order', { method: 'POST', token: snehaToken, body: { appointmentId: mockLateId } });
+await call(`/api/appointments/${mockLateId}/cancel`, { method: 'PATCH', token: snehaToken });
+const mockConfirm = await call('/api/payments/confirm-mock', {
+  method: 'POST',
+  token: snehaToken,
+  body: { appointmentId: mockLateId },
+});
+check('the mock refuses to settle a cancelled appointment', mockConfirm.status === 409, mockConfirm.status);
+
+/* ------------------- a webhook for an order that was superseded --- */
+
+// A patient who abandons a checkout and starts a second one overwrites the
+// appointment's current order id. If the first order captures, matching on the
+// appointment finds nothing; the money is taken and the appointment left unpaid.
+const superseded = await book(rahulToken, 'razorpay');
+const supersededId = apptOf(superseded.body).id;
+const firstOrder = orderOf(
+  (await call('/api/payments/order', { method: 'POST', token: rahulToken, body: { appointmentId: supersededId } })).body,
+).orderId;
+const secondOrder = orderOf(
+  (await call('/api/payments/order', { method: 'POST', token: rahulToken, body: { appointmentId: supersededId } })).body,
+).orderId;
+check('starting checkout twice makes two orders', firstOrder !== secondOrder, { firstOrder, secondOrder });
+
+const firstCapture = JSON.stringify({
+  event: 'payment.captured',
+  payload: { payment: { entity: { id: 'pay_first', order_id: firstOrder } } },
+});
+const firstHook = await call('/api/payments/webhook', {
+  method: 'POST',
+  raw: firstCapture,
+  headers: { 'x-razorpay-signature': razorpayWebhookSignature(firstCapture, WEBHOOK_SECRET) },
+});
+check('a capture for the abandoned first order is still matched', firstHook.status === 200, firstHook.body);
+check('and settles the appointment', (firstHook.body as unknown as { handled: boolean }).handled, firstHook.body);
+
+const supersededAppt = ((await call('/api/appointments/mine?when=all&pageSize=100', {
+  token: rahulToken,
+})).body as unknown as { items: Appointment[] }).items.find((a) => a.id === supersededId);
+check('the appointment reads as paid', supersededAppt?.payment.status === 'paid', supersededAppt?.payment);
+
+
 console.log(`\n${results.join('\n')}\n`);
 
 server.close();

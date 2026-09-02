@@ -16,6 +16,8 @@ const paymentSchema = new Schema(
 
     gatewayOrderId: { type: String, index: true },
     gatewayPaymentId: { type: String },
+    /** Set once the money has actually gone back, not merely been asked for. */
+    gatewayRefundId: { type: String },
     /** False until the HMAC signature has been checked server-side. */
     signatureVerified: { type: Boolean, default: false },
 

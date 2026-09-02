@@ -142,7 +142,10 @@ export async function verifyPayment(
   }
 
   await settle(appointment, input.orderId, input.paymentId);
-  return { status: 'paid' };
+  // Read back rather than assumed: `settle` refunds on the spot when the
+  // appointment turned out to be cancelled, and the patient should be told that
+  // rather than that they have paid for a slot they no longer hold.
+  return { status: appointment.payment?.status ?? 'paid' };
 }
 
 /**
@@ -170,11 +173,18 @@ export async function confirmMockPayment(
   const appointment = await ownAppointment(appointmentId, patientId);
   if (appointment.payment?.status === 'paid') return { status: 'paid' };
 
+  // Nothing is in flight here the way it can be with a real checkout widget —
+  // this settles on the button press — so a cancelled appointment is simply
+  // refused rather than taken and handed straight back.
+  if (appointment.status === 'cancelled') {
+    throw ApiError.conflict('That appointment was cancelled.');
+  }
+
   const orderId = appointment.payment?.orderId;
   if (!orderId) throw ApiError.conflict('That payment has not been started.');
 
   await settle(appointment, orderId, `pay_mock_${orderId.slice(-10)}`);
-  return { status: 'paid' };
+  return { status: appointment.payment?.status ?? 'paid' };
 }
 
 /**
@@ -198,7 +208,27 @@ async function settle(
 
   appointment.set('payment.status', 'paid');
   appointment.set('payment.paymentId', paymentId);
+  // The order that actually paid, which is not always the last one started —
+  // see the webhook's lookup below.
+  appointment.set('payment.orderId', orderId);
   await appointment.save();
+
+  // Money can land after the slot was given up: the patient opens checkout, the
+  // appointment is cancelled in another tab or by the clinic while the payment
+  // is still `pending` — so `refundFor` saw nothing to refund — and the capture
+  // then arrives. Refusing it here would leave the money sitting at the gateway
+  // with nothing pointing at it, so it is taken properly and sent straight back.
+  if (appointment.status === 'cancelled') {
+    logger.warn('A payment settled against an appointment that was already cancelled', {
+      appointmentId: String(appointment._id),
+      orderId,
+    });
+    if (await refundFor(appointment)) {
+      appointment.set('payment.status', 'refunded');
+      await appointment.save();
+    }
+  }
+
   return true;
 }
 
@@ -208,24 +238,29 @@ async function settle(
  * Best effort on purpose. The appointment is cancelled either way — a gateway
  * that will not refund right now is a person's job, not a 500 for the patient
  * who cancelled. The `Payment` row keeps the trail so it can be chased.
+ *
+ * Returns whether the money actually went back, so the caller can leave the
+ * appointment saying `paid`. Telling a patient "Refunded" for a refund that
+ * failed hides the one signal anyone had that the money is still here.
  */
-export async function refundFor(appointment: AppointmentDocument): Promise<void> {
-  if (appointment.payment?.status !== 'paid') return;
+export async function refundFor(appointment: AppointmentDocument): Promise<boolean> {
+  if (appointment.payment?.status !== 'paid') return false;
 
   const paymentId = appointment.payment.paymentId;
   if (!paymentId) {
     logger.error('An appointment is paid but carries no payment id', {
       appointmentId: String(appointment._id),
     });
-    return;
+    return false;
   }
 
   try {
     const { refundId } = await payments().refund({ paymentId, amount: appointment.amount });
     await PaymentModel.updateOne(
       { appointmentId: appointment._id, gatewayPaymentId: paymentId },
-      { $set: { status: 'refunded' }, $push: { raw: { refundId } } },
+      { $set: { status: 'refunded', gatewayRefundId: refundId } },
     );
+    return true;
   } catch (caught) {
     // Logged loudly and left for a human. Swallowed rather than rethrown so the
     // cancellation itself still succeeds.
@@ -234,6 +269,7 @@ export async function refundFor(appointment: AppointmentDocument): Promise<void>
       paymentId,
       error: String(caught),
     });
+    return false;
   }
 }
 
@@ -275,7 +311,16 @@ export async function handleWebhook(
     return { handled: false };
   }
 
-  const appointment = await AppointmentModel.findOne({ 'payment.orderId': entity.order_id });
+  // Looked up through the `Payment` row rather than the appointment's current
+  // order id. A patient who abandons a checkout and starts a second one
+  // overwrites `payment.orderId`; if the *first* order then captures, matching
+  // on the appointment would find nothing and the money would be taken with the
+  // appointment left unpaid. Every order ever created has a row here.
+  const attempt = await PaymentModel.findOne({ gatewayOrderId: entity.order_id });
+  const appointment = attempt
+    ? await AppointmentModel.findById(attempt.appointmentId)
+    : await AppointmentModel.findOne({ 'payment.orderId': entity.order_id });
+
   if (!appointment) {
     logger.warn('A webhook named an order we have no appointment for', {
       orderId: entity.order_id,

@@ -1,7 +1,8 @@
 import type { TriageDto } from '@shared/types.js';
 import { TriageAssessmentModel, type TriageAssessmentDocument } from '../../models/index.js';
 import { ApiError } from '../../utils/apiError.js';
-import { assessWithRules, emergencyAdviceFor } from '../../providers/ai/rules.js';
+import { emergencyAdviceFor } from '../../providers/ai/rules.js';
+import { assessSymptoms } from '../../providers/ai/index.js';
 import type { AssessInput } from './triage.schema.js';
 
 /**
@@ -38,7 +39,9 @@ export function toTriageDto(assessment: TriageAssessmentDocument): TriageDto {
 
 /** Assesses what the patient wrote and keeps the result. */
 export async function assess(input: AssessInput, patientId: string): Promise<TriageDto> {
-  const result = assessWithRules(input);
+  // Never throws: a Claude failure comes back as the rules answer with
+  // `source: 'rules'`, so there is nothing to handle here.
+  const result = await assessSymptoms(input);
 
   const assessment = await TriageAssessmentModel.create({
     patientId,
@@ -48,7 +51,8 @@ export async function assess(input: AssessInput, patientId: string): Promise<Tri
     recommendedSpeciality: result.recommendedSpeciality,
     intakeNote: result.intakeNote,
     questionsToAsk: result.questionsToAsk,
-    source: 'rules',
+    source: result.source,
+    ...(result.modelUsed ? { modelUsed: result.modelUsed } : {}),
   });
 
   return toTriageDto(assessment);

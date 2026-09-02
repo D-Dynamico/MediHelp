@@ -342,5 +342,90 @@ await mongoose.disconnect();
 await mongod.stop();
 
 
+/* ================================================== choosing an engine === */
+
+// The phase's other exit criterion: with no key set the behaviour is identical
+// to the rules engine and `source` is `rules`. And when a key *is* set but the
+// call fails, the patient must not be able to tell the difference.
+
+const { reloadSettings } = await import('../src/config/env.js');
+const ai = await import('../src/providers/ai/index.js');
+const { resetAiClient } = await import('../src/providers/ai/llm.js');
+
+async function withEnv<T>(
+  env: Record<string, string | undefined>,
+  run: () => Promise<T>,
+): Promise<T> {
+  const saved: Record<string, string | undefined> = {};
+  for (const key of Object.keys(env)) saved[key] = process.env[key];
+
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  reloadSettings();
+  resetAiClient();
+
+  try {
+    return await run();
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    reloadSettings();
+    resetAiClient();
+  }
+}
+
+// The developer's own .env must not decide what this check sees.
+delete process.env.ANTHROPIC_API_KEY;
+reloadSettings();
+
+const noKey = await withEnv({ ANTHROPIC_API_KEY: undefined }, async () => {
+  check('with no key, Claude is not in play', !ai.usingClaude());
+  return ai.assessSymptoms({ symptomsText: 'itchy rash for three days' });
+});
+check('with no key the source is rules', noKey.source === 'rules', noKey.source);
+check('and no model is recorded', noKey.modelUsed === undefined, noKey.modelUsed);
+
+const direct = assess('itchy rash for three days');
+check(
+  'with no key the answer is identical to the rules engine',
+  JSON.stringify({ ...noKey, source: undefined, modelUsed: undefined }) ===
+    JSON.stringify({ ...direct, source: undefined, modelUsed: undefined }),
+  { noKey, direct },
+);
+
+// A key that cannot work: the call fails — 401, or a timeout if the network is
+// not reachable at all — and the patient still gets the rules answer. This is
+// the fallback proven end to end, without needing a real account.
+const badKey = await withEnv(
+  { ANTHROPIC_API_KEY: 'sk-ant-not-a-real-key', TRIAGE_TIMEOUT_MS: '2000' },
+  async () => {
+    check('with a key set, Claude is in play', ai.usingClaude());
+    return ai.assessSymptoms({ symptomsText: 'itchy rash for three days' });
+  },
+);
+check('a failing model call falls back rather than throwing', badKey.source === 'rules', badKey.source);
+check(
+  'and the fallback answer is the rules answer',
+  badKey.urgency === direct.urgency && badKey.recommendedSpeciality === direct.recommendedSpeciality,
+  badKey,
+);
+
+// The emergency path must survive the fallback too — it is the one answer that
+// matters most, and it is the rules engine that produces it either way.
+const badKeyEmergency = await withEnv(
+  { ANTHROPIC_API_KEY: 'sk-ant-not-a-real-key', TRIAGE_TIMEOUT_MS: '2000' },
+  () => ai.assessSymptoms({ symptomsText: 'crushing chest pain and short of breath' }),
+);
+check(
+  'an emergency still reads as one when the model is unreachable',
+  badKeyEmergency.urgency === 'emergency' && badKeyEmergency.source === 'rules',
+  badKeyEmergency,
+);
+
+
 console.log(`\n${results.join('\n')}\n`);
 process.exit(results.some((r) => r.startsWith('FAIL')) ? 1 : 0);

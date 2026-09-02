@@ -106,3 +106,69 @@ the audit entry exists without the symptom text in it.
 One trap worth recording: `AuditLog.targetId` is an `ObjectId` on the schema, so
 a check querying the raw collection with the id **as a string** silently matches
 nothing. It read as a missing audit entry rather than a type mismatch.
+
+---
+
+## 8.3 — The Claude engine
+
+**What changed.** `@anthropic-ai/sdk` added to the server workspace. New
+`providers/ai/llm.ts` (the Claude call) and `providers/ai/index.ts` (which
+engine, and the fallback). The triage service now calls `assessSymptoms()`
+rather than the rules directly.
+
+**The `claude-api` skill was loaded before writing any of this**, per the
+handoff's standing instruction. What it changed versus writing from memory:
+
+- `budget_tokens` is gone on current models — adaptive thinking replaces it.
+  Left at the model's default rather than configured.
+- Structured output goes in `output_config: { format: ... }`; the older
+  top-level `output_format` is deprecated.
+- `TRIAGE_MODEL` now defaults to **`claude-opus-5`**, not the
+  `claude-sonnet-5` placeholder the phase-1 scaffolding shipped. The skill is
+  explicit that Opus 5 is the default unless the user names another model; the
+  old value was a scaffolding guess, not a decision. `.env.example` updated to
+  match. **Flagged for the user** — it is a cost-relevant default and easy to
+  change back in `.env`.
+
+**Decisions.**
+
+- *An upgrade, never a dependency.* `assessWithClaude` throws on everything —
+  timeout, rate limit, refusal, malformed JSON — and `assessSymptoms` catches
+  the lot and answers from the rules with `source: 'rules'`. The booking flow
+  is never blocked on a network call.
+- *Warn, not error, on fallback.* The patient still gets an answer; a clinic
+  whose key expired should see it in the logs without being paged.
+- *Deliberately unlike the payment provider.* That one shouts at startup when it
+  is chosen but unconfigured, because falling back silently would take real
+  money. Here the fallback **is** the design: the rules answer every input, so a
+  failure costs quality rather than correctness.
+- *The schema is the request; the zod parse is the trust boundary.* Structured
+  outputs constrain generation but are not a promise. A speciality this clinic
+  does not employ, or an urgency outside the three we know, has to fall to the
+  rules rather than reach the database.
+- *An emergency never carries a speciality — enforced, not trusted.* The model
+  is told to return null there, and the code overrides it regardless.
+- *`maxRetries: 0` on the client.* The SDK's default of 2 would multiply the
+  wall clock by three against a hard deadline, spending a waiting patient's time
+  on a call we are willing to abandon.
+- *`effort: 'low'`.* This is a short classification behind an 8-second deadline.
+- *Every note says which engine wrote it.* The rules note says "keyword rules";
+  the Claude note appends "Assessed by an AI assistant, not a clinician."
+
+**Files touched.** `server/src/providers/ai/{llm,index}.ts` (new),
+`server/src/modules/triage/triage.service.ts`, `server/src/config/env.ts`,
+`.env.example`, `server/package.json`, `server/scripts/check-triage.ts`.
+
+**Verified.** `npm run check:triage` — 69 assertions, up from 61. The eight new
+ones cover the phase's second exit criterion directly: with no key, Claude is
+not in play, `source` is `rules`, no model is recorded, and the answer is
+**byte-identical** to calling the rules engine. Then, with a key set that cannot
+work, the call really is attempted and really does fail, and the patient still
+gets the rules answer — including the emergency case. That proves the fallback
+end to end without a real account.
+
+**Open item, deliberate.** The Claude path has **never spoken to the real API** —
+same standing caveat as the Razorpay provider. The request shape follows the
+`claude-api` skill and the response is parsed defensively, but only a run with a
+real `ANTHROPIC_API_KEY` will confirm the round trip. Left because it needs the
+user's account.

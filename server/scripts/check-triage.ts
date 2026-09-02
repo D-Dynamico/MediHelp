@@ -134,5 +134,213 @@ check('a very long complaint is trimmed in the note', long.intakeNote.length < 9
 const twice = [assess('itchy rash for three days'), assess('itchy rash for three days')];
 check('the engine is deterministic', JSON.stringify(twice[0]) === JSON.stringify(twice[1]));
 
+/* =========================================================== over HTTP === */
+
+// The pure checks above need no database. Everything below drives the real
+// route against a throwaway one, because persistence and ownership are the two
+// things the engine itself cannot be asked about.
+
+const { MongoMemoryServer } = await import('mongodb-memory-server');
+const mongoose = (await import('mongoose')).default;
+
+const mongod = await MongoMemoryServer.create();
+process.env.MONGODB_URI = mongod.getUri();
+process.env.JWT_SECRET = 'f'.repeat(48);
+process.env.LOG_LEVEL = 'error';
+
+const { assertThrowawayDatabase } = await import('./_guard.js');
+assertThrowawayDatabase();
+
+const { createApp } = await import('../src/app.js');
+const { connectDb } = await import('../src/config/db.js');
+const { seedDatabase } = await import('../src/seed.js');
+
+await connectDb();
+await mongoose.connection.syncIndexes();
+await seedDatabase();
+
+const app = createApp();
+const server = app.listen(0);
+const port = (server.address() as { port: number }).port;
+const base = `http://127.0.0.1:${port}`;
+
+async function call(
+  path: string,
+  options: { method?: string; body?: unknown; token?: string } = {},
+) {
+  const headers: Record<string, string> = {};
+  if (options.token) headers.authorization = `Bearer ${options.token}`;
+  if (options.body !== undefined) headers['content-type'] = 'application/json';
+
+  const response = await fetch(`${base}${path}`, {
+    method: options.method ?? 'GET',
+    headers,
+    ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+  });
+  const text = await response.text();
+  return { status: response.status, body: (text ? JSON.parse(text) : {}) as Record<string, never> };
+}
+
+async function tokenFor(email: string, password = 'Password123!') {
+  const response = await call('/api/auth/login', { method: 'POST', body: { email, password } });
+  return (response.body as { accessToken?: string }).accessToken!;
+}
+
+const rahulToken = await tokenFor('rahul@medihelp.test');
+const snehaToken = await tokenFor('sneha@medihelp.test');
+const anitaToken = await tokenFor('rao@medihelp.test');
+const adminToken = await tokenFor('admin@medihelp.test');
+
+interface Triage {
+  id: string;
+  urgency: string;
+  recommendedSpeciality?: string;
+  intakeNote: string;
+  questionsToAsk: string[];
+  emergencyAdvice?: string;
+  structured: { durationText?: string; severity?: string; redFlags: string[] };
+  source: string;
+  createdAt: string;
+}
+const triageOf = (body: unknown) => (body as { triage: Triage }).triage;
+
+/* ------------------------------------------------------------- guards --- */
+
+check(
+  'triage needs a token',
+  (await call('/api/triage', { method: 'POST', body: { symptomsText: 'itchy rash for three days' } }))
+    .status === 401,
+);
+check(
+  'a doctor cannot use the patient triage endpoint',
+  (await call('/api/triage', {
+    method: 'POST',
+    token: anitaToken,
+    body: { symptomsText: 'itchy rash for three days' },
+  })).status === 403,
+);
+check(
+  'nor can an admin',
+  (await call('/api/triage', {
+    method: 'POST',
+    token: adminToken,
+    body: { symptomsText: 'itchy rash for three days' },
+  })).status === 403,
+);
+
+/* --------------------------------------------------------- validation --- */
+
+check(
+  'an empty description is refused',
+  (await call('/api/triage', { method: 'POST', token: rahulToken, body: { symptomsText: '' } }))
+    .status === 422,
+);
+check(
+  'two characters is refused',
+  (await call('/api/triage', { method: 'POST', token: rahulToken, body: { symptomsText: 'hm' } }))
+    .status === 422,
+);
+check(
+  'an essay past the model limit is refused rather than truncated',
+  (await call('/api/triage', {
+    method: 'POST',
+    token: rahulToken,
+    body: { symptomsText: 'x'.repeat(4001) },
+  })).status === 422,
+);
+
+/* ------------------------------------------------------- the happy path --- */
+
+const assessed = await call('/api/triage', {
+  method: 'POST',
+  token: rahulToken,
+  body: { symptomsText: 'itchy rash on my arm for three days' },
+});
+check('a patient can be assessed', assessed.status === 201, assessed.body);
+check('the assessment comes back with an id', Boolean(triageOf(assessed.body).id), triageOf(assessed.body));
+check('routine, as the rules said', triageOf(assessed.body).urgency === 'routine', triageOf(assessed.body).urgency);
+check(
+  'and carries the suggested speciality',
+  triageOf(assessed.body).recommendedSpeciality === 'Dermatologist',
+  triageOf(assessed.body).recommendedSpeciality,
+);
+check('with the source named', triageOf(assessed.body).source === 'rules', triageOf(assessed.body).source);
+check('and questions for the consult', triageOf(assessed.body).questionsToAsk.length >= 2);
+check(
+  'a routine assessment carries no emergency advice',
+  triageOf(assessed.body).emergencyAdvice === undefined,
+  triageOf(assessed.body).emergencyAdvice,
+);
+
+const triageId = triageOf(assessed.body).id;
+
+/* ---------------------------------------------------------- persistence --- */
+
+const Assessments = mongoose.connection.collection('triageassessments');
+const stored = await Assessments.findOne({ _id: new mongoose.Types.ObjectId(triageId) });
+check('the assessment is written down', Boolean(stored), stored);
+check('it is stored against the patient who asked', Boolean(stored?.patientId), stored?.patientId);
+check(
+  'the symptom text is kept for the doctor to read',
+  stored?.symptomsText === 'itchy rash on my arm for three days',
+  stored?.symptomsText,
+);
+
+const readBack = await call(`/api/triage/${triageId}`, { token: rahulToken });
+check('a patient can read their own assessment back', readBack.status === 200, readBack.status);
+check('and it is the same one', triageOf(readBack.body).id === triageId);
+
+/* ------------------------------------------------------------ ownership --- */
+
+// The most personal thing this app stores. A 404 rather than a 403, so the
+// endpoint does not confirm the record exists to somebody who cannot see it.
+const nosey = await call(`/api/triage/${triageId}`, { token: snehaToken });
+check("another patient cannot read someone else's assessment", nosey.status === 404, nosey.status);
+check(
+  'a well-formed but unknown id is a 404 too',
+  (await call(`/api/triage/${'0'.repeat(24)}`, { token: rahulToken })).status === 404,
+);
+check(
+  'a malformed id is refused before any lookup',
+  (await call('/api/triage/not-an-id', { token: rahulToken })).status === 422,
+);
+
+/* ------------------------------------------------------- the emergency --- */
+
+const emergencyOverHttp = await call('/api/triage', {
+  method: 'POST',
+  token: rahulToken,
+  body: { symptomsText: 'crushing chest pain and short of breath' },
+});
+check('an emergency comes back as one', triageOf(emergencyOverHttp.body).urgency === 'emergency');
+check(
+  'with advice instead of a speciality to book',
+  triageOf(emergencyOverHttp.body).recommendedSpeciality === undefined &&
+    (triageOf(emergencyOverHttp.body).emergencyAdvice ?? '').includes('emergency services'),
+  triageOf(emergencyOverHttp.body),
+);
+
+/* ------------------------------------------------------------- the log --- */
+
+// What a patient wrote about their own body has no business in a log admins
+// browse. The id is there for anyone with a reason to open the record itself.
+const Audit = mongoose.connection.collection('auditlogs');
+// `targetId` is an ObjectId on the schema, so a string will not match here.
+const logged = await Audit.findOne({
+  action: 'triage.assess',
+  targetId: new mongoose.Types.ObjectId(triageId),
+});
+check('the assessment is audited', Boolean(logged), logged);
+check(
+  'but the symptom text is not copied into the audit log',
+  !JSON.stringify(logged ?? {}).includes('itchy rash'),
+  logged,
+);
+
+server.close();
+await mongoose.disconnect();
+await mongod.stop();
+
+
 console.log(`\n${results.join('\n')}\n`);
 process.exit(results.some((r) => r.startsWith('FAIL')) ? 1 : 0);

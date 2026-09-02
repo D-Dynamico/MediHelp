@@ -57,3 +57,52 @@ and Dermatologist. Also covers each other red flag, the half-a-red-flag cases,
 whole-word matching, all eight routing targets, severity, duration parsing, and
 that the engine is deterministic — which is what makes it usable as the fallback
 for an engine allowed to fail.
+
+---
+
+## 8.2 — The triage service and route
+
+**What changed.** A new `triage` module — schema, service, controller, router —
+mounted at `/api/triage` in `createApp()`. `POST /api/triage` assesses free text
+and persists a `TriageAssessment`; `GET /api/triage/:id` reads one back. A new
+`TriageDto` in `shared/types.ts` is what both sides speak.
+
+**Decisions.**
+
+- *Signed-in patients only.* It could have been open — the rules engine needs no
+  account — but every assessment is stored against a person and will be linked
+  from an appointment in 8.4. An anonymous pile of symptom text with nobody to
+  own it is a liability, not a feature. Doctors and admins get a 403: this is the
+  patient's own surface, and a doctor reads the note through the appointment.
+- *Ownership, not just the role.* `getOwn` checks the patient id on the record,
+  and a stranger's assessment is a **404, not a 403** — a 403 would confirm the
+  record exists to someone with no business knowing that. This is the most
+  personal thing the app stores.
+- *The audit entry carries the id, urgency and engine — never the symptom text.*
+  Admins browse the audit log; what a patient wrote about their own body is not
+  theirs to read in passing. The id points at the record for anyone with an
+  actual reason to open it. A check asserts the text is absent from the log.
+- *`emergencyAdvice` is derived on the way out, not stored.* It is a property of
+  the matched red flag, and wording that a clinic may want to change should not
+  need a migration of every historical row. The DTO computes it from
+  `structured.redFlags` through `emergencyAdviceFor()`.
+- *A too-long description is a 422, not a silent truncation.* Cutting a patient's
+  description in half and assessing the remainder is worse than asking them to
+  summarise. The ceiling matches the model's `maxlength`.
+- *Its own id schema.* `triageIdParamSchema` is a hex regex from the start, for
+  the reason found in the phases 6–7 review: a same-length non-hex id otherwise
+  reaches the driver and becomes a 500.
+
+**Files touched.** `server/src/modules/triage/{triage.schema,triage.service,triage.controller,triage.routes}.ts`
+(new), `server/src/app.ts`, `shared/types.ts`, `server/scripts/check-triage.ts`,
+`docs/SYSTEM_DESIGN.md` §8.
+
+**Verified.** `npm run check:triage` — 61 assertions, up from 36. The new ones
+drive the real route: the three guards, the three validation floors and ceiling,
+the happy path and its persisted row, reading it back, the three ownership cases
+(another patient, unknown id, malformed id), the emergency over HTTP, and that
+the audit entry exists without the symptom text in it.
+
+One trap worth recording: `AuditLog.targetId` is an `ObjectId` on the schema, so
+a check querying the raw collection with the id **as a string** silently matches
+nothing. It read as a missing audit entry rather than a type mismatch.

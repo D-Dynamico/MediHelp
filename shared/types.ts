@@ -226,3 +226,28 @@ export interface SlotDto {
   end: string;
   available: boolean;
 }
+
+/**
+ * One symptom assessment, as every triage surface sees it.
+ *
+ * `recommendedSpeciality` is absent for an emergency — the answer there is not
+ * an appointment, and the UI shows advice instead of a booking form. It is a
+ * suggestion in every other case: the patient can still book anyone.
+ */
+export interface TriageDto {
+  id: string;
+  urgency: Urgency;
+  recommendedSpeciality?: Speciality;
+  intakeNote: string;
+  questionsToAsk: string[];
+  /** What to do instead of booking. Present only for an emergency. */
+  emergencyAdvice?: string;
+  structured: {
+    durationText?: string;
+    severity?: 'mild' | 'moderate' | 'severe';
+    redFlags: string[];
+  };
+  /** Which engine produced this. `rules` is the offline default and the fallback. */
+  source: 'rules' | 'llm';
+  createdAt: string;
+}

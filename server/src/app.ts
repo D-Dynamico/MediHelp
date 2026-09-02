@@ -12,6 +12,7 @@ import { publicDoctorRouter } from './modules/doctors/public.routes.js';
 import { appointmentRouter } from './modules/appointments/appointment.routes.js';
 import { patientRouter } from './modules/patients/patient.routes.js';
 import { paymentRouter } from './modules/payments/payment.routes.js';
+import { triageRouter } from './modules/triage/triage.routes.js';
 import { UPLOAD_DIR, UPLOAD_URL_PREFIX } from './providers/storage/local.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 
@@ -73,6 +74,7 @@ export function createApp(): Express {
   app.use('/api/appointments', appointmentRouter);
   app.use('/api/patient', patientRouter);
   app.use('/api/payments', paymentRouter);
+  app.use('/api/triage', triageRouter);
   // Further feature routers mount here, above the two handlers below.
 
   app.use(notFound);

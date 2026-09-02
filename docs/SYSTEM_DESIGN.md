@@ -230,7 +230,8 @@ GET    /api/doctors                    public list, filter by speciality
 GET    /api/doctors/:id
 GET    /api/doctors/:id/slots?date=    free slots for a day
 
-POST   /api/triage                     symptom assessment
+POST   /api/triage                     assess free-text symptoms, patient only
+GET    /api/triage/:id                 read one back; 404 unless it is yours
 
 POST   /api/appointments               book
 GET    /api/appointments/mine          patient's own

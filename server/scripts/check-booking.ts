@@ -268,9 +268,28 @@ check('a slot that has already started is dropped, not greyed out', halfPast.len
 /* --------------------------------------------------- the slots endpoint --- */
 
 const today = new Date();
-const soon = new Date(today);
-soon.setUTCDate(soon.getUTCDate() + 3);
-const soonDate = soon.toISOString().slice(0, 10);
+
+/**
+ * The next day this doctor actually has times free.
+ *
+ * Scanned rather than fixed at "three days out": the doctor sits weekdays only,
+ * so a fixed offset lands on a weekend one run in three and every check below it
+ * fails for a reason that has nothing to do with booking.
+ */
+async function nextDayWithSlots(): Promise<string> {
+  for (let ahead = 1; ahead <= 21; ahead += 1) {
+    const day = new Date(today);
+    day.setUTCDate(day.getUTCDate() + ahead);
+    const date = day.toISOString().slice(0, 10);
+
+    const body = (await call(`/api/doctors/${anita.id}/slots?date=${date}`)).body;
+    if (slotsOf(body).some((slot) => slot.available)) return date;
+  }
+
+  throw new Error('No free slot in the next three weeks — the seed or the hours changed.');
+}
+
+const soonDate = await nextDayWithSlots();
 
 const day = await call(`/api/doctors/${anita.id}/slots?date=${soonDate}`);
 check('slots need no token either', day.status === 200, day.status);
@@ -349,10 +368,12 @@ const rahulToken = await tokenFor('rahul@medihelp.test');
 const snehaToken = await tokenFor('sneha@medihelp.test');
 const anitaToken = await tokenFor('rao@medihelp.test');
 
-/** A slot this doctor still has free on the day three days out. */
+/** A slot this doctor still has free on `soonDate`. */
 async function freeSlot(): Promise<string> {
   const body = (await call(`/api/doctors/${anita.id}/slots?date=${soonDate}`)).body;
-  return slotsOf(body).find((slot) => slot.available)!.start;
+  const free = slotsOf(body).find((slot) => slot.available);
+  if (!free) throw new Error(`No free slot left on ${soonDate} — earlier checks booked them all.`);
+  return free.start;
 }
 
 check(

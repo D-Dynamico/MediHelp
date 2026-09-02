@@ -109,7 +109,12 @@ export type AppointmentScope = z.infer<typeof appointmentScopeSchema>;
 export type AppointmentWhen = AppointmentScope['when'];
 
 export const objectIdParamSchema = z.object({
-  id: z.string().length(24, 'That is not a valid id.'),
+  // Hex, not just 24 characters long: a same-length non-hex id reached
+  // `new Types.ObjectId()` and threw a BSONError, which the error middleware
+  // does not recognise and turned into a 500.
+  id: z
+    .string()
+    .regex(/^[0-9a-f]{24}$/i, 'That is not a valid id.'),
 });
 
 /* ------------------------------------------------------ public catalogue --- */
@@ -129,6 +134,18 @@ export const publicDoctorQuerySchema = z.object({
 
 export type PublicDoctorQuery = z.infer<typeof publicDoctorQuerySchema>;
 
+/**
+ * Whether `YYYY-MM-DD` names a day that exists.
+ *
+ * `new Date()` is no help on its own: it rejects month 13 by returning an
+ * Invalid Date, but accepts 30 February by rolling it into March. Parsing and
+ * then reading the parts back catches both.
+ */
+function isRealCalendarDay(value: string): boolean {
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 /** The date a patient is asking a doctor's free slots for. */
 export const slotQuerySchema = z.object({
   /**
@@ -139,6 +156,11 @@ export const slotQuerySchema = z.object({
   date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a date like 2026-09-15.')
+    // The shape is not enough: 2026-13-01 matches it and parses to an Invalid
+    // Date, which threw out of the handler as a 500; 2026-02-30 quietly rolls
+    // over to 2026-03-02 and answers about a day nobody asked about. Both are
+    // refused here so the handler only ever sees a real calendar day.
+    .refine(isRealCalendarDay, 'That is not a real date.')
     .optional(),
 });
 

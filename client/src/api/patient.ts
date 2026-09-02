@@ -84,17 +84,21 @@ export async function fetchMyProfile(): Promise<PatientProfileDto> {
 }
 
 /**
- * Multipart, because it may carry a photo. Empty values are dropped rather than
- * sent: the server reads an absent field as "not changed", and sending a blank
- * date of birth would be a validation failure for a box the patient simply left
- * alone.
+ * Multipart, because it may carry a photo.
+ *
+ * An absent field means "not changed" and an empty one means "clear it", which
+ * the server understands for the fields a patient is allowed to leave blank.
+ * Dropping empty values here instead — as this used to — made a field
+ * impossible to clear once set: the request went out without it, the server
+ * changed nothing, and the form said "Saved." while snapping back to the old
+ * value.
  */
 export async function updateMyProfile(
   input: Record<string, string | Blob | undefined>,
 ): Promise<PatientProfileDto> {
   const form = new FormData();
   for (const [key, value] of Object.entries(input)) {
-    if (value !== undefined && value !== '') form.append(key, value);
+    if (value !== undefined) form.append(key, value);
   }
 
   const { data } = await api.patch<{ profile: PatientProfileDto }>('/patient/profile', form, {

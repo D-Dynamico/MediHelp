@@ -91,6 +91,13 @@ export function MyAppointments() {
       await payForAppointment(appointment.id, appointment.doctor.name);
       await load();
     } catch (caught) {
+      // Reloaded even here: a payment can settle at the gateway and still fail
+      // on the way back, and leaving "Pay now" on a row that is already paid
+      // invites paying twice. The list is the server's answer, not ours.
+      //
+      // Before the message, not after: `load` clears the error on success, so
+      // the other order would wipe the very thing being reported.
+      await load();
       if (!(caught instanceof PaymentAbandoned)) {
         setError(messageFrom(caught, 'The payment did not go through.'));
       }

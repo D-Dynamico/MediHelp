@@ -90,11 +90,148 @@ names itself.
 
 ---
 
+## The code review of phases 6–7, and the seven fixes
+
+Ran `/code-review high` over `77e0810~1..HEAD` — the seven commits covering the
+public catalogue, slots, booking, payments and the seed gate above. Seven
+findings, all fixed here. The two most serious were verified against the source
+before acting on them.
+
+### 1. Money kept for a cancelled appointment
+
+`createOrder` refused a cancelled appointment; `verifyPayment` and
+`confirmMockPayment` did not. The race: a patient opens checkout, the
+appointment is cancelled in another tab or by the clinic while
+`payment.status` is still `pending` — so `refundFor` saw nothing to refund and
+returned — and the capture then lands and flips a cancelled appointment to
+`paid`. The clinic keeps the money for a slot nobody holds, with nothing
+flagging it.
+
+**Decision: take the money, then hand it straight back.** Refusing the capture
+in `verifyPayment` looked simpler but is worse — a valid signature means the
+money is already at the gateway, and rejecting it leaves it sitting there with
+nothing in our records pointing at it. So `settle()` now checks
+`appointment.status === 'cancelled'` after recording the payment and refunds on
+the spot, logging loudly. `settle` is the single choke point for both the
+verify path and the webhook, so one guard covers both.
+
+`confirmMockPayment` is the exception and refuses with a 409: the mock settles
+synchronously on the button press, so nothing is ever in flight to hand back.
+
+`verifyPayment` and `confirmMockPayment` now read the resulting status off the
+appointment rather than returning a hardcoded `'paid'`, so a patient caught by
+this is told `refunded` rather than told they have paid for a slot they lost.
+
+### 2. "Refunded" shown for a refund that failed
+
+`refundFor` swallows gateway errors on purpose — a gateway that will not refund
+right now is a person's job, not a 500 for the patient who cancelled. But
+`cancelAppointment` then wrote `payment.status = 'refunded'` unconditionally.
+The log said "needs chasing by hand" while the patient's row and the UI both
+said "Refunded", destroying the one signal that the money was still here.
+
+`refundFor` now returns whether the money actually went back, and the caller
+only writes `refunded` on true. A failed refund leaves the row saying `paid`,
+which is both the truth and the thing that makes it findable.
+
+The refund id also moved from `$push: { raw: { refundId } }` — which wrote an
+array into a field documented as the gateway's raw object — to a proper
+`gatewayRefundId` on the `Payment` schema.
+
+### 3. An unauthenticated 500 on a malformed date
+
+`slotQuerySchema` checked only `^\d{4}-\d{2}-\d{2}$`. `?date=2026-13-01` passed
+that, parsed to an Invalid Date, and `day.toISOString()` threw a `RangeError`
+out of the handler — a 500 for an anonymous caller. Reproduced in node before
+fixing.
+
+The quieter half of the same bug: `?date=2026-02-30` parses fine and rolls over
+to 2 March, so the endpoint confidently answered about a day nobody asked
+about. A new `isRealCalendarDay()` refine catches both by parsing and reading
+the parts back — `new Date` alone rejects month 13 but accepts 30 February.
+
+### 4. A same-length non-hex id was a 500
+
+`objectIdParamSchema` checked `.length(24)` only, so
+`/api/doctors/zzzzzzzzzzzzzzzzzzzzzzzz` reached `new Types.ObjectId()` and threw
+a `BSONError`, which `normalise()` in `middleware/error.ts` does not recognise
+(it handles `MongooseError.CastError`). `slotsOn` escaped it only because
+`findById` produces a proper CastError.
+
+Both copies of the schema — `doctors/doctor.schema.ts` and
+`admin/admin.schema.ts` — are now a hex regex. Fixed in both rather than one,
+because the admin routes reach the same driver call by a different path.
+
+### 5. A webhook could not match a superseded order
+
+`createOrder` is deliberately repeatable, but it overwrites
+`appointment.payment.orderId`, while `handleWebhook` looked the appointment up
+by that field. If a patient abandons a checkout, starts a second, and the
+*first* order then captures, the webhook found nothing, logged "an order we
+have no appointment for" and returned `handled: false` — money taken,
+appointment unpaid.
+
+The lookup now goes through the `Payment` collection's `gatewayOrderId`, which
+has a row for every order ever created, and falls back to the old appointment
+query. `settle()` also writes back the order id that actually paid, so the
+appointment records the right one rather than the last one started.
+
+### 6. An optional detail could never be cleared
+
+`updateMyProfile` on the client dropped any value equal to `''` before sending.
+Combined with `draftFrom` mapping an unset field to `''`, a patient who cleared
+their phone number or date of birth got a request without the field, a server
+that changed nothing, the old value snapped back into the form — and "Saved."
+shown at the same time.
+
+**Decision: teach the server what "clear it" means, rather than teach the client
+to hide the button.** An absent field means "not changed"; an empty one now
+means "clear it", for the three fields that are optional on the account anyway.
+`updatePatientSchema` accepts `''` for `phone`, `dob` and `gender`, and the
+service unsets rather than storing a blank, so an absent field and a blank one
+do not read differently downstream. The name is not optional and an empty one is
+still a 422.
+
+(Gender was the least affected of the three: `prefer_not_to_say` is a real enum
+value, so there was always an option to pick — just no way back to unset.)
+
+### 7. A failed slot fetch spun forever
+
+`loadSlots` sets `setSlots(null)` up front and only assigns on success; the
+render treats `null` as "Loading times…". On a failed fetch the patient saw an
+error note *and* a permanent spinner. The catch now sets `[]`, which renders the
+honest "No times on this day"; changing the day is the retry.
+
+### Also fixed, from the review's minor notes
+
+`Appointments.tsx` `onPay` did not reload on the error path, so a payment that
+settled at the gateway but failed on the way back left "Pay now" on a paid row —
+an invitation to pay twice. It now reloads in the catch as well. Ordered before
+`setError`, not after: `load()` clears the error on success, so the other way
+round would have wiped the very message being reported.
+
+### New checks
+
+`check:payments` 39 → 52 and `check:booking` 81 → 95. The new ones drive the
+actual sequences rather than the units: cancel-then-capture ending `refunded`
+with a `gatewayRefundId` on the row and the appointment still `cancelled`; the
+mock refusing a cancelled appointment; two orders on one appointment with the
+first one capturing and still settling; clearing and restoring all three
+optional profile fields; and 422s for a non-hex id, month 13, day 32, 30
+February, with a real leap day still accepted.
+
+**Not fixed, deliberately.** `updatePatientSchema`'s `dob` has the same
+roll-over looseness as finding 3 — `1994-02-30` would store as 2 March. It is
+cosmetic on a birthday rather than a wrong answer to a question, and it is
+outside the reviewed range, so it is noted here rather than changed.
+
+---
+
 ## Suite state
 
 Per script, all passing: env 12, tokens 17, models 13, errors 6, auth 26,
-auth:http 28, ratelimit 5, seed 28, upload 21, admin 87, doctor 94, booking 81,
-payments 39 — **457 assertions, zero failures**. `npm run typecheck` and
+auth:http 28, ratelimit 5, seed 28, upload 21, admin 87, doctor 94, booking 95,
+payments 52 — **484 assertions, zero failures**. `npm run typecheck` and
 `npm run lint` both clean.
 
 (Counting these by piping the whole suite into `grep -c` under-reports; loop per
@@ -104,7 +241,7 @@ script.)
 
 ## Open items
 
-- Five commits were unpushed at the start of the session; this one adds to them.
+- Pushed at the end of the session, so nothing is unbacked any more.
 - No patient, doctor or payment screen has been rendered in a browser yet.
 - The Razorpay provider has still never spoken to Razorpay — deliberate, it needs
   the user's account.

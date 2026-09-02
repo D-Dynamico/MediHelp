@@ -698,6 +698,75 @@ check(
   profileOf((await call('/api/patient/profile', { token: snehaToken })).body).phone !== '9876500011',
 );
 
+/* ------------------------------- clearing an optional detail --- */
+
+// A patient may take a phone number, a birthday or a gender back off the
+// account. An empty value means "clear it", which is a different thing from an
+// absent one meaning "leave it alone" — the client used to drop empties before
+// sending, so a field could never be unset once written.
+const cleared = await call('/api/patient/profile', {
+  method: 'PATCH',
+  token: rahulToken,
+  form: { phone: '', dob: '', gender: '' },
+});
+check('a patient may clear the optional details', cleared.status === 200, cleared.body);
+check('the phone number is gone', !profileOf(cleared.body).phone, profileOf(cleared.body).phone);
+check('the birthday is gone', !profileOf(cleared.body).dob, profileOf(cleared.body).dob);
+check('the gender is gone', !profileOf(cleared.body).gender, profileOf(cleared.body).gender);
+
+const reread = await call('/api/patient/profile', { token: rahulToken });
+check('and stays gone when read back', !profileOf(reread.body).dob, profileOf(reread.body).dob);
+
+const restored = await call('/api/patient/profile', {
+  method: 'PATCH',
+  token: rahulToken,
+  form: { phone: '9876500011', dob: '1994-04-12', gender: 'male' },
+});
+check('they can be set again afterwards', profileOf(restored.body).dob === '1994-04-12', profileOf(restored.body).dob);
+
+// The name is not optional, so an empty one is still a validation failure
+// rather than a way to end up with a nameless account.
+check(
+  'an empty name is still refused',
+  (await call('/api/patient/profile', { method: 'PATCH', token: rahulToken, form: { name: '' } }))
+    .status === 422,
+);
+
+/* ------------------------------------- ids and dates that are not --- */
+
+// Same length as an id but not hexadecimal. This used to reach the driver and
+// throw a BSONError the error middleware does not know, so it came back as a
+// 500 to an unauthenticated caller.
+const notHex = await call(`/api/doctors/${'z'.repeat(24)}`);
+check('a same-length non-hex id is a 422, not a 500', notHex.status === 422, notHex.status);
+check(
+  'and so is one on the slots endpoint',
+  (await call(`/api/doctors/${'z'.repeat(24)}/slots?date=${soonDate}`)).status === 422,
+);
+check(
+  'a real but unknown id is still a 404',
+  (await call(`/api/doctors/${'0'.repeat(24)}`)).status === 404,
+);
+
+// A date that matches YYYY-MM-DD but names no real day. Month 13 parsed to an
+// Invalid Date and threw out of the handler; 30 February silently rolled over
+// and answered about 2 March instead.
+check(
+  'a thirteenth month is refused',
+  (await call(`/api/doctors/${anita.id}/slots?date=2026-13-01`)).status === 422,
+);
+check(
+  'so is the thirty-second of a month',
+  (await call(`/api/doctors/${anita.id}/slots?date=2026-01-32`)).status === 422,
+);
+const feb30 = await call(`/api/doctors/${anita.id}/slots?date=2026-02-30`);
+check('and so is the thirtieth of February', feb30.status === 422, feb30.status);
+check(
+  'a real leap day is still accepted',
+  (await call(`/api/doctors/${anita.id}/slots?date=2028-02-29`)).status === 200,
+);
+
+
 console.log(`\n${results.join('\n')}\n`);
 
 server.close();

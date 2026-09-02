@@ -61,6 +61,10 @@ export function DoctorDetail() {
     try {
       setSlots(await fetchSlots(id, date));
     } catch (caught) {
+      // An empty list, not null: null is what the panel renders "Loading times…"
+      // for, so leaving it there showed a spinner that never resolved alongside
+      // the error message. Picking another day is the retry.
+      setSlots([]);
       setError(messageFrom(caught, 'Could not load the times for that day.'));
     }
   }, [id, date]);

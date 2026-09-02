@@ -106,7 +106,12 @@ export const appointmentListQuerySchema = z.object({
 });
 
 export const objectIdParamSchema = z.object({
-  id: z.string().length(24, 'That is not a valid id.'),
+  // Hex, not just 24 characters long: a same-length non-hex id reached
+  // `new Types.ObjectId()` and threw a BSONError, which the error middleware
+  // does not recognise and turned into a 500.
+  id: z
+    .string()
+    .regex(/^[0-9a-f]{24}$/i, 'That is not a valid id.'),
 });
 
 export const workingHoursSchema = z.array(workingHoursEntry).max(21);

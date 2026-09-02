@@ -46,10 +46,16 @@ export async function updateProfile(
   if (!user) throw ApiError.unauthorized();
 
   if (input.name !== undefined) user.name = input.name;
-  if (input.phone !== undefined) user.phone = input.phone;
-  if (input.gender !== undefined) user.gender = input.gender;
+
+  // The optional fields take an empty string as "clear it", and unset rather
+  // than store a blank — an absent field and a field holding '' would otherwise
+  // read differently everywhere downstream for no reason.
+  if (input.phone !== undefined) user.set('phone', input.phone === '' ? undefined : input.phone);
+  if (input.gender !== undefined) user.set('gender', input.gender === '' ? undefined : input.gender);
   // Parsed as midnight UTC, matching how every other date in the system is read.
-  if (input.dob !== undefined) user.dob = new Date(`${input.dob}T00:00:00.000Z`);
+  if (input.dob !== undefined) {
+    user.set('dob', input.dob === '' ? undefined : new Date(`${input.dob}T00:00:00.000Z`));
+  }
   if (image) user.image = image;
 
   await user.save();

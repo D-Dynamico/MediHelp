@@ -4,6 +4,7 @@ import { Doctors } from '../pages/public/Doctors';
 import { DoctorDetail } from '../pages/public/DoctorDetail';
 import { MyAppointments } from '../pages/patient/Appointments';
 import { Account } from '../pages/patient/Account';
+import { Triage } from '../pages/patient/Triage';
 import { Login } from '../pages/auth/Login';
 import { Signup } from '../pages/auth/Signup';
 import { GuestOnlyRoute, RoleRoute } from './guards';
@@ -44,6 +45,7 @@ export const router = createBrowserRouter([
         // looking at the booking is one continuous place rather than two.
         element: <RoleRoute roles={['patient']} />,
         children: [
+          { path: '/triage', element: <Triage /> },
           { path: '/my/appointments', element: <MyAppointments /> },
           { path: '/account', element: <Account /> },
         ],

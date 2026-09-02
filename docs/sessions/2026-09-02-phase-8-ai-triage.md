@@ -226,3 +226,50 @@ assessment id is refused, an unknown one is refused, a non-hex one is a 422 not
 a 500, and none of the three books anything. `check:booking` (95),
 `check:admin` (87), `check:doctor` (94) and `check:payments` (52) all still pass
 unchanged, which is what says the shared mapper change broke nothing.
+
+---
+
+## 8.5 — The triage UI
+
+**What changed.** A new `/triage` page for signed-in patients: a description
+box, an optional "how long", and a result card. A new `api/triage.ts`. The
+catalogue and the doctor's page now carry an assessment id through to the
+booking. A "Check symptoms" link in the patient nav, and a "Not sure which kind
+of doctor you need?" prompt on the catalogue for everyone else.
+
+**Decisions.**
+
+- *An emergency is a different screen, not a result with a warning attached.*
+  `TriageResult` returns early for `emergency` and renders a red card with the
+  advice and the matched indicators — no speciality, no link to the catalogue,
+  nothing that looks like a booking. The point of the answer is that it is not
+  an appointment, so nothing on the screen should offer one.
+- *The assessment id travels in the URL, not in router state.* `/triage` →
+  `/?speciality=X&triage=<id>` → `/doctors/:id?triage=<id>` → the booking body.
+  Router state would be lost on a refresh or a shared link; the URL survives
+  both, and the catalogue already keeps its filters there for the same reason.
+  The sign-in detour preserves it too, so booking after signing in still reaches
+  the note.
+- *The suggestion is a filter the patient can drop.* Arriving from triage shows a
+  banner saying so, with "Show all doctors" beside it — and dropping the
+  speciality keeps the assessment, so overriding the suggestion does not cost
+  the doctor their note. There is also a "Browse all doctors instead" link on
+  the result itself. A recommendation someone cannot ignore is a decision made
+  for them.
+- *A stale result is cleared when a new assessment fails.* Leaving the previous
+  answer on screen beside an error about a newer one invites reading the old
+  answer as the answer to what was just typed.
+- *The submit button is disabled under ten characters* — the same floor the
+  server enforces, so the common case is a disabled button rather than a 422.
+- *Discoverability for signed-out visitors.* The nav entry is patient-only
+  because the route is, but the catalogue's prompt points anyone at it; the
+  route guard sends them through login and back.
+
+**Files touched.** `client/src/pages/patient/Triage.tsx`,
+`client/src/api/triage.ts` (both new), `client/src/routes/router.tsx`,
+`client/src/pages/public/{SiteLayout,Doctors,DoctorDetail}.tsx`.
+
+**Verified.** `npm run typecheck`, `npm run lint` and `npm run build` all clean.
+The server-side link is already covered by the 8.4 checks — booking with a
+`triageId` and reading the doctor's row back. **Nothing here has been clicked in
+a browser**, in line with the standing preference; see the open items.

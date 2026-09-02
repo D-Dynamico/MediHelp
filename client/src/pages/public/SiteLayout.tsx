@@ -34,6 +34,7 @@ export function SiteLayout() {
 
             {user?.role === 'patient' && (
               <>
+                <HeaderLink to="/triage">Check symptoms</HeaderLink>
                 <HeaderLink to="/my/appointments">My appointments</HeaderLink>
                 <HeaderLink to="/account">Account</HeaderLink>
               </>

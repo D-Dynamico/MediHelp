@@ -18,6 +18,10 @@ export function Doctors() {
   const [params, setParams] = useSearchParams();
   const speciality = (params.get('speciality') ?? '') as Speciality | '';
   const search = params.get('search') ?? '';
+  // Carried through from a triage result, so that whichever doctor the patient
+  // picks, the booking can still reach the assessment and the doctor gets the
+  // note. The catalogue itself does nothing with it but pass it along.
+  const triageId = params.get('triage') ?? '';
 
   const [doctors, setDoctors] = useState<PublicDoctorDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +59,37 @@ export function Doctors() {
           Pick a speciality, or search by name. Booking takes a minute and needs an account.
         </p>
       </header>
+
+      {triageId ? (
+        // The suggestion is a filter, never a lock. Saying so on the page — with
+        // the way out right beside it — is the difference between a
+        // recommendation and a decision made for someone.
+        <Card className="flex flex-wrap items-center justify-between gap-2 border-brand-200 bg-brand-50">
+          <p className="text-sm text-ink">
+            {speciality
+              ? `Suggested from your symptoms. You can book any doctor you like.`
+              : `Showing every doctor. Your assessment still travels with the booking.`}
+          </p>
+          {speciality && (
+            <button
+              type="button"
+              className="text-sm font-medium text-brand-700 underline"
+              onClick={() => setParam('speciality', '')}
+            >
+              Show all doctors
+            </button>
+          )}
+        </Card>
+      ) : (
+        <Card className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-ink-muted">
+            Not sure which kind of doctor you need?
+          </p>
+          <Link to="/triage" className="text-sm font-medium text-brand-700 underline">
+            Describe your symptoms instead
+          </Link>
+        </Card>
+      )}
 
       <Card className="space-y-4">
         <div className="space-y-1">
@@ -95,7 +130,7 @@ export function Doctors() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {doctors.map((doctor) => (
-            <DoctorCard key={doctor.id} doctor={doctor} />
+            <DoctorCard key={doctor.id} doctor={doctor} triageId={triageId} />
           ))}
         </div>
       )}
@@ -103,10 +138,10 @@ export function Doctors() {
   );
 }
 
-function DoctorCard({ doctor }: { doctor: PublicDoctorDto }) {
+function DoctorCard({ doctor, triageId }: { doctor: PublicDoctorDto; triageId: string }) {
   return (
     <Link
-      to={`/doctors/${doctor.id}`}
+      to={`/doctors/${doctor.id}${triageId ? `?triage=${triageId}` : ''}`}
       className="rounded-xl border border-brand-100 bg-surface p-5 shadow-sm transition hover:border-brand-300 hover:shadow"
     >
       <div className="flex items-center gap-3">

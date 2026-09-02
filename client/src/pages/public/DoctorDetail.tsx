@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { PaymentMode, PublicDoctorDto, SlotDto } from '@shared/types';
 import { messageFrom } from '../../api/client';
 import { bookAppointment, fetchDoctor, fetchSlots } from '../../api/patient';
@@ -36,6 +36,11 @@ export function DoctorDetail() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  // Carried from a triage result through the catalogue. It travels in the URL
+  // rather than in router state so that a link a patient shares or reopens
+  // still reaches the assessment, and the doctor still gets the note.
+  const [params] = useSearchParams();
+  const triageId = params.get('triage') ?? '';
 
   const [doctor, setDoctor] = useState<PublicDoctorDto | null>(null);
   const [days] = useState(() => nextDays(STRIP_DAYS));
@@ -83,7 +88,9 @@ export function DoctorDetail() {
 
     if (!user) {
       // Somewhere to come back to. Signing in is a detour, not a dead end.
-      navigate('/login', { state: { from: `/doctors/${id}` } });
+      navigate('/login', {
+        state: { from: `/doctors/${id}${triageId ? `?triage=${triageId}` : ''}` },
+      });
       return;
     }
 
@@ -92,7 +99,12 @@ export function DoctorDetail() {
 
     let appointmentId: string;
     try {
-      const appointment = await bookAppointment({ doctorId: id, slotStart: chosen, mode });
+      const appointment = await bookAppointment({
+        doctorId: id,
+        slotStart: chosen,
+        mode,
+        ...(triageId ? { triageId } : {}),
+      });
       appointmentId = appointment.id;
     } catch (caught) {
       setError(messageFrom(caught, 'Could not book that time.'));

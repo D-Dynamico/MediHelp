@@ -41,6 +41,8 @@ Read the doc that matches the question. Don't duplicate their content here.
 | `docs/SYSTEM_DESIGN.md` | Data models, indexes, auth & security design, the three flagship features in depth, API surface |
 | `docs/WORKFLOW.md` | How to work in this repo: commit style, session notes, docs upkeep, verification habits |
 | `docs/PHASES.md` | The build plan, phase by phase, with exit criteria for each |
+| `docs/DEPLOYMENT.md` | How it goes live: one service on Render, with Atlas and Cloudinary |
+| `docs/UI_INVENTORY.md` | Every screen and shared component as they stand, and the gaps — the brief for the design pass |
 | `docs/sessions/` | One note per working session — the running project memory |
 | `README.md` | Setup and run instructions for a human |
 

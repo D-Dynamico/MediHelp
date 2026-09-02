@@ -22,6 +22,7 @@ payments, plus three features that go past the usual CRUD app:
 | [`docs/WORKFLOW.md`](docs/WORKFLOW.md) | Commit style, session notes, definition of done |
 | [`docs/PHASES.md`](docs/PHASES.md) | Build plan, phase by phase |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | How it goes live: one service on Render, with Atlas and Cloudinary |
+| [`docs/UI_INVENTORY.md`](docs/UI_INVENTORY.md) | Every screen and shared component as they stand, and the gaps — the brief for the design pass |
 | [`docs/sessions/`](docs/sessions/) | Running log of what changed and why |
 
 ## Stack

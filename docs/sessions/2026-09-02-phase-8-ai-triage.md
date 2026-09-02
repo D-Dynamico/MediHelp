@@ -341,3 +341,44 @@ byte-identical to the rules engine with `source: 'rules'`.
   route entirely; then an itchy rash, follow through to a dermatologist, book,
   and check the note and chip appear on the doctor's list.
 - The branch `phase-8-ai-triage` is not pushed and not merged.
+
+---
+
+## After the phase: a UI inventory
+
+The user ran the app, looked at the screens, and asked whether the UI work
+should happen now or later. Answer given: **later — phase 11 is exactly this**,
+because phases 9 and 10 add roughly five more screens (queue board, live patient
+card, doctor queue controls, waitlist) and polishing twenty screens now means
+doing it twice. Two carve-outs offered: fix anything actually broken now rather
+than in three phases, and consider pulling 11.2 (UI primitives) forward, since
+every later screen is written against `ui.tsx` and inherits whatever it is.
+
+They then asked for a component summary to hand to another model for a design
+document, and to track it in the repo. Written as `docs/UI_INVENTORY.md` and
+listed in both doc maps — `README.md` and `CLAUDE.md`.
+
+`docs/DEPLOYMENT.md` was in the README's table but missing from `CLAUDE.md`'s;
+added while there, so the two agree.
+
+**What the inventory records**, for whoever picks up phase 11:
+
+- `ui.tsx` is 219 lines with 13 exports, three of which are formatting helpers.
+  It is pieces grown per phase, not a system.
+- `darkMode: 'class'` is configured and there are **zero `dark:` classes**. Dark
+  mode is unbuilt rather than broken — the design doc has to decide either way.
+- The palette has brand/ink/surface and **no semantic colours**; success,
+  warning and danger are raw Tailwind scattered across files, and there is no
+  spacing, radius or type scale.
+- `Button` has no `as={Link}` escape hatch, so the triage result's two calls to
+  action duplicate button styling by hand — the clearest symptom of the gap.
+- `TableFrame` scrolls sideways below 40rem rather than collapsing to cards.
+  Four screens.
+- Missing and already needed more than once: Modal, Toast, Input/Label/field
+  error, Skeleton, Avatar, and any icon set at all.
+- Two surfaces flagged for specific direction rather than generic treatment: the
+  **emergency triage card** (it may be telling someone to call an ambulance) and
+  the **doctor's appointment row** (the densest thing in the app).
+
+It is dated and marked a snapshot at the end of phase 8, with a note to re-check
+it against the code — it is a description, not a contract.

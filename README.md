@@ -12,15 +12,6 @@ payments, plus three features that go past the usual CRUD app:
 - **Auto-waitlist** — a cancelled slot is offered automatically to the next person
   waiting, with a claim window, so it never goes to waste.
 
-> **Status: phases 1-7 of 13 complete** — authentication works end to end for all
-> three roles; the admin panel runs (dashboard, doctor management, appointments);
-> doctors have their own dashboard, clinic hours, appointment actions and
-> earnings; patients can browse doctors, book a slot, cancel, and manage their
-> details; and payments work both ways — cash settled at the desk, and online
-> through a provider that falls back to a keyless mock so the whole flow demos
-> with nothing configured. AI triage is next. The plan and progress are in
-> `docs/PHASES.md`.
-
 ## Documentation
 
 | Doc | What's in it |
@@ -61,9 +52,9 @@ MongoDB Atlas is the only service you must configure. Payments, image hosting an
 the AI provider all have keyless local fallbacks, so the full demo runs without any
 other accounts.
 
-`npm run seed` (admin, doctors, patients, sample appointments, with demo
-credentials printed at the end) arrives in phase 2, along with the database
-connection — phase 1 does not touch Mongo yet.
+`npm run seed` fills an empty database with an admin, doctors, patients and
+sample appointments, and prints the demo credentials at the end. It refuses a
+database that already has accounts unless you pass `--force`.
 
 Other commands:
 

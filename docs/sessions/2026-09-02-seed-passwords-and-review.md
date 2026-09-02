@@ -239,6 +239,27 @@ script.)
 
 ---
 
+## README and the merge to `main`
+
+Dropped the "Status: phases 1-7 of 13 complete" blockquote from `README.md`. It
+had gone stale twice already this project and is a second copy of what
+`docs/PHASES.md` tracks properly; the documentation table below it already
+points there.
+
+While in the file, also corrected the setup section, which still told a reader
+that `npm run seed` "arrives in phase 2, along with the database connection --
+phase 1 does not touch Mongo yet". Seeding has worked for five phases. It now
+describes what the command actually does, including the `--force` guard. Not
+strictly asked for, but leaving a false claim behind while removing the status
+line would have made the file less accurate rather than more.
+
+Then merged the branch into `main`. `main` was still at the initial commit and
+had nothing of its own, so this was a fast-forward of 46 commits -- phases 1 to
+7 complete, with no merge commit and no conflicts to resolve. Both branches are
+pushed.
+
+---
+
 ## Open items
 
 - Pushed at the end of the session, so nothing is unbacked any more.

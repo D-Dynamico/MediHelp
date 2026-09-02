@@ -29,8 +29,61 @@ import {
   WaitlistModel,
 } from './models/index.js';
 
-/** Every account the seed creates shares this password. Fine for a demo. */
+/**
+ * The fallback password for seeded accounts. Fine for a demo, and never used in
+ * production: `resolvePasswords()` refuses to fall back to it there.
+ */
 const DEMO_PASSWORD = 'Password123!';
+
+/**
+ * Works out what the seeded accounts should be signed in with.
+ *
+ * In development the well-known demo password keeps the project one command away
+ * from something you can click through. In production it would be a way in — the
+ * seed creates an admin and eight doctor accounts, and a published password on
+ * any of them is a published password on all of them — so there both keys must
+ * be set explicitly, and neither may be the demo one.
+ */
+function resolvePasswords(settings: ReturnType<typeof getSettings>): {
+  admin: string;
+  demo: string;
+} {
+  const { SEED_ADMIN_PASSWORD, SEED_DEMO_PASSWORD, isProduction } = settings;
+
+  if (!isProduction) {
+    return {
+      admin: SEED_ADMIN_PASSWORD ?? DEMO_PASSWORD,
+      demo: SEED_DEMO_PASSWORD ?? DEMO_PASSWORD,
+    };
+  }
+
+  const missing = [
+    SEED_ADMIN_PASSWORD ? null : 'SEED_ADMIN_PASSWORD',
+    SEED_DEMO_PASSWORD ? null : 'SEED_DEMO_PASSWORD',
+  ].filter(Boolean);
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Refusing to seed production without ${missing.join(' and ')}.\n` +
+        'Without them every seeded account would share a password published in this repo.\n' +
+        'Set them to strong, distinct values in the environment and run the seed again.',
+    );
+  }
+
+  const reused = [
+    SEED_ADMIN_PASSWORD === DEMO_PASSWORD ? 'SEED_ADMIN_PASSWORD' : null,
+    SEED_DEMO_PASSWORD === DEMO_PASSWORD ? 'SEED_DEMO_PASSWORD' : null,
+  ].filter(Boolean);
+
+  if (reused.length > 0) {
+    throw new Error(
+      `Refusing to seed production: ${reused.join(' and ')} is set to the demo password from this repo.\n` +
+        'Choose something else.',
+    );
+  }
+
+  return { admin: SEED_ADMIN_PASSWORD!, demo: SEED_DEMO_PASSWORD! };
+}
 
 type DoctorSeed = {
   name: string;
@@ -174,6 +227,9 @@ export type SeedResult = {
  */
 export async function seedDatabase({ force = false } = {}): Promise<SeedResult> {
   const settings = getSettings();
+  // Resolved before anything is read or deleted, so a production seed with no
+  // passwords set fails without having touched the database.
+  const passwords = resolvePasswords(settings);
 
   const existing = await UserModel.countDocuments();
   if (existing > 0 && !force) {
@@ -199,8 +255,8 @@ export async function seedDatabase({ force = false } = {}): Promise<SeedResult> 
     WaitlistModel.deleteMany({}),
   ]);
 
-  const adminPassword = settings.SEED_ADMIN_PASSWORD ?? DEMO_PASSWORD;
-  const passwordHash = await hashPassword(DEMO_PASSWORD);
+  const adminPassword = passwords.admin;
+  const passwordHash = await hashPassword(passwords.demo);
 
   // --- admin ---------------------------------------------------------------
   const admin = await UserModel.create({
@@ -332,7 +388,7 @@ export async function seedDatabase({ force = false } = {}): Promise<SeedResult> 
       admin: admin.email,
       doctor: doctors[0]!.user.email,
       patient: PATIENTS[0].email,
-      password: DEMO_PASSWORD,
+      password: passwords.demo,
       adminPassword,
     },
   };

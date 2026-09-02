@@ -130,6 +130,12 @@ Seeding production is a deliberate act, not part of the deploy: run
 seed script must refuse to run against a database that already has users unless
 `--force` is passed, so a redeploy can never wipe real data.
 
+Set `SEED_ADMIN_PASSWORD` and `SEED_DEMO_PASSWORD` before you do. With
+`NODE_ENV=production` the seed refuses to run until both are set to strong values
+that are not the demo password from this repo — the demo fallback would otherwise
+put a publicly known password on the admin and all eight doctor accounts. The
+seed prints what it used; note it, then sign in and change it.
+
 ---
 
 ## Cloudinary
@@ -156,6 +162,8 @@ deploy or restart. That is why uploads cannot stay local in production, and why
       real values
 - [ ] Atlas network access and database user configured
 - [ ] Health check returns 200 at `/api/health`
+- [ ] `SEED_ADMIN_PASSWORD` and `SEED_DEMO_PASSWORD` set to strong, distinct
+      values — the seed refuses to run in production without them
 - [ ] Seed run once against production, then demo credentials noted
 
 ---

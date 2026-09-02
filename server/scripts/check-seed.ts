@@ -11,9 +11,19 @@ const mongod = await MongoMemoryServer.create();
 process.env.MONGODB_URI = mongod.getUri();
 process.env.JWT_SECRET = 'x'.repeat(48);
 process.env.LOG_LEVEL = 'warn';
+// The developer's own .env must not decide what this check sees: the password
+// gate below asserts on the exact fallbacks.
+process.env.NODE_ENV = 'development';
+delete process.env.SEED_ADMIN_PASSWORD;
+delete process.env.SEED_DEMO_PASSWORD;
 
 // Imported after the env is set, because settings parse on first use.
 const { seedDatabase } = await import('../src/seed.js');
+
+// That import is what loads .env, so clear the seed passwords again — dotenv
+// only fills keys that are absent, and they were absent a moment ago.
+delete process.env.SEED_ADMIN_PASSWORD;
+delete process.env.SEED_DEMO_PASSWORD;
 
 // connectDb() rather than mongoose.connect(): it applies the global mongoose
 // settings the real server runs with, so the checks cannot pass on a
@@ -88,6 +98,109 @@ check('nothing was deleted by the refused run', (await UserModel.countDocuments(
 const reseeded = await seedDatabase({ force: true });
 check('--force re-seeds', reseeded.doctors === 8);
 check('--force leaves exactly one set of data', (await UserModel.countDocuments()) === 14);
+
+// --- production refuses the well-known demo password ---
+// The seed creates an admin and eight doctors. In development they share a
+// password printed in this repo, which is the point; in production that would be
+// a way in, so the seed must refuse rather than fall back.
+const { reloadSettings } = await import('../src/config/env.js');
+
+async function seedAs(
+  env: Record<string, string | undefined>,
+): Promise<{ error: string; users: number }> {
+  const saved = {
+    NODE_ENV: process.env.NODE_ENV,
+    SEED_ADMIN_PASSWORD: process.env.SEED_ADMIN_PASSWORD,
+    SEED_DEMO_PASSWORD: process.env.SEED_DEMO_PASSWORD,
+  };
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  reloadSettings();
+
+  let error = '';
+  try {
+    await seedDatabase({ force: true });
+  } catch (caught) {
+    error = caught instanceof Error ? caught.message : String(caught);
+  }
+  const users = await UserModel.countDocuments();
+
+  for (const [key, value] of Object.entries(saved)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  reloadSettings();
+  return { error, users };
+}
+
+const noPasswords = await seedAs({
+  NODE_ENV: 'production',
+  SEED_ADMIN_PASSWORD: undefined,
+  SEED_DEMO_PASSWORD: undefined,
+});
+check(
+  'production seeding is refused when no passwords are set',
+  noPasswords.error.includes('Refusing to seed production'),
+  noPasswords.error.slice(0, 160),
+);
+check(
+  'the refusal names both keys to set',
+  noPasswords.error.includes('SEED_ADMIN_PASSWORD') &&
+    noPasswords.error.includes('SEED_DEMO_PASSWORD'),
+  noPasswords.error.slice(0, 160),
+);
+check(
+  'the refused production seed deleted nothing',
+  noPasswords.users === 14,
+  noPasswords.users,
+);
+
+const halfSet = await seedAs({
+  NODE_ENV: 'production',
+  SEED_ADMIN_PASSWORD: 'a-strong-admin-password',
+  SEED_DEMO_PASSWORD: undefined,
+});
+check(
+  'production seeding is refused when only the admin password is set',
+  halfSet.error.includes('SEED_DEMO_PASSWORD') && !halfSet.error.includes('SEED_ADMIN_PASSWORD'),
+  halfSet.error.slice(0, 160),
+);
+
+const demoReused = await seedAs({
+  NODE_ENV: 'production',
+  SEED_ADMIN_PASSWORD: 'Password123!',
+  SEED_DEMO_PASSWORD: 'a-strong-demo-password',
+});
+check(
+  'production seeding is refused when a password is the demo one from the repo',
+  demoReused.error.includes('demo password from this repo'),
+  demoReused.error.slice(0, 160),
+);
+
+const productionOk = await seedAs({
+  NODE_ENV: 'production',
+  SEED_ADMIN_PASSWORD: 'a-strong-admin-password',
+  SEED_DEMO_PASSWORD: 'a-strong-demo-password',
+});
+check('production seeding succeeds once both are set', productionOk.error === '', productionOk.error);
+
+const productionAdmin = await UserModel.findOne({ role: 'admin' }).select('+passwordHash');
+const productionDoctor = await UserModel.findOne({ role: 'doctor' }).select('+passwordHash');
+check(
+  'the admin password set in the environment is the one that signs in',
+  await verifyPassword('a-strong-admin-password', productionAdmin?.passwordHash ?? ''),
+);
+check(
+  'seeded doctors use the demo password from the environment, not the repo one',
+  (await verifyPassword('a-strong-demo-password', productionDoctor?.passwordHash ?? '')) &&
+    !(await verifyPassword('Password123!', productionDoctor?.passwordHash ?? '')),
+);
+
+// Back to a development seed, so anything added below sees the usual fixture.
+const devAgain = await seedDatabase({ force: true });
+check('development still falls back to the demo password', devAgain.credentials.password === 'Password123!', devAgain.credentials.password);
 
 console.log(`\n${results.join('\n')}\n`);
 

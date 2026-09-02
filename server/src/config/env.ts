@@ -45,6 +45,13 @@ const schema = z.object({
 
   SEED_ADMIN_EMAIL: z.email().default('admin@medihelp.test'),
   SEED_ADMIN_PASSWORD: z.string().min(8).optional(),
+  /**
+   * The password shared by the seeded demo doctors and patients. Optional in
+   * development, where the seed falls back to a well-known one; required in
+   * production, where a well-known password on eight doctor accounts would be a
+   * way in. See `seed.ts`.
+   */
+  SEED_DEMO_PASSWORD: z.string().min(8).optional(),
 
   PAYMENT_PROVIDER: z.enum(['mock', 'razorpay']).default('mock'),
   RAZORPAY_KEY_ID: z.string().optional(),

@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react';
 import type { DoctorProfileDto, WorkingHoursDto } from '@shared/types';
 import { fieldErrorsFrom, messageFrom } from '../../api/client';
 import { fetchProfile, updateProfile } from '../../api/doctor';
-import { Button, Card, ErrorNote, Loading } from '../../components/ui';
+import {
+  Button,
+  Card,
+  ErrorNote,
+  Loading,
+  PageHeader,
+} from '../../components/ui';
 import { AvailabilityGrid } from './AvailabilityGrid';
 
 /**
@@ -129,13 +135,16 @@ export function DoctorProfile() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-ink">Profile</h1>
+      <PageHeader
+        title="Profile"
+        description="How you appear to patients, and when you sit."
+      />
 
       <Card>
         <form onSubmit={onSubmit} className="space-y-5" noValidate>
           {error && <ErrorNote message={error} />}
           {saved && (
-            <p role="status" className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">
+            <p role="status" className="rounded-md bg-success-bg px-3 py-2 text-sm text-success-fg">
               Saved.
             </p>
           )}
@@ -145,10 +154,10 @@ export function DoctorProfile() {
               <img
                 src={photo}
                 alt=""
-                className="h-20 w-20 rounded-full border border-brand-100 object-cover"
+                className="h-20 w-20 rounded-full border border-line object-cover"
               />
             ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-full border border-dashed border-slate-300 text-xs text-ink-muted">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full border border-dashed border-line-strong text-xs text-ink-muted">
                 Photo
               </div>
             )}
@@ -234,10 +243,10 @@ export function DoctorProfile() {
               aria-invalid={fieldErrors.about ? true : undefined}
               onChange={(event) => set('about', event.target.value)}
               className={`w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-100 ${
-                fieldErrors.about ? 'border-red-300' : 'border-slate-300 focus:border-brand-500'
+                fieldErrors.about ? 'border-danger-solid' : 'border-line-strong focus:border-brand-500'
               }`}
             />
-            <p className={`text-xs ${fieldErrors.about ? 'text-red-700' : 'text-ink-muted'}`}>
+            <p className={`text-xs ${fieldErrors.about ? 'text-danger-fg' : 'text-ink-muted'}`}>
               {fieldErrors.about ?? 'What you treat, in a sentence or two. Patients read this.'}
             </p>
           </div>
@@ -247,7 +256,7 @@ export function DoctorProfile() {
               type="checkbox"
               checked={draft.available}
               onChange={(event) => set('available', event.target.checked)}
-              className="h-4 w-4 rounded border-slate-300"
+              className="h-4 w-4 rounded border-line-strong"
             />
             Taking bookings
           </label>
@@ -310,11 +319,11 @@ function Field({
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={error ? true : undefined}
         className={`w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-100 ${
-          error ? 'border-red-300' : 'border-slate-300 focus:border-brand-500'
+          error ? 'border-danger-solid' : 'border-line-strong focus:border-brand-500'
         }`}
       />
       {(error ?? hint) && (
-        <p className={`text-xs ${error ? 'text-red-700' : 'text-ink-muted'}`}>{error ?? hint}</p>
+        <p className={`text-xs ${error ? 'text-danger-fg' : 'text-ink-muted'}`}>{error ?? hint}</p>
       )}
     </div>
   );

@@ -10,17 +10,17 @@ import {
   type AppointmentPage,
 } from '../../api/admin';
 import {
-  Button,
   Card,
   Empty,
   ErrorNote,
-  Loading,
-  StatusChip,
-  TableFrame,
-  money,
-  paymentLabel,
-  whenOf,
+  Field,
+  Input,
+  PageHeader,
+  Pagination,
+  SkeletonTable,
+  controlClasses,
 } from '../../components/ui';
+import { AdminAppointmentTable } from './AdminAppointmentTable';
 
 /** Every appointment in the clinic, filtered and paged, with the two actions. */
 export function AdminAppointments() {
@@ -80,7 +80,10 @@ export function AdminAppointments() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-ink">Appointments</h1>
+      <PageHeader
+        title="Appointments"
+        description="Every appointment in the clinic, filtered and paged."
+      />
 
       <Card className="space-y-4">
         <div className="flex flex-wrap items-end gap-3">
@@ -92,7 +95,7 @@ export function AdminAppointments() {
               id="status"
               value={status}
               onChange={(event) => setParam('status', event.target.value)}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+              className={controlClasses}
             >
               <option value="">All</option>
               {APPOINTMENT_STATUSES.map((option) => (
@@ -110,94 +113,25 @@ export function AdminAppointments() {
         {error && <ErrorNote message={error} />}
 
         {!data ? (
-          <Loading />
+          <SkeletonTable />
         ) : data.items.length === 0 ? (
-          <Empty>No appointments match that.</Empty>
+          <Empty action={{ label: 'Clear filters', onClick: () => setParams(new URLSearchParams(), { replace: true }) }}>
+            No appointments match that.
+          </Empty>
         ) : (
           <>
-            <TableFrame
-              head={
-                <tr>
-                  <th className="py-2 pr-4 font-medium">Patient</th>
-                  <th className="py-2 pr-4 font-medium">Doctor</th>
-                  <th className="py-2 pr-4 font-medium">When</th>
-                  <th className="py-2 pr-4 font-medium">Payment</th>
-                  <th className="py-2 pr-4 font-medium">Status</th>
-                  <th className="py-2 font-medium" />
-                </tr>
-              }
-            >
-              {data.items.map((appointment) => {
-                const open = ['booked', 'checked_in', 'in_progress'].includes(appointment.status);
-                return (
-                  <tr key={appointment.id}>
-                    <td className="py-2 pr-4">
-                      <p className="font-medium text-ink">{appointment.patient.name}</p>
-                      {appointment.patient.age !== undefined && (
-                        <p className="text-xs text-ink-muted">{appointment.patient.age} years</p>
-                      )}
-                    </td>
-                    <td className="py-2 pr-4 text-ink-muted">{appointment.doctor.name}</td>
-                    <td className="py-2 pr-4 text-ink-muted">
-                      <p>{whenOf(appointment.slotStart)}</p>
-                      <p className="text-xs">Token {appointment.tokenNumber}</p>
-                    </td>
-                    <td className="py-2 pr-4">
-                      <p>{money(appointment.amount)}</p>
-                      <p className="text-xs text-ink-muted">
-                        {paymentLabel(appointment.payment.status)}
-                      </p>
-                    </td>
-                    <td className="py-2 pr-4">
-                      <StatusChip status={appointment.status} />
-                    </td>
-                    <td className="py-2 text-right">
-                      {open && (
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="quiet"
-                            disabled={busyId === appointment.id}
-                            onClick={() => void act(appointment.id, 'complete')}
-                          >
-                            Complete
-                          </Button>
-                          <Button
-                            variant="danger"
-                            disabled={busyId === appointment.id}
-                            onClick={() => void act(appointment.id, 'cancel')}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </TableFrame>
+            <AdminAppointmentTable
+              items={data.items}
+              busyId={busyId}
+              onCancel={(id) => void act(id, 'cancel')}
+              onComplete={(id) => void act(id, 'complete')}
+            />
 
-            <div className="flex items-center justify-between pt-2 text-sm text-ink-muted">
-              <span>
-                {data.total} appointment{data.total === 1 ? '' : 's'} · page {data.page} of{' '}
-                {data.pages}
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  variant="quiet"
-                  disabled={data.page <= 1}
-                  onClick={() => setParam('page', String(data.page - 1))}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="quiet"
-                  disabled={data.page >= data.pages}
-                  onClick={() => setParam('page', String(data.page + 1))}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
+            <Pagination
+              page={data.page}
+              pages={data.pages}
+              onChange={(page) => setParam('page', String(page))}
+            />
           </>
         )}
       </Card>
@@ -217,17 +151,15 @@ function DateFilter({
   onChange: (key: string, value: string) => void;
 }) {
   return (
-    <div className="space-y-1">
-      <label htmlFor={id} className="block text-sm font-medium">
-        {label}
-      </label>
-      <input
-        id={id}
-        type="date"
-        value={value}
-        onChange={(event) => onChange(id, event.target.value)}
-        className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
-      />
-    </div>
+    <Field label={label}>
+      {(props) => (
+        <Input
+          {...props}
+          type="date"
+          value={value}
+          onChange={(event) => onChange(id, event.target.value)}
+        />
+      )}
+    </Field>
   );
 }

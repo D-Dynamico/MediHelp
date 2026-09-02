@@ -8,9 +8,11 @@ import { useAuth } from '../../hooks/useAuth';
 import {
   Button,
   Card,
+  Avatar,
   Empty,
   ErrorNote,
   Loading,
+  Skeleton,
   TriageDisclaimer,
   money,
 } from '../../components/ui';
@@ -153,20 +155,10 @@ export function DoctorDetail() {
     <div className="space-y-6">
       <Card>
         <div className="flex flex-wrap items-start gap-4">
-          {doctor.image ? (
-            <img
-              src={doctor.image}
-              alt=""
-              className="h-24 w-24 rounded-full border border-brand-100 object-cover"
-            />
-          ) : (
-            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-brand-50 text-2xl font-semibold text-brand-700">
-              {doctor.name.charAt(0)}
-            </div>
-          )}
+          <Avatar src={doctor.image} name={doctor.name} size="xl" />
 
           <div className="min-w-0 flex-1 space-y-1">
-            <h1 className="text-2xl font-semibold text-ink">{doctor.name}</h1>
+            <h1 className="text-h1 font-semibold text-ink">{doctor.name}</h1>
             <p className="text-sm text-ink-muted">
               {doctor.speciality} · {doctor.degree} · {doctor.experience} years&rsquo; experience
             </p>
@@ -179,7 +171,7 @@ export function DoctorDetail() {
 
           <div className="space-y-1 text-right">
             <p className="text-xs uppercase tracking-wide text-ink-muted">Consultation</p>
-            <p className="text-xl font-semibold text-ink">{money(doctor.fees)}</p>
+            <p className="text-h2 font-semibold text-ink">{money(doctor.fees)}</p>
             <p className="text-xs text-ink-muted">{doctor.slotDurationMins} minutes</p>
           </div>
         </div>
@@ -189,7 +181,9 @@ export function DoctorDetail() {
         <h2 className="text-sm font-semibold text-ink">Pick a time</h2>
 
         {!bookable ? (
-          <Empty>This doctor is not taking bookings at the moment.</Empty>
+          <Empty action={{ label: 'See other doctors', to: '/' }}>
+            This doctor is not taking bookings at the moment.
+          </Empty>
         ) : (
           <>
             <div className="flex gap-2 overflow-x-auto pb-1">
@@ -221,21 +215,32 @@ export function DoctorDetail() {
             {error && <ErrorNote message={error} />}
 
             {!slots ? (
-              <Loading label="Loading times…" />
-            ) : slots.length === 0 ? (
-              <Empty>No times on this day. Try another.</Empty>
-            ) : (
               <div className="flex flex-wrap gap-2">
+                {Array.from({ length: 8 }, (_, index) => (
+                  <Skeleton key={index} className="h-11 w-20" />
+                ))}
+              </div>
+            ) : slots.length === 0 ? (
+              <Empty action={{ label: 'See other doctors', to: '/' }}>
+                No times on this day. Try another.
+              </Empty>
+            ) : (
+              // A group of one-of-many choices, announced as one. Individual
+              // buttons left a screen reader to infer the relationship, and the
+              // selected time was only ever signalled by colour.
+              <div role="radiogroup" aria-label="Available times" className="flex flex-wrap gap-2">
                 {slots.map((slot) => (
                   <button
                     key={slot.start}
                     type="button"
+                    role="radio"
+                    aria-checked={chosen === slot.start}
                     disabled={!slot.available}
                     onClick={() => setChosen(slot.start)}
-                    className={`rounded-md border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-surface-sunken disabled:text-slate-400 disabled:line-through ${
+                    className={`min-h-11 rounded-sm border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:border-line disabled:bg-surface-sunken disabled:text-ink-faint disabled:line-through ${
                       chosen === slot.start
-                        ? 'border-brand-500 bg-brand-500 text-white'
-                        : 'border-slate-300 text-ink hover:border-brand-400'
+                        ? 'border-brand-500 bg-brand-50 text-brand-700'
+                        : 'border-line-strong text-ink hover:border-ink-faint'
                     }`}
                   >
                     {new Date(slot.start).toLocaleTimeString('en-IN', {
@@ -248,7 +253,7 @@ export function DoctorDetail() {
               </div>
             )}
 
-            <fieldset className="space-y-2 border-t border-brand-100 pt-4">
+            <fieldset className="space-y-2 border-t border-line pt-4">
               <legend className="text-sm font-medium">How would you like to pay?</legend>
               <div className="flex flex-wrap gap-2">
                 <PayOption
@@ -283,7 +288,7 @@ export function DoctorDetail() {
                 booking. A patient who came here directly is not shown a
                 disclaimer about a thing that is not happening. */}
             {triageId && (
-              <div className="space-y-1 rounded-lg bg-slate-50 p-3">
+              <div className="space-y-1 rounded-md bg-surface-sunken p-3">
                 <p className="text-xs font-medium text-ink">
                   Your symptom assessment will be sent to this doctor with the booking.
                 </p>
@@ -311,7 +316,7 @@ function PayOption({
   return (
     <label
       className={`flex-1 cursor-pointer rounded-md border px-3 py-2 text-sm transition ${
-        checked ? 'border-brand-500 bg-brand-50' : 'border-slate-300 hover:border-brand-300'
+        checked ? 'border-brand-500 bg-brand-50' : 'border-line-strong hover:border-ink-faint'
       }`}
     >
       <span className="flex items-center gap-2 font-medium text-ink">

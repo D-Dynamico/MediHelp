@@ -2,12 +2,91 @@
 @tailwind components;
 @tailwind utilities;
 
+/**
+ * Colour lives here as variables rather than in the Tailwind config, so that a
+ * dark theme is a second block in this file instead of a pass over every
+ * component. The names are the design system's; the values are its table.
+ */
 @layer base {
+  :root {
+    --surface: #ffffff;
+    --surface-sunken: #f5f7fa;
+    --surface-raised: #ffffff;
+
+    --line: #e4e8ef;
+    --line-strong: #c9d0db;
+
+    --ink: #111827;
+    --ink-muted: #5b6472;
+    --ink-faint: #8a93a2;
+
+    /* Slightly less saturated than the old #2F6FED, which read electric for a
+       clinical product. Same hue. */
+    --brand-50: #eef4ff;
+    --brand-500: #2a63d9;
+    --brand-600: #1f4fb8;
+    --brand-700: #193f94;
+
+    --success-bg: #eaf7ee;
+    --success-fg: #14532d;
+    --success-solid: #1e8a4c;
+
+    --warning-bg: #fff6e5;
+    --warning-fg: #7a4a00;
+    --warning-solid: #d98a0b;
+
+    --danger-bg: #fdecec;
+    --danger-fg: #7f1d1d;
+    --danger-solid: #c93b3b;
+
+    --info-bg: #eef4ff;
+    --info-fg: #193f94;
+    --info-solid: #2a63d9;
+  }
+
   html {
     @apply antialiased;
   }
 
   body {
-    @apply bg-surface-sunken text-ink;
+    @apply bg-surface-sunken font-sans text-body text-ink;
+    /* Token numbers, fees, wait times and clock times all sit in columns and
+       all update in place. Proportional figures make them jitter. */
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* One focus convention for everything interactive, including the danger
+     button - a red ring would compete with the button's own meaning. Mouse
+     clicks do not show it; keyboards do. */
+  :focus-visible {
+    outline: 2px solid var(--brand-500);
+    outline-offset: 2px;
+    border-radius: inherit;
+  }
+
+  /* Motion only ever answers an action, so switching it off costs nothing. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* The shimmer a Skeleton wears. Kept here because it needs a gradient the
+     config cannot express as a single token. */
+  .skeleton {
+    background-image: linear-gradient(
+      90deg,
+      var(--surface-sunken) 0%,
+      #eceff4 50%,
+      var(--surface-sunken) 100%
+    );
+    background-size: 200% 100%;
   }
 }

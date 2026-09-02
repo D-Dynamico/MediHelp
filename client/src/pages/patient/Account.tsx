@@ -3,7 +3,15 @@ import { GENDERS } from '@shared/types';
 import type { Gender, PatientProfileDto } from '@shared/types';
 import { fieldErrorsFrom, messageFrom } from '../../api/client';
 import { fetchMyProfile, updateMyProfile } from '../../api/patient';
-import { Button, Card, ErrorNote, Loading } from '../../components/ui';
+import {
+  Avatar,
+  Button,
+  Card,
+  ErrorNote,
+  Loading,
+  PageHeader,
+  controlClasses,
+} from '../../components/ui';
 
 /**
  * A patient's own details.
@@ -107,29 +115,22 @@ export function Account() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-ink">Your details</h1>
+      <PageHeader
+        title="Your details"
+        description="What the clinic has on file for you."
+      />
 
       <Card>
         <form onSubmit={onSubmit} className="space-y-5" noValidate>
           {error && <ErrorNote message={error} />}
           {saved && (
-            <p role="status" className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">
+            <p role="status" className="rounded-md bg-success-bg px-3 py-2 text-sm text-success-fg">
               Saved.
             </p>
           )}
 
           <div className="flex items-center gap-4">
-            {photo ? (
-              <img
-                src={photo}
-                alt=""
-                className="h-20 w-20 rounded-full border border-brand-100 object-cover"
-              />
-            ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-brand-50 text-xl font-semibold text-brand-700">
-                {profile.name.charAt(0)}
-              </div>
-            )}
+            <Avatar src={photo} name={profile.name} size="lg" />
             <div className="space-y-1">
               <label htmlFor="image" className="block text-sm font-medium">
                 Photo
@@ -178,7 +179,7 @@ export function Account() {
                 id="gender"
                 value={draft.gender}
                 onChange={(event) => set('gender', event.target.value as Gender | '')}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                className={controlClasses}
               >
                 <option value="">Not said</option>
                 {GENDERS.map((option) => (
@@ -187,7 +188,7 @@ export function Account() {
                   </option>
                 ))}
               </select>
-              {fieldErrors.gender && <p className="text-xs text-red-700">{fieldErrors.gender}</p>}
+              {fieldErrors.gender && <p className="text-xs text-danger-fg">{fieldErrors.gender}</p>}
             </div>
 
             <div className="space-y-1">
@@ -198,7 +199,7 @@ export function Account() {
                 id="email"
                 value={profile.email}
                 readOnly
-                className="w-full rounded-md border border-slate-200 bg-surface-sunken px-3 py-2 text-ink-muted"
+                className="w-full rounded-md border border-line bg-surface-sunken px-3 py-2 text-ink-muted"
               />
               <p className="text-xs text-ink-muted">
                 This is how you sign in. Ask the clinic if it needs changing.
@@ -258,11 +259,11 @@ function Field({
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={error ? true : undefined}
         className={`w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-100 ${
-          error ? 'border-red-300' : 'border-slate-300 focus:border-brand-500'
+          error ? 'border-danger-solid' : 'border-line-strong focus:border-brand-500'
         }`}
       />
       {(error ?? hint) && (
-        <p className={`text-xs ${error ? 'text-red-700' : 'text-ink-muted'}`}>{error ?? hint}</p>
+        <p className={`text-xs ${error ? 'text-danger-fg' : 'text-ink-muted'}`}>{error ?? hint}</p>
       )}
     </div>
   );

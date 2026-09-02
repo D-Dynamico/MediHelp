@@ -4,7 +4,17 @@ import { SPECIALITIES } from '@shared/types';
 import type { PublicDoctorDto, Speciality } from '@shared/types';
 import { messageFrom } from '../../api/client';
 import { fetchDoctors } from '../../api/patient';
-import { Card, Empty, ErrorNote, Loading, money } from '../../components/ui';
+import {
+  Avatar,
+  Button,
+  Card,
+  Empty,
+  ErrorNote,
+  PageHeader,
+  SkeletonCard,
+  controlClasses,
+  money,
+} from '../../components/ui';
 
 /**
  * The clinic's front door: every doctor, filtered by speciality or searched by
@@ -53,41 +63,33 @@ export function Doctors() {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold text-ink">Find a doctor</h1>
-        <p className="text-sm text-ink-muted">
-          Pick a speciality, or search by name. Booking takes a minute and needs an account.
-        </p>
-      </header>
+      <PageHeader
+        title="Find a doctor"
+        description="Pick a speciality, or search by name. Booking takes a minute and needs an account."
+      />
 
       {triageId ? (
         // The suggestion is a filter, never a lock. Saying so on the page — with
         // the way out right beside it — is the difference between a
         // recommendation and a decision made for someone.
-        <Card className="flex flex-wrap items-center justify-between gap-2 border-brand-200 bg-brand-50">
-          <p className="text-sm text-ink">
+        <Card tone="info" padding="sm" className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-info-fg">
             {speciality
-              ? `Suggested from your symptoms. You can book any doctor you like.`
-              : `Showing every doctor. Your assessment still travels with the booking.`}
+              ? 'Suggested from your symptoms. You can book any doctor you like.'
+              : 'Showing every doctor. Your assessment still travels with the booking.'}
           </p>
           {speciality && (
-            <button
-              type="button"
-              className="text-sm font-medium text-brand-700 underline"
-              onClick={() => setParam('speciality', '')}
-            >
+            <Button variant="secondary" size="sm" onClick={() => setParam('speciality', '')}>
               Show all doctors
-            </button>
+            </Button>
           )}
         </Card>
       ) : (
-        <Card className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-ink-muted">
-            Not sure which kind of doctor you need?
-          </p>
-          <Link to="/triage" className="text-sm font-medium text-brand-700 underline">
+        <Card padding="sm" className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-ink-muted">Not sure which kind of doctor you need?</p>
+          <Button as="link" to="/triage" variant="secondary" size="sm">
             Describe your symptoms instead
-          </Link>
+          </Button>
         </Card>
       )}
 
@@ -101,7 +103,7 @@ export function Doctors() {
             value={search}
             placeholder="Name, speciality or qualification"
             onChange={(event) => setParam('search', event.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 sm:max-w-sm"
+            className={`${controlClasses} sm:max-w-sm`}
           />
         </div>
 
@@ -124,9 +126,15 @@ export function Doctors() {
       {error && <ErrorNote message={error} />}
 
       {!doctors ? (
-        <Loading />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
       ) : doctors.length === 0 ? (
-        <Empty>No doctors match that. Try a different speciality.</Empty>
+        <Empty action={{ label: 'Clear filters', onClick: () => setParams(new URLSearchParams(), { replace: true }) }}>
+          No doctors match that.
+        </Empty>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {doctors.map((doctor) => (
@@ -142,20 +150,10 @@ function DoctorCard({ doctor, triageId }: { doctor: PublicDoctorDto; triageId: s
   return (
     <Link
       to={`/doctors/${doctor.id}${triageId ? `?triage=${triageId}` : ''}`}
-      className="rounded-xl border border-brand-100 bg-surface p-5 shadow-sm transition hover:border-brand-300 hover:shadow"
+      className="rounded-md border border-line bg-surface p-5 transition hover:border-line-strong"
     >
       <div className="flex items-center gap-3">
-        {doctor.image ? (
-          <img
-            src={doctor.image}
-            alt=""
-            className="h-14 w-14 rounded-full border border-brand-100 object-cover"
-          />
-        ) : (
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-lg font-semibold text-brand-700">
-            {doctor.name.charAt(0)}
-          </div>
-        )}
+        <Avatar src={doctor.image} name={doctor.name} size="lg" />
         <div className="min-w-0">
           <p className="truncate font-semibold text-ink">{doctor.name}</p>
           <p className="truncate text-sm text-ink-muted">{doctor.speciality}</p>
@@ -169,7 +167,7 @@ function DoctorCard({ doctor, triageId }: { doctor: PublicDoctorDto; triageId: s
         {/* Said plainly rather than by hiding the card. A doctor who is not
             taking anyone right now is still someone a patient may be looking
             for. */}
-        <span className={doctor.available ? 'text-green-700' : 'text-ink-muted'}>
+        <span className={doctor.available ? 'text-success-fg' : 'text-ink-muted'}>
           {doctor.available ? 'Taking bookings' : 'Not booking now'}
         </span>
       </div>
@@ -191,7 +189,7 @@ function Chip({
       type="button"
       onClick={onClick}
       className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-        active ? 'bg-brand-500 text-white' : 'bg-brand-50 text-brand-700 hover:bg-brand-100'
+        active ? 'bg-brand-500 text-white' : 'bg-brand-50 text-brand-700 hover:bg-brand-50'
       }`}
     >
       {children}

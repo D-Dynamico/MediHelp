@@ -382,3 +382,131 @@ added while there, so the two agree.
 
 It is dated and marked a snapshot at the end of phase 8, with a note to re-check
 it against the code — it is a description, not a contract.
+
+---
+
+## The design pass (phase 11, brought forward)
+
+The user took the UI inventory to Fable and came back with two documents —
+`docs/medihelp-design-system.md` and `docs/medihelp-screen-content.md` — then
+asked for the UI to be changed to match. That is phase 11 arriving early, which
+is a better outcome than the "wait for phases 9 and 10" answer given earlier:
+the design system now covers the queue and waitlist screens before they are
+built, so they will be written against it rather than retrofitted.
+
+Worked in the migration order the design system's own §8 sets out.
+
+### 1. Tokens
+
+`tailwind.config.js` rewritten. Colour moved to CSS variables on `:root` in
+`index.css` so a dark theme is a swap of variables rather than a pass over every
+component; the Tailwind config references `var(--…)`. Semantic `success`,
+`warning`, `danger` and `info` each get three stops (bg, fg, solid) — the app
+previously had none and reached for raw `red-*`/`amber-*`/`green-*`. Seven type
+steps with paired line heights, three radii, two shadows, one focus convention
+via a global `:focus-visible` rule, and `tabular-nums` on `body` because tokens,
+fees and wait times all sit in columns.
+
+`darkMode: 'class'` **removed**, per the doc's explicit decision: it was
+configured and used by exactly zero classes, which is a promise the app did not
+keep. The queue board keeps its own fixed dark palette as `board-*`.
+
+IBM Plex Sans added via Google Fonts (preconnected), Inter kept as the fallback.
+Lucide adopted for icons — the app previously had none at all.
+
+### 2. Components
+
+`ui.tsx` (219 lines, 13 exports) became `components/ui/` with a barrel. Because
+the barrel sits at the old path, **every existing `from '../../components/ui'`
+import kept working** — no page needed touching for the split itself.
+
+New: `Field`/`Input`/`Textarea`/`Select` (every form hand-rolled these), `Chip`
+with `StatusChip`/`UrgencyChip`/`PaymentChip` wrappers, `Avatar` (three copies
+removed), `Skeleton` family, `Toast`, `Dialog`, `Tabs`, `Pagination`,
+`PageHeader`, `IconButton`, `ErrorBoundary`, `AsyncState`.
+
+Decisions worth keeping:
+
+- *`Button` gained `as="link"`.* The triage result was copying button classes
+  onto a `Link` by hand — the clearest symptom of the missing system.
+- *`danger` is outlined, not filled.* A filled red button is reserved for the
+  confirm step in a destructive dialog and the emergency call, so a filled red
+  button always means "this is the serious one".
+- *Cancelled and no-show are grey with a struck label, never red.* Red is spent
+  on emergencies. If every unhappy outcome is red, red stops meaning anything.
+- *`Empty` requires an action.* A dead end was the failure mode; an empty list
+  with nothing to press is a puzzle, not a state.
+- *Errors do not auto-dismiss.* A success can be missed harmlessly; a failure
+  that vanished before it was read is how someone books or pays twice.
+- *`whenOf` keeps `timeZone: 'UTC'`.* Nearly lost in the rewrite. The whole
+  booking system treats slots as UTC wall-clock — working hours are stored that
+  way and the grid is generated from them — so rendering in the reader's local
+  zone would silently move every appointment by their offset.
+
+### 3–5. Shells, tables, forms
+
+`DoctorLayout` and `AdminLayout` were two copies of one idea; they are now one
+`WorkShell` plus a list of sections. The mobile horizontal scrolling strip
+became a bottom tab bar — the strip pushed "Profile" off the edge. `SiteLayout`
+gained a proper mobile sheet with 48px targets, and an `ErrorBoundary` **inside**
+the shell rather than around it, so a screen that throws still leaves a header
+to navigate out of.
+
+`TableFrame` now owns the responsive switch: a table above `md`, a stack of
+cards below. Sideways scrolling was the old answer and the columns that scrolled
+off were status and actions — the two that matter. The admin's two appointment
+tables became one shared `AdminAppointmentTable`.
+
+Forms: Login and Signup rewritten onto `Field`/`Input` behind a shared
+`AuthShell`; the rest moved onto `controlClasses` and the shared error styling.
+
+### 6. High-stakes surfaces
+
+**The emergency card.** Now a `Card tone="danger" padding="lg"` with a heading,
+the advice, the matched signs, a full-width red-filled "Call 108" (`tel:`) and
+the quiet disclaimer. No speciality, no booking link, no fee, no urgency chip —
+the heading already says it. No pulsing or animation: this does not need
+decoration to be taken seriously.
+
+**The doctor's row.** Was three buttons on every open appointment. Now it shows
+the one action the state calls for — booked offers Start, in-progress offers
+Complete — with Cancel in an overflow behind a confirmation. That removes the
+misclick that cancelled a consult meant to be started. The urgency chip appears
+only when urgent or emergency, so the column stays quiet until it matters, and
+the intake note moved from an inline `details` element (which pushed the day off
+the screen) into a dialog.
+
+### 7. Sweep
+
+Every raw `red-*`/`green-*`/`amber-*`/`slate-*` class replaced with a semantic
+token; every `rounded-lg`/`rounded-xl` collapsed to the three-radius scale; every
+`text-2xl`/`xl`/`lg` onto the type scale. **A grep for raw colour classes and
+off-scale radii in `client/src` now returns nothing.** Also from the
+accessibility floor: the slot grid became a `radiogroup` with `aria-checked`
+(selection was signalled by colour alone), and slot targets are 44px.
+
+### Verification
+
+`npm run typecheck`, `npm run lint` and `npm run build` all clean. The five
+server check suites that touch these screens are unchanged — booking 95, admin
+87, doctor 94, payments 52, triage 83 — which is what says the rewrite was a
+presentation change and not a behaviour one.
+
+**Not verified in a browser.** This is a rewrite of every screen in the app and
+none of it has been clicked. That is the standing preference, but the risk here
+is larger than usual: see the open items.
+
+### Left undone, deliberately
+
+- The **live queue board**, patient queue card and waitlist surfaces (§6.3, §6.4)
+  are specified but belong to phases 9 and 10. The tokens they need — `board-*`,
+  `text-display` — are in place.
+- `AsyncState` is built and exported but only some screens branch through it;
+  the rest still do it by hand. Mechanical, and worth finishing when the queue
+  screens land.
+- Toasts replace the inline banner on the patient's appointments and cover
+  cancel and pay. The other mutations (save profile, activate doctor, add
+  doctor) still report inline.
+- `docs/UI_INVENTORY.md` now describes a state that no longer exists. It is
+  dated and marked a snapshot, so it is left as the record of what the design
+  pass was answering.

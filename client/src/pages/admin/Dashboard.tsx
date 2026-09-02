@@ -3,17 +3,15 @@ import type { AdminDashboardDto } from '@shared/types';
 import { messageFrom } from '../../api/client';
 import { cancelAppointment, fetchDashboard } from '../../api/admin';
 import {
-  Button,
   Card,
   Empty,
   ErrorNote,
-  Loading,
+  PageHeader,
+  SkeletonTable,
   StatTile,
-  StatusChip,
-  TableFrame,
   money,
-  whenOf,
 } from '../../components/ui';
+import { AdminAppointmentTable } from './AdminAppointmentTable';
 
 /** The clinic at a glance, and the five newest bookings with a way to cancel. */
 export function AdminDashboard() {
@@ -50,11 +48,14 @@ export function AdminDashboard() {
   }
 
   if (error && !data) return <ErrorNote message={error} />;
-  if (!data) return <Loading />;
+  if (!data) return <SkeletonTable />;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-ink">Dashboard</h1>
+      <PageHeader
+        title="Overview"
+        description="The clinic at a glance, and the newest bookings."
+      />
 
       {error && <ErrorNote message={error} />}
 
@@ -73,44 +74,15 @@ export function AdminDashboard() {
         <h2 className="mb-3 text-sm font-semibold text-ink">Latest bookings</h2>
 
         {data.latestBookings.length === 0 ? (
-          <Empty>No bookings yet.</Empty>
+          <Empty action={{ label: 'Add a doctor', to: '/admin/doctors/new' }}>
+            No bookings yet.
+          </Empty>
         ) : (
-          <TableFrame
-            head={
-              <tr>
-                <th className="py-2 pr-4 font-medium">Patient</th>
-                <th className="py-2 pr-4 font-medium">Doctor</th>
-                <th className="py-2 pr-4 font-medium">When</th>
-                <th className="py-2 pr-4 font-medium">Status</th>
-                <th className="py-2 pr-4 font-medium">Fee</th>
-                <th className="py-2 font-medium" />
-              </tr>
-            }
-          >
-            {data.latestBookings.map((appointment) => (
-              <tr key={appointment.id}>
-                <td className="py-2 pr-4">{appointment.patient.name}</td>
-                <td className="py-2 pr-4 text-ink-muted">{appointment.doctor.name}</td>
-                <td className="py-2 pr-4 text-ink-muted">{whenOf(appointment.slotStart)}</td>
-                <td className="py-2 pr-4">
-                  <StatusChip status={appointment.status} />
-                </td>
-                <td className="py-2 pr-4">{money(appointment.amount)}</td>
-                <td className="py-2 text-right">
-                  {/* Only an appointment that has not happened yet can be called off. */}
-                  {['booked', 'checked_in', 'in_progress'].includes(appointment.status) && (
-                    <Button
-                      variant="danger"
-                      disabled={busyId === appointment.id}
-                      onClick={() => void onCancel(appointment.id)}
-                    >
-                      {busyId === appointment.id ? 'Cancelling…' : 'Cancel'}
-                    </Button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </TableFrame>
+          <AdminAppointmentTable
+            items={data.latestBookings}
+            busyId={busyId}
+            onCancel={(id) => void onCancel(id)}
+          />
         )}
       </Card>
     </div>

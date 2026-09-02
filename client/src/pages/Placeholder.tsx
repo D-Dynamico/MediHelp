@@ -1,14 +1,24 @@
-import { Link } from 'react-router-dom';
+import { Placeholder as PlaceholderPage } from '../components/ui';
 
-/** Stands in for pages that arrive in later phases. */
-export function Placeholder({ title }: { title: string }) {
+/**
+ * The 404, and anything else that is a dead end.
+ *
+ * It offers a way out, which is the whole difference between an error page and
+ * a wall. The shared component underneath is the same one the error boundary
+ * and the offline state use.
+ */
+export function Placeholder({
+  title,
+  message = 'That page does not exist, or it has moved.',
+}: {
+  title: string;
+  message?: string;
+}) {
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center gap-3 p-6">
-      <h1 className="text-2xl font-semibold text-ink">{title}</h1>
-      <p className="text-ink-muted">This arrives in a later phase.</p>
-      <Link to="/" className="text-brand-600 hover:underline">
-        Back to the home page
-      </Link>
-    </main>
+    <PlaceholderPage
+      title={title}
+      message={message}
+      action={{ label: 'Find a doctor', to: '/' }}
+    />
   );
 }

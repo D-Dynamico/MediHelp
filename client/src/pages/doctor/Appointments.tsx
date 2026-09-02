@@ -2,7 +2,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { fetchAppointments, type AppointmentPage, type AppointmentWhen } from '../../api/doctor';
 import { messageFrom } from '../../api/client';
-import { Button, Card, Empty, ErrorNote, Loading } from '../../components/ui';
+import {
+  Button,
+  Card,
+  Empty,
+  ErrorNote,
+  Loading,
+  PageHeader,
+  Tabs,
+} from '../../components/ui';
 import { AppointmentTable } from './AppointmentTable';
 import { useAppointmentActions } from './useAppointmentActions';
 
@@ -75,25 +83,18 @@ export function DoctorAppointments() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-ink">Appointments</h1>
+      <PageHeader
+        title="Appointments"
+        description="Everything on your list, past and future."
+      />
 
       <Card className="space-y-4">
-        <div className="flex flex-wrap gap-2">
-          {SCOPES.map((scope) => (
-            <button
-              key={scope.value}
-              type="button"
-              onClick={() => setParam('when', scope.value)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                when === scope.value
-                  ? 'bg-brand-50 text-brand-700'
-                  : 'text-ink-muted hover:bg-surface-sunken'
-              }`}
-            >
-              {scope.label}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          label="Which appointments"
+          value={when}
+          options={SCOPES.map((scope) => ({ value: scope.value, label: scope.label }))}
+          onChange={(value) => setParam('when', value)}
+        />
 
         {notice && <ErrorNote message={notice} />}
 
@@ -102,7 +103,9 @@ export function DoctorAppointments() {
         ) : (
           <>
             {data.items.length === 0 ? (
-              <Empty>Nothing here yet.</Empty>
+              <Empty action={{ label: 'Back to today', to: '/doctor' }}>
+                Nothing here yet.
+              </Empty>
             ) : (
               <AppointmentTable
                 items={data.items}

@@ -4,7 +4,13 @@ import { SPECIALITIES } from '@shared/types';
 import type { Speciality } from '@shared/types';
 import { fieldErrorsFrom, messageFrom } from '../../api/client';
 import { createDoctor } from '../../api/admin';
-import { Button, Card, ErrorNote } from '../../components/ui';
+import {
+  Button,
+  Card,
+  ErrorNote,
+  PageHeader,
+  controlClasses,
+} from '../../components/ui';
 
 /**
  * The add-doctor form.
@@ -73,7 +79,10 @@ export function AddDoctor() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-ink">Add a doctor</h1>
+      <PageHeader
+        title="Add a doctor"
+        description="Their account is created with the password you set here."
+      />
 
       <Card>
         <form onSubmit={onSubmit} className="space-y-5" noValidate>
@@ -84,10 +93,10 @@ export function AddDoctor() {
               <img
                 src={preview}
                 alt=""
-                className="h-20 w-20 rounded-full border border-brand-100 object-cover"
+                className="h-20 w-20 rounded-full border border-line object-cover"
               />
             ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-full border border-dashed border-slate-300 text-xs text-ink-muted">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full border border-dashed border-line-strong text-xs text-ink-muted">
                 Photo
               </div>
             )}
@@ -135,7 +144,7 @@ export function AddDoctor() {
                 id="speciality"
                 value={form.speciality}
                 onChange={(event) => set('speciality', event.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                className={controlClasses}
               >
                 {SPECIALITIES.map((speciality) => (
                   <option key={speciality} value={speciality}>
@@ -144,7 +153,7 @@ export function AddDoctor() {
                 ))}
               </select>
               {fieldErrors.speciality && (
-                <p className="text-xs text-red-700">{fieldErrors.speciality}</p>
+                <p className="text-xs text-danger-fg">{fieldErrors.speciality}</p>
               )}
             </div>
 
@@ -199,10 +208,10 @@ export function AddDoctor() {
               aria-invalid={fieldErrors.about ? true : undefined}
               onChange={(event) => set('about', event.target.value)}
               className={`w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-100 ${
-                fieldErrors.about ? 'border-red-300' : 'border-slate-300 focus:border-brand-500'
+                fieldErrors.about ? 'border-danger-solid' : 'border-line-strong focus:border-brand-500'
               }`}
             />
-            <p className={`text-xs ${fieldErrors.about ? 'text-red-700' : 'text-ink-muted'}`}>
+            <p className={`text-xs ${fieldErrors.about ? 'text-danger-fg' : 'text-ink-muted'}`}>
               {fieldErrors.about ?? 'What they treat, in a sentence or two. Patients read this.'}
             </p>
           </div>
@@ -250,11 +259,11 @@ function Field({
         onChange={(event) => onChange(id, event.target.value)}
         aria-invalid={error ? true : undefined}
         className={`w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-100 ${
-          error ? 'border-red-300' : 'border-slate-300 focus:border-brand-500'
+          error ? 'border-danger-solid' : 'border-line-strong focus:border-brand-500'
         }`}
       />
       {(error ?? hint) && (
-        <p className={`text-xs ${error ? 'text-red-700' : 'text-ink-muted'}`}>{error ?? hint}</p>
+        <p className={`text-xs ${error ? 'text-danger-fg' : 'text-ink-muted'}`}>{error ?? hint}</p>
       )}
     </div>
   );

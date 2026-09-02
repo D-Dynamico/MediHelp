@@ -2,7 +2,15 @@ import { useCallback, useEffect, useState } from 'react';
 import type { AppointmentDto, DoctorEarningsDto } from '@shared/types';
 import { messageFrom } from '../../api/client';
 import { fetchAppointments, fetchEarnings } from '../../api/doctor';
-import { Card, Empty, ErrorNote, Loading, StatTile, money } from '../../components/ui';
+import {
+  Card,
+  Empty,
+  ErrorNote,
+  Loading,
+  PageHeader,
+  StatTile,
+  money,
+} from '../../components/ui';
 import { AppointmentTable } from './AppointmentTable';
 import { useAppointmentActions } from './useAppointmentActions';
 
@@ -45,7 +53,10 @@ export function DoctorDashboard() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-ink">Today</h1>
+      <PageHeader
+        title="Today"
+        description="What is left to see, and how the month is going."
+      />
 
       {notice && <ErrorNote message={notice} />}
 
@@ -68,7 +79,9 @@ export function DoctorDashboard() {
         <h2 className="mb-3 text-sm font-semibold text-ink">Today&rsquo;s appointments</h2>
 
         {today.length === 0 ? (
-          <Empty>Nothing booked for today.</Empty>
+          <Empty action={{ label: 'See all appointments', to: '/doctor/appointments' }}>
+            Nothing booked for today.
+          </Empty>
         ) : (
           <AppointmentTable items={today} busyIds={actions.busyIds} onAct={actions.act} />
         )}

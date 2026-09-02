@@ -4,7 +4,20 @@ import { SPECIALITIES } from '@shared/types';
 import type { AdminDoctorDto, Speciality } from '@shared/types';
 import { messageFrom } from '../../api/client';
 import { fetchDoctors, removeDoctor, updateDoctor } from '../../api/admin';
-import { Button, Card, Empty, ErrorNote, Loading, TableFrame, money } from '../../components/ui';
+import {
+  Avatar,
+  Button,
+  Card,
+  Chip,
+  Dialog,
+  Empty,
+  ErrorNote,
+  PageHeader,
+  SkeletonTable,
+  TableFrame,
+  controlClasses,
+  money,
+} from '../../components/ui';
 
 /**
  * The doctor list, with the two things an admin does to it: take a doctor off
@@ -23,6 +36,10 @@ export function AdminDoctors() {
   const [doctors, setDoctors] = useState<AdminDoctorDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Removing a doctor takes them off the public list and is not something to
+  // do by misclick, so it goes through a confirmation like every other
+  // destructive action. Reinstating does not: it is the undo.
+  const [removing, setRemoving] = useState<AdminDoctorDto | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -79,7 +96,10 @@ export function AdminDoctors() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-ink">Doctors</h1>
+      <PageHeader
+        title="Doctors"
+        description="Who is on the public list, and who is taking bookings."
+      />
 
       <Card className="space-y-4">
         <div className="flex flex-wrap items-end gap-3">
@@ -92,7 +112,7 @@ export function AdminDoctors() {
               value={search}
               placeholder="Name or email"
               onChange={(event) => setParam('search', event.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+              className={controlClasses}
             />
           </div>
 
@@ -104,7 +124,7 @@ export function AdminDoctors() {
               id="speciality"
               value={speciality}
               onChange={(event) => setParam('speciality', event.target.value)}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+              className={controlClasses}
             >
               <option value="">All</option>
               {SPECIALITIES.map((option) => (
@@ -128,64 +148,113 @@ export function AdminDoctors() {
         {error && <ErrorNote message={error} />}
 
         {!doctors ? (
-          <Loading />
+          <SkeletonTable />
         ) : doctors.length === 0 ? (
-          <Empty>No doctors match that.</Empty>
+          <Empty action={{ label: 'Clear filters', onClick: () => setParams(new URLSearchParams(), { replace: true }) }}>
+            No doctors match that.
+          </Empty>
         ) : (
           <TableFrame
-            head={
-              <tr>
-                <th className="py-2 pr-4 font-medium">Doctor</th>
-                <th className="py-2 pr-4 font-medium">Speciality</th>
-                <th className="py-2 pr-4 font-medium">Fee</th>
-                <th className="py-2 pr-4 font-medium">Taking bookings</th>
-                <th className="py-2 font-medium" />
-              </tr>
-            }
-          >
-            {doctors.map((doctor) => (
-              <tr key={doctor.id} className={doctor.isActive ? '' : 'opacity-60'}>
-                <td className="py-2 pr-4">
+            columns={[
+              {
+                key: 'doctor',
+                label: 'Doctor',
+                render: (doctor) => (
                   <div className="flex items-center gap-3">
-                    {doctor.image ? (
-                      <img src={doctor.image} alt="" className="h-9 w-9 rounded-full object-cover" />
-                    ) : (
-                      <div className="h-9 w-9 rounded-full bg-brand-50" />
-                    )}
+                    <Avatar src={doctor.image} name={doctor.name} size="sm" />
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-ink">{doctor.name}</p>
-                      <p className="truncate text-xs text-ink-muted">{doctor.email}</p>
+                      <p className="truncate text-body font-medium text-ink">{doctor.name}</p>
+                      <p className="truncate text-sm text-ink-muted">{doctor.email}</p>
                     </div>
                   </div>
-                </td>
-                <td className="py-2 pr-4 text-ink-muted">{doctor.speciality}</td>
-                <td className="py-2 pr-4">{money(doctor.fees)}</td>
-                <td className="py-2 pr-4">
+                ),
+              },
+              {
+                key: 'speciality',
+                label: 'Speciality',
+                render: (doctor) => <span className="text-ink-muted">{doctor.speciality}</span>,
+              },
+              { key: 'fee', label: 'Fee', align: 'right', render: (doctor) => money(doctor.fees) },
+              {
+                key: 'bookings',
+                label: 'Taking bookings',
+                render: (doctor) => (
                   <button
                     type="button"
                     disabled={!doctor.isActive || busyId === doctor.id}
                     onClick={() => void onToggleAvailable(doctor)}
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium disabled:opacity-50 ${
-                      doctor.available ? 'bg-green-50 text-green-800' : 'bg-slate-100 text-slate-600'
-                    }`}
+                    className="rounded-full disabled:opacity-50"
                   >
-                    {doctor.available ? 'Yes' : 'No'}
+                    <Chip tone={doctor.available ? 'success' : 'neutral'} dot>
+                      {doctor.available ? 'Yes' : 'No'}
+                    </Chip>
                   </button>
-                </td>
-                <td className="py-2 text-right">
+                ),
+              },
+              {
+                key: 'actions',
+                label: '',
+                align: 'right',
+                render: (doctor) => (
                   <Button
-                    variant={doctor.isActive ? 'danger' : 'quiet'}
-                    disabled={busyId === doctor.id}
-                    onClick={() => void onToggle(doctor)}
+                    size="sm"
+                    variant={doctor.isActive ? 'danger' : 'secondary'}
+                    loading={busyId === doctor.id}
+                    onClick={() => (doctor.isActive ? setRemoving(doctor) : void onToggle(doctor))}
                   >
                     {doctor.isActive ? 'Remove' : 'Reinstate'}
                   </Button>
-                </td>
-              </tr>
-            ))}
-          </TableFrame>
+                ),
+              },
+            ]}
+            rows={doctors}
+            rowKey={(doctor) => doctor.id}
+            renderCard={(doctor) => (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <Avatar src={doctor.image} name={doctor.name} size="sm" />
+                  <div className="min-w-0">
+                    <p className="truncate text-body font-medium text-ink">{doctor.name}</p>
+                    <p className="truncate text-sm text-ink-muted">{doctor.speciality}</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Chip tone={doctor.available ? 'success' : 'neutral'} dot>
+                    {doctor.available ? 'Taking bookings' : 'Not taking bookings'}
+                  </Chip>
+                  <span className="text-sm text-ink-muted">{money(doctor.fees)}</span>
+                </div>
+                <Button
+                  size="sm"
+                  fullWidth
+                  variant={doctor.isActive ? 'danger' : 'secondary'}
+                  loading={busyId === doctor.id}
+                  onClick={() => (doctor.isActive ? setRemoving(doctor) : void onToggle(doctor))}
+                >
+                  {doctor.isActive ? 'Remove' : 'Reinstate'}
+                </Button>
+              </div>
+            )}
+          />
         )}
       </Card>
+
+      <Dialog
+        open={removing !== null}
+        destructive
+        title="Remove this doctor?"
+        confirmLabel="Remove"
+        busy={busyId === removing?.id}
+        onConfirm={() => {
+          if (removing) void onToggle(removing);
+          setRemoving(null);
+        }}
+        onClose={() => setRemoving(null)}
+      >
+        {removing
+          ? `${removing.name} comes off the public list and takes no new bookings. Existing appointments are not cancelled, and you can reinstate them later.`
+          : ''}
+      </Dialog>
     </div>
   );
 }

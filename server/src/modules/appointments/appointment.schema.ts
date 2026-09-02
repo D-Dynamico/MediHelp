@@ -12,7 +12,7 @@ import { PAYMENT_MODES } from '@shared/types.js';
  * declared here before a handler ever sees the body.
  */
 export const bookingSchema = z.object({
-  doctorId: z.string().length(24, 'Pick a doctor.'),
+  doctorId: z.string().regex(/^[0-9a-f]{24}$/i, 'Pick a doctor.'),
   /**
    * The exact start of a slot the doctor offers, as an ISO instant. It is
    * checked against the freshly generated grid rather than taken on trust — the
@@ -20,7 +20,12 @@ export const bookingSchema = z.object({
    */
   slotStart: z.coerce.date({ error: 'Pick a time.' }),
   mode: z.enum(PAYMENT_MODES, { error: 'Choose how you would like to pay.' }),
-  triageId: z.string().length(24).optional(),
+  /**
+   * The assessment that led here, if the patient came through triage. Checked
+   * against the booking patient in the service: an id alone must not be enough
+   * to staple somebody else's symptoms to your appointment.
+   */
+  triageId: z.string().regex(/^[0-9a-f]{24}$/i).optional(),
 });
 
 export type BookingInput = z.infer<typeof bookingSchema>;

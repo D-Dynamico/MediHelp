@@ -4,6 +4,7 @@ import {
   Button,
   StatusChip,
   TableFrame,
+  UrgencyChip,
   money,
   paymentLabel,
   whenOf,
@@ -59,6 +60,19 @@ export function AppointmentTable({
               {appointment.patient.age !== undefined && (
                 <p className="text-xs text-ink-muted">{appointment.patient.age} years</p>
               )}
+              {/* Folded away rather than shown in full: most rows have no note,
+                  and an open one on every row would push the day off the screen.
+                  It is one click, on the row the doctor is already reading. */}
+              {appointment.intakeNote && (
+                <details className="mt-1 max-w-md">
+                  <summary className="cursor-pointer text-xs text-brand-700">
+                    Before the consult
+                  </summary>
+                  <p className="mt-1 whitespace-pre-line text-xs text-ink-muted">
+                    {appointment.intakeNote}
+                  </p>
+                </details>
+              )}
             </td>
             <td className="py-2 pr-4 text-ink-muted">
               <p>{whenOf(appointment.slotStart)}</p>
@@ -69,7 +83,10 @@ export function AppointmentTable({
               <p className="text-xs text-ink-muted">{paymentLabel(appointment.payment.status)}</p>
             </td>
             <td className="py-2 pr-4">
-              <StatusChip status={appointment.status} />
+              <div className="flex flex-wrap items-center gap-1">
+                <StatusChip status={appointment.status} />
+                {appointment.urgency && <UrgencyChip urgency={appointment.urgency} />}
+              </div>
             </td>
             <td className="py-2 text-right">
               {open && (

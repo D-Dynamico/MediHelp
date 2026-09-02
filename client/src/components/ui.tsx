@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { AppointmentStatus, PaymentStatus } from '@shared/types';
+import type { AppointmentStatus, PaymentStatus, Urgency } from '@shared/types';
 
 /**
  * The small pieces every dashboard screen repeats: a card, a stat tile, a
@@ -70,6 +70,35 @@ export function StatusChip({ status }: { status: AppointmentStatus }) {
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[status]}`}>
       {STATUS_LABELS[status]}
+    </span>
+  );
+}
+
+/**
+ * How a triage assessment read, on the row the doctor sees before the consult.
+ *
+ * Only three levels, and the colours climb with them, because the whole value
+ * of the chip is being able to scan a day and see what to look at first. An
+ * emergency should never really reach a booked row - triage refuses to offer a
+ * booking form for one - but a patient can book first and be assessed after, so
+ * the case is rendered rather than assumed away.
+ */
+const URGENCY_STYLES: Record<Urgency, string> = {
+  routine: 'bg-slate-100 text-slate-600',
+  urgent: 'bg-amber-100 text-amber-900',
+  emergency: 'bg-red-100 text-red-800',
+};
+
+const URGENCY_LABELS: Record<Urgency, string> = {
+  routine: 'Routine',
+  urgent: 'Urgent',
+  emergency: 'Emergency',
+};
+
+export function UrgencyChip({ urgency }: { urgency: Urgency }) {
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${URGENCY_STYLES[urgency]}`}>
+      {URGENCY_LABELS[urgency]}
     </span>
   );
 }

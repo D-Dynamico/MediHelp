@@ -31,6 +31,26 @@ export const patientLookupStages = [
   { $unwind: { path: '$patient', preserveNullAndEmptyArrays: true } },
 ];
 
+/**
+ * Attaches the triage assessment, when the booking came through it.
+ *
+ * Only the urgency and the note are projected. The raw symptom text stays where
+ * the patient wrote it: the doctor reads the summary that was written for them,
+ * and the admin's table has no business with either.
+ */
+export const triageLookupStages = [
+  {
+    $lookup: {
+      from: 'triageassessments',
+      localField: 'triageId',
+      foreignField: '_id',
+      as: 'triage',
+      pipeline: [{ $project: { urgency: 1, intakeNote: 1 } }],
+    },
+  },
+  { $unwind: { path: '$triage', preserveNullAndEmptyArrays: true } },
+];
+
 /** An appointment as it comes back from an aggregation with the stages above. */
 export interface AppointmentRow {
   _id: Types.ObjectId;
@@ -43,7 +63,7 @@ export interface AppointmentRow {
   payment: { mode: PaymentMode; status: PaymentStatus };
   docSnapshot: { name: string; speciality: Speciality; fees: number; image?: string };
   patient?: { _id: Types.ObjectId; name: string; image?: string; dob?: Date } | undefined;
-  urgency?: Urgency | undefined;
+  triage?: { urgency: Urgency; intakeNote: string } | undefined;
 }
 
 export function toAppointmentDto(row: AppointmentRow): AppointmentDto {
@@ -70,6 +90,8 @@ export function toAppointmentDto(row: AppointmentRow): AppointmentDto {
     status: row.status,
     amount: row.amount,
     payment: { mode: row.payment.mode, status: row.payment.status },
-    ...(row.urgency ? { urgency: row.urgency } : {}),
+    ...(row.triage
+      ? { urgency: row.triage.urgency, intakeNote: row.triage.intakeNote }
+      : {}),
   };
 }

@@ -13,6 +13,7 @@ import { hashPassword } from '../../utils/password.js';
 import { endOfDayUtc, startOfDayUtc } from '../../utils/dates.js';
 import {
   patientLookupStages,
+  triageLookupStages,
   toAppointmentDto,
   type AppointmentRow,
 } from '../appointments/appointment.mapper.js';
@@ -79,7 +80,7 @@ export async function dashboard(): Promise<AdminDashboardDto> {
         ],
 
         // Newest bookings by when they were made, not by when they are due.
-        latest: [{ $sort: { createdAt: -1 } }, { $limit: 5 }, ...patientLookupStages],
+        latest: [{ $sort: { createdAt: -1 } }, { $limit: 5 }, ...patientLookupStages, ...triageLookupStages],
       },
     },
     {

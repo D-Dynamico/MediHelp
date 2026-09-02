@@ -207,7 +207,10 @@ export interface AppointmentDto {
   status: AppointmentStatus;
   amount: number;
   payment: { mode: PaymentMode; status: PaymentStatus };
+  /** From the triage assessment the booking came through, when it did. */
   urgency?: Urgency;
+  /** The summary written for the doctor to read before the consult. */
+  intakeNote?: string;
 }
 
 /** The admin dashboard's headline numbers, from one aggregation. */

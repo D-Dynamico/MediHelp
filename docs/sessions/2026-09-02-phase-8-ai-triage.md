@@ -172,3 +172,57 @@ same standing caveat as the Razorpay provider. The request shape follows the
 `claude-api` skill and the response is parsed defensively, but only a run with a
 real `ANTHROPIC_API_KEY` will confirm the round trip. Left because it needs the
 user's account.
+
+---
+
+## 8.4 — The link into booking
+
+**What changed.** `triageId` now actually reaches the doctor. A
+`triageLookupStages` join in the appointment mapper projects the assessment's
+urgency and intake note onto every appointment row; `AppointmentDto` gains
+`intakeNote` beside the `urgency` it already had; the doctor's table renders an
+urgency chip and a collapsed "Before the consult" note.
+
+**A real hole closed on the way.** Booking has accepted and stored `triageId`
+since phase 6, and **never checked whose assessment it was**. Any patient could
+have attached another patient's assessment id to their own booking, and the
+doctor would have read that person's symptoms as belonging to the patient in
+front of them. `bookAppointment` now loads the assessment and compares its
+`patientId` — a 404, not a 403, matching `getOwn`. This was not in the phase
+plan; it was found while wiring the link up.
+
+**Decisions.**
+
+- *The join projects only urgency and the note — never `symptomsText`.* The
+  doctor reads the summary written for them. The raw text stays in the
+  assessment, and the admin's table (which shares the mapper) has no business
+  with either, but shows what it is given, so the projection is the control.
+- *The lookup lives in the shared mapper, not in the doctor's query.* Every
+  list in the app renders the same card through `toAppointmentDto`; a join in
+  one caller would mean a chip that appears on one screen and not another.
+- *`urgency` reads from the joined assessment, not from a column.* The row type
+  previously declared `urgency?` and nothing ever populated it — it was a field
+  waiting for this substep.
+- *The note is a `<details>`, not always-on text.* Most rows have no note, and
+  an open one on every row would push the day off the screen. One click, on the
+  row the doctor is already reading.
+- *An urgency chip for `emergency` is rendered even though triage refuses to
+  offer a booking form for one.* A patient can book first and be assessed
+  afterwards, so the case is drawn rather than assumed away.
+- *`doctorId` and `triageId` in the booking schema are now hex regexes*, for the
+  reason the phases 6–7 review established — length alone lets a non-hex id
+  reach the driver and become a 500.
+
+**Files touched.** `server/src/modules/appointments/{appointment.mapper,appointment.service,appointment.schema}.ts`,
+`server/src/modules/admin/admin.service.ts`, `shared/types.ts`,
+`client/src/components/ui.tsx`, `client/src/pages/doctor/AppointmentTable.tsx`,
+`server/scripts/check-triage.ts`.
+
+**Verified.** `npm run check:triage` — 83 assertions, up from 69. The new ones
+book with an assessment attached and then read the doctor's own list back to
+confirm the urgency and note arrive there; check a booking without one still
+works and carries neither; and cover the hole directly — another patient's
+assessment id is refused, an unknown one is refused, a non-hex one is a 422 not
+a 500, and none of the three books anything. `check:booking` (95),
+`check:admin` (87), `check:doctor` (94) and `check:payments` (52) all still pass
+unchanged, which is what says the shared mapper change broke nothing.

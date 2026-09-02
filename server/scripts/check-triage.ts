@@ -337,6 +337,149 @@ check(
   logged,
 );
 
+/* ============================================ carried into a booking === */
+
+// 8.4: an assessment can be attached to a booking, and the doctor sees the
+// urgency and the note on the row. The attachment is the interesting part —
+// an id alone must not be enough to staple somebody else's symptoms to your
+// appointment.
+
+const anita = ((await call('/api/doctors')).body as unknown as {
+  doctors: { id: string; name: string }[];
+}).doctors.find((doctor) => doctor.name.includes('Rao'))!;
+
+interface Slot {
+  start: string;
+  available: boolean;
+}
+
+/** The next time this doctor has free. Scanned, because they sit weekdays only. */
+async function freeSlot(): Promise<string> {
+  for (let ahead = 1; ahead <= 21; ahead += 1) {
+    const day = new Date();
+    day.setUTCDate(day.getUTCDate() + ahead);
+    const body = (
+      await call(`/api/doctors/${anita.id}/slots?date=${day.toISOString().slice(0, 10)}`)
+    ).body as unknown as { slots: Slot[] };
+    const free = body.slots.find((slot) => slot.available);
+    if (free) return free.start;
+  }
+  throw new Error('No free slot in the next three weeks — the seed or the hours changed.');
+}
+
+const urgentTriage = triageOf(
+  (await call('/api/triage', {
+    method: 'POST',
+    token: rahulToken,
+    body: { symptomsText: 'severe back pain, I cannot stand up, for two days' },
+  })).body,
+);
+check('the assessment to attach is urgent', urgentTriage.urgency === 'urgent', urgentTriage.urgency);
+
+const booked = await call('/api/appointments', {
+  method: 'POST',
+  token: rahulToken,
+  body: { doctorId: anita.id, slotStart: await freeSlot(), mode: 'cash', triageId: urgentTriage.id },
+});
+check('a booking may carry an assessment', booked.status === 201, booked.body);
+
+interface BookedAppointment {
+  id: string;
+  urgency?: string;
+  intakeNote?: string;
+}
+const bookedAppt = (booked.body as unknown as { appointment: BookedAppointment }).appointment;
+
+/* ------------------------------------------- what the doctor now sees --- */
+
+const doctorsDay = (await call('/api/doctor/appointments?when=all&pageSize=100', {
+  token: anitaToken,
+})).body as unknown as { items: BookedAppointment[] };
+const onTheDoctorsRow = doctorsDay.items.find((row) => row.id === bookedAppt.id);
+
+check('the doctor sees the appointment', Boolean(onTheDoctorsRow), doctorsDay.items.length);
+check(
+  'the row carries the urgency for the chip',
+  onTheDoctorsRow?.urgency === 'urgent',
+  onTheDoctorsRow?.urgency,
+);
+check(
+  'and the note written for them to read first',
+  (onTheDoctorsRow?.intakeNote ?? '').includes('severe back pain'),
+  onTheDoctorsRow?.intakeNote,
+);
+check(
+  'the note says it was not written by a clinician',
+  (onTheDoctorsRow?.intakeNote ?? '').includes('not by a clinician'),
+  onTheDoctorsRow?.intakeNote,
+);
+
+// The raw symptom text is not what travels: the doctor reads the summary that
+// was written for them, and the row must not become a second copy of the
+// patient's own words beyond what the note quotes.
+check(
+  'the appointment row carries no separate symptom field',
+  !Object.keys(onTheDoctorsRow ?? {}).includes('symptomsText'),
+  Object.keys(onTheDoctorsRow ?? {}),
+);
+
+// A booking with no triage still renders — most of them have none.
+const plain = await call('/api/appointments', {
+  method: 'POST',
+  token: rahulToken,
+  body: { doctorId: anita.id, slotStart: await freeSlot(), mode: 'cash' },
+});
+const plainAppt = (plain.body as unknown as { appointment: BookedAppointment }).appointment;
+check('a booking without an assessment still works', plain.status === 201, plain.body);
+check('and carries no urgency', plainAppt.urgency === undefined, plainAppt.urgency);
+check('and no note', plainAppt.intakeNote === undefined, plainAppt.intakeNote);
+
+/* ------------------------------------------ somebody else's assessment --- */
+
+// The hole this substep closed: booking stored whatever triageId it was given
+// without checking whose it was, so a patient could have attached another
+// patient's symptoms to their own appointment and the doctor would have read
+// them as theirs.
+const stolen = await call('/api/appointments', {
+  method: 'POST',
+  token: snehaToken,
+  body: {
+    doctorId: anita.id,
+    slotStart: await freeSlot(),
+    mode: 'cash',
+    triageId: urgentTriage.id,
+  },
+});
+check("another patient's assessment cannot be attached", stolen.status === 404, stolen.status);
+
+check(
+  'an unknown assessment id is refused too',
+  (await call('/api/appointments', {
+    method: 'POST',
+    token: rahulToken,
+    body: { doctorId: anita.id, slotStart: await freeSlot(), mode: 'cash', triageId: '0'.repeat(24) },
+  })).status === 404,
+);
+
+check(
+  'a same-length non-hex assessment id is a 422, not a 500',
+  (await call('/api/appointments', {
+    method: 'POST',
+    token: rahulToken,
+    body: { doctorId: anita.id, slotStart: await freeSlot(), mode: 'cash', triageId: 'z'.repeat(24) },
+  })).status === 422,
+);
+
+// Nothing was booked by any of the three refused attempts.
+const sneha = (await call('/api/appointments/mine?when=all&pageSize=100', { token: snehaToken }))
+  .body as unknown as { items: BookedAppointment[] };
+check(
+  'a refused attachment books nothing',
+  sneha.items.every((row) => row.urgency === undefined),
+  sneha.items.map((row) => row.urgency),
+);
+
+
 server.close();
 await mongoose.disconnect();
 await mongod.stop();

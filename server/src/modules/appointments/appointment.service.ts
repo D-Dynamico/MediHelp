@@ -5,6 +5,7 @@ import { OPEN_APPOINTMENT_STATUSES } from '@shared/types.js';
 import {
   AppointmentModel,
   DoctorModel,
+  TriageAssessmentModel,
   UserModel,
   type DoctorDocument,
 } from '../../models/index.js';
@@ -13,7 +14,12 @@ import { logger } from '../../config/logger.js';
 import { startOfDayUtc } from '../../utils/dates.js';
 import { horizonEnd, isOfferedSlot, slotsFor } from '../../utils/slots.js';
 import { refundFor } from '../payments/payment.service.js';
-import { patientLookupStages, toAppointmentDto, type AppointmentRow } from './appointment.mapper.js';
+import {
+  patientLookupStages,
+  triageLookupStages,
+  toAppointmentDto,
+  type AppointmentRow,
+} from './appointment.mapper.js';
 
 /**
  * The rules for changing an appointment, in one place.
@@ -119,6 +125,7 @@ export async function listAppointments(
           { $skip: (page - 1) * pageSize },
           { $limit: pageSize },
           ...patientLookupStages,
+          ...triageLookupStages,
         ],
       },
     },
@@ -318,6 +325,7 @@ async function present(id: Types.ObjectId): Promise<AppointmentDto> {
   const [row] = await AppointmentModel.aggregate<AppointmentRow>([
     { $match: { _id: id } },
     ...patientLookupStages,
+    ...triageLookupStages,
   ]);
   if (!row) throw ApiError.notFound('No appointment with that id.');
   return toAppointmentDto(row);
@@ -385,6 +393,17 @@ export async function bookAppointment(
   }
 
   const slotEnd = new Date(request.slotStart.getTime() + doctor.slotDurationMins * 60_000);
+
+  // An assessment may only be attached by the person it is about. Without this
+  // check an id alone would be enough to staple somebody else's symptoms to
+  // your appointment — and the doctor would read them as yours before the
+  // consult. Ownership, not just a well-formed id.
+  if (request.triageId) {
+    const assessment = await TriageAssessmentModel.findById(request.triageId).select('patientId');
+    if (!assessment || String(assessment.patientId) !== patientId) {
+      throw ApiError.notFound('That assessment could not be found.');
+    }
+  }
 
   try {
     const appointment = await AppointmentModel.create({

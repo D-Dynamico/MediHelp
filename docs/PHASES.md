@@ -168,21 +168,21 @@ record; replaying a webhook does not double-credit.
 
 ## Phase 8 — AI symptom triage *(differentiator)*
 
-- [ ] **8.1 Rules engine** — symptom-to-specialty keyword map and a red-flag list
+- [x] **8.1 Rules engine** — symptom-to-specialty keyword map and a red-flag list
       (chest pain with breathlessness, stroke FAST signs, heavy bleeding,
       anaphylaxis) producing urgency, specialty, intake note and follow-up
       questions.
-- [ ] **8.2 Triage service and route** — `POST /api/triage`, zod-validated,
+- [x] **8.2 Triage service and route** — `POST /api/triage`, zod-validated,
       persisting a `TriageAssessment` and returning its id.
-- [ ] **8.3 Claude engine** — used only when `ANTHROPIC_API_KEY` is set:
+- [x] **8.3 Claude engine** — used only when `ANTHROPIC_API_KEY` is set:
       schema-constrained JSON, hard timeout, and a `try`/fallback so any failure
       lands on the rules engine with `source: 'rules'`.
-- [ ] **8.4 Link to booking** — `triageId` carried into the appointment; the
+- [x] **8.4 Link to booking** — `triageId` carried into the appointment; the
       doctor's appointment rows show the urgency chip and intake note.
-- [ ] **8.5 Triage UI** — symptom entry, result card, emergency banner that replaces
+- [x] **8.5 Triage UI** — symptom entry, result card, emergency banner that replaces
       the booking form with a call-emergency-services notice, specialty-filtered
       doctor list as a suggestion the patient can override.
-- [ ] **8.6 Disclaimer** — a medical disclaimer on every triage surface; the copy
+- [x] **8.6 Disclaimer** — a medical disclaimer on every triage surface; the copy
       says routing help, not diagnosis.
 
 **Exit**: "crushing chest pain and short of breath" returns `emergency` with the

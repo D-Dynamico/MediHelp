@@ -5,7 +5,15 @@ import { messageFrom } from '../../api/client';
 import { bookAppointment, fetchDoctor, fetchSlots } from '../../api/patient';
 import { PaymentAbandoned, payForAppointment } from '../../api/checkout';
 import { useAuth } from '../../hooks/useAuth';
-import { Button, Card, Empty, ErrorNote, Loading, money } from '../../components/ui';
+import {
+  Button,
+  Card,
+  Empty,
+  ErrorNote,
+  Loading,
+  TriageDisclaimer,
+  money,
+} from '../../components/ui';
 
 /**
  * A doctor's page, and the booking on it.
@@ -270,6 +278,18 @@ export function DoctorDetail() {
                   : 'Choose a time to continue.'}
               </p>
             </div>
+
+            {/* Only when an assessment is actually travelling with this
+                booking. A patient who came here directly is not shown a
+                disclaimer about a thing that is not happening. */}
+            {triageId && (
+              <div className="space-y-1 rounded-lg bg-slate-50 p-3">
+                <p className="text-xs font-medium text-ink">
+                  Your symptom assessment will be sent to this doctor with the booking.
+                </p>
+                <TriageDisclaimer tone="quiet" />
+              </div>
+            )}
           </>
         )}
       </Card>

@@ -115,6 +115,39 @@ export function paymentLabel(status: PaymentStatus): string {
   return PAYMENT_LABELS[status];
 }
 
+/**
+ * What symptom triage is, and what it is not.
+ *
+ * On every surface where an assessment is read - the form, the result, the
+ * emergency card, the booking that carries one, and the note on the doctor's
+ * row - in the same words each time. Someone reading a machine's opinion about
+ * their own body needs to know what it is worth before they act on it, not
+ * after; and a doctor reading a note needs to know it was not written by a
+ * clinician. Repeating it is the point, so it lives here rather than being
+ * retyped per screen and drifting.
+ *
+ * `tone="quiet"` is for places where the assessment is incidental to the screen
+ * - a booking, a table row - and the full paragraph would shout.
+ */
+export function TriageDisclaimer({ tone = 'full' }: { tone?: 'full' | 'quiet' }) {
+  if (tone === 'quiet') {
+    return (
+      <p className="text-xs text-ink-muted">
+        Routing help, not a diagnosis. Not written by a clinician.
+      </p>
+    );
+  }
+
+  return (
+    <p className="rounded-lg bg-slate-50 p-3 text-xs text-ink-muted">
+      This is routing help, not a diagnosis. It suggests which kind of doctor to
+      see and how soon - it cannot tell you what is wrong, and it is not a
+      substitute for a clinician. If you think this is an emergency, call
+      emergency services rather than booking.
+    </p>
+  );
+}
+
 /** Shown while a screen's first request is in flight. */
 export function Loading({ label = 'Loading…' }: { label?: string }) {
   return <p className="p-6 text-sm text-ink-muted">{label}</p>;

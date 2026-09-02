@@ -273,3 +273,71 @@ of doctor you need?" prompt on the catalogue for everyone else.
 The server-side link is already covered by the 8.4 checks — booking with a
 `triageId` and reading the doctor's row back. **Nothing here has been clicked in
 a browser**, in line with the standing preference; see the open items.
+
+---
+
+## 8.6 — The disclaimer
+
+**What changed.** `TriageDisclaimer` moved out of the triage page into
+`components/ui.tsx` — the shared vocabulary — and now appears on every surface
+where an assessment is read: the form, the result card, the emergency card, the
+booking that carries one, and the note on the doctor's row.
+
+**Decisions.**
+
+- *One component, not per-screen copy.* Retyped wording drifts, and the version
+  that ends up on the screen that matters most is usually the shortest one. It
+  sits with `StatusChip` and `UrgencyChip` because it is the same kind of thing:
+  a piece of vocabulary the app repeats deliberately.
+- *A `quiet` tone for screens where the assessment is incidental.* On a booking
+  page or a table row the full paragraph shouts and gets skipped; there it is
+  one line — "Routing help, not a diagnosis. Not written by a clinician."
+- *The doctor gets one too.* Most disclaimers are aimed at patients, but the
+  doctor is the one reading a machine's summary of somebody's own words and
+  acting on it. The line sits inside the expanded note, where it is read, rather
+  than once on a screen they never open.
+- *The booking disclaimer only renders when an assessment is actually attached.*
+  A patient who came to a doctor's page directly is not warned about something
+  that is not happening.
+- *The copy says routing, not diagnosis, and names the alternative.* "It suggests
+  which kind of doctor to see and how soon — it cannot tell you what is wrong…
+  If you think this is an emergency, call emergency services rather than
+  booking."
+
+**Files touched.** `client/src/components/ui.tsx`,
+`client/src/pages/patient/Triage.tsx`,
+`client/src/pages/doctor/AppointmentTable.tsx`,
+`client/src/pages/public/DoctorDetail.tsx`, `docs/PHASES.md` (8.1–8.6 ticked).
+
+**Verified.** `npm run typecheck`, `npm run lint`, `npm run build` clean.
+
+---
+
+## Phase state
+
+All six substeps done, `docs/PHASES.md` ticked. Full suite, per script: env 12,
+tokens 17, models 13, errors 6, auth 26, auth:http 28, ratelimit 5, seed 28,
+upload 21, admin 87, doctor 94, booking 95, payments 52, **triage 83** —
+**567 assertions, zero failures**.
+
+Both of the phase's stated exit criteria are asserted directly in
+`check:triage`: "crushing chest pain and short of breath" returns `emergency`
+with advice and no speciality to book, "itchy rash for three days" returns
+`routine` and Dermatologist, and with `ANTHROPIC_API_KEY` unset the behaviour is
+byte-identical to the rules engine with `source: 'rules'`.
+
+## Open items
+
+- **The Claude path has never spoken to the real API.** Needs the user's
+  account; the same standing caveat as the Razorpay provider. The fallback is
+  proven end to end with a key that cannot work.
+- **`TRIAGE_MODEL` now defaults to `claude-opus-5`**, changed from the
+  `claude-sonnet-5` placeholder the scaffolding shipped, on the `claude-api`
+  skill's instruction. A cost-relevant default; one line in `.env` to change.
+- **Nothing in this phase has been opened in a browser** — the triage page, the
+  emergency card, the catalogue banner and the doctor's folded note are all
+  proven over HTTP and none has been clicked. Worth looking at: type "crushing
+  chest pain and short of breath" and confirm the red card replaces the booking
+  route entirely; then an itchy rash, follow through to a dermatologist, book,
+  and check the note and chip appear on the doctor's list.
+- The branch `phase-8-ai-triage` is not pushed and not merged.

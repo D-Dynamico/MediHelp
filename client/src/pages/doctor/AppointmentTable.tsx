@@ -4,6 +4,7 @@ import {
   Button,
   StatusChip,
   TableFrame,
+  TriageDisclaimer,
   UrgencyChip,
   money,
   paymentLabel,
@@ -71,6 +72,12 @@ export function AppointmentTable({
                   <p className="mt-1 whitespace-pre-line text-xs text-ink-muted">
                     {appointment.intakeNote}
                   </p>
+                  {/* The doctor is reading a machine's summary of a patient's
+                      own words. Saying so where they read it matters more than
+                      saying it once on a screen they never see. */}
+                  <div className="mt-1">
+                    <TriageDisclaimer tone="quiet" />
+                  </div>
                 </details>
               )}
             </td>

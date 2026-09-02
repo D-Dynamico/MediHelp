@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import type { TriageDto } from '@shared/types';
 import { messageFrom } from '../../api/client';
 import { assessSymptoms } from '../../api/triage';
-import { Button, Card, ErrorNote, UrgencyChip } from '../../components/ui';
+import { Button, Card, ErrorNote, TriageDisclaimer, UrgencyChip } from '../../components/ui';
 
 /**
  * Describe what is wrong, and get pointed at the right kind of doctor.
@@ -94,24 +94,6 @@ export function Triage() {
 
       {result && <TriageResult result={result} />}
     </div>
-  );
-}
-
-/**
- * What triage is and is not.
- *
- * On every surface that shows an assessment, in the same words. A patient
- * reading a machine's opinion about their body needs to know what it is worth
- * before they act on it, not after.
- */
-export function TriageDisclaimer() {
-  return (
-    <p className="rounded-lg bg-slate-50 p-3 text-xs text-ink-muted">
-      This is routing help, not a diagnosis. It suggests which kind of doctor to
-      see and how soon — it cannot tell you what is wrong, and it is not a
-      substitute for a clinician. If you feel this is an emergency, call
-      emergency services rather than booking.
-    </p>
   );
 }
 

@@ -27,6 +27,7 @@ const { connectDb } = await import('../src/config/db.js');
 const { createApp } = await import('../src/app.js');
 const { seedDatabase } = await import('../src/seed.js');
 const { getSettings } = await import('../src/config/env.js');
+const { mountRealtime } = await import('../src/realtime/io.js');
 
 await connectDb();
 await mongoose.connection.syncIndexes();
@@ -40,6 +41,10 @@ const server = createApp().listen(port, () => {
   console.log(`  doctor   ${seeded.credentials.doctor} / ${seeded.credentials.password}`);
   console.log(`  patient  ${seeded.credentials.patient} / ${seeded.credentials.password}\n`);
 });
+
+// The sandbox is where the live queue actually gets clicked, so it needs the
+// sockets as much as the real server does.
+mountRealtime(server);
 
 async function shutdown() {
   server.close();

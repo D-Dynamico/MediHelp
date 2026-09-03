@@ -254,3 +254,64 @@ export interface TriageDto {
   source: 'rules' | 'llm';
   createdAt: string;
 }
+
+/* ---------------------------------------------------------------- queue --- */
+
+/**
+ * The queue as **anyone in the room may see it** — the waiting-room board, and
+ * every patient waiting for this doctor today.
+ *
+ * Deliberately nothing but numbers. The room behind `queue:update` is joined by
+ * every patient of the doctor and by an unauthenticated board screen, so a
+ * payload carrying names would put the day's patient list on a wall and in the
+ * hands of anyone holding a board link. The doctor's own screen needs names, so
+ * it reads them over its authenticated endpoint and uses this only as the
+ * signal that something changed.
+ */
+export interface QueueSnapshotDto {
+  doctorId: string;
+  doctorName: string;
+  speciality: Speciality;
+  /** The day this queue belongs to, "YYYY-MM-DD" in UTC. */
+  date: string;
+  /** The token being seen now. 0 means the day has not started. */
+  currentToken: number;
+  /** Tokens checked in and still waiting, in the order they will be called. */
+  waiting: number[];
+  /** Minutes a consult typically takes for this doctor — what the ETA is built on. */
+  medianConsultMins: number;
+  /** When the server made this snapshot. */
+  updatedAt: string;
+}
+
+/** One person in the doctor's own view of their queue. */
+export interface QueueEntryDto {
+  appointmentId: string;
+  tokenNumber: number;
+  patientName: string;
+  patientImage?: string;
+  slotStart: string;
+  status: AppointmentStatus;
+  /** Whole minutes since the patient checked in. Absent until they have. */
+  waitingMins?: number;
+  /** From the triage assessment the booking came through, when it did. */
+  urgency?: Urgency;
+}
+
+/** The doctor's queue screen: the shared snapshot plus the names behind it. */
+export interface DoctorQueueDto {
+  snapshot: QueueSnapshotDto;
+  /** Everyone on today's list, in token order — waiting, being seen and done. */
+  entries: QueueEntryDto[];
+}
+
+/** A shareable link that opens the waiting-room board without a login. */
+export interface BoardLinkDto {
+  /** The path to open, board token included. */
+  path: string;
+  expiresAt: string;
+}
+
+/** The one event the queue room carries. Named here so both sides agree. */
+export const QUEUE_UPDATE_EVENT = 'queue:update';
+export const QUEUE_JOIN_EVENT = 'queue:join';

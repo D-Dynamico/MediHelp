@@ -79,3 +79,48 @@ export function newTokenFamily(): string {
 export function refreshTokenExpiry(from = new Date()): Date {
   return new Date(from.getTime() + durationToMs(getSettings().REFRESH_TOKEN_TTL));
 }
+
+/* ---------------------------------------------------------- board links --- */
+
+/**
+ * A third kind of token, for the waiting-room screen.
+ *
+ * The board hangs on a wall with nobody signed in, so it cannot hold an access
+ * token — but it must not be openable by anyone who guesses a doctor id either.
+ * A board token is a signed JWT naming one doctor and nothing else: it proves
+ * the link came from us, it carries no user and no role, and it can only ever
+ * be used to read tokens that are already displayed on a wall in public.
+ *
+ * `typ` is checked on the way back in. Without it an access token would verify
+ * here and a board token would verify as an access token — same secret, same
+ * issuer — and the board's long life would become a long-lived login.
+ */
+const BOARD_TOKEN_TTL = '30d';
+
+export interface BoardTokenPayload {
+  typ: 'board';
+  doctorId: string;
+}
+
+export function signBoardToken(doctorId: string): { token: string; expiresAt: Date } {
+  const { JWT_SECRET } = getSettings();
+  const token = jwt.sign({ typ: 'board', doctorId }, JWT_SECRET, {
+    expiresIn: BOARD_TOKEN_TTL,
+    issuer: 'medihelp',
+  });
+  return { token, expiresAt: new Date(Date.now() + durationToMs(BOARD_TOKEN_TTL)) };
+}
+
+/** Verifies a board token and returns the one doctor it may display. */
+export function verifyBoardToken(token: string): BoardTokenPayload {
+  const { JWT_SECRET } = getSettings();
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET, { issuer: 'medihelp' });
+    if (typeof decoded === 'string' || decoded.typ !== 'board' || !decoded.doctorId) {
+      throw new Error('not a board token');
+    }
+    return { typ: 'board', doctorId: String(decoded.doctorId) };
+  } catch {
+    throw ApiError.unauthorized('That board link is not valid any more.');
+  }
+}

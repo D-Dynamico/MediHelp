@@ -27,6 +27,7 @@ const { createApp } = await import('../src/app.js');
 const { connectDb } = await import('../src/config/db.js');
 const { seedDatabase } = await import('../src/seed.js');
 const { mountRealtime, closeRealtime } = await import('../src/realtime/io.js');
+const { snapshotProvider } = await import('../src/modules/queue/queue.snapshot.js');
 const { AppointmentModel, DoctorModel, QueueSessionModel, UserModel } = await import(
   '../src/models/index.js'
 );
@@ -40,7 +41,7 @@ const seeded = await seedDatabase();
 
 const app = createApp();
 const server = app.listen(0);
-mountRealtime(server);
+mountRealtime(server, snapshotProvider);
 const port = (server.address() as AddressInfo).port;
 const base = `http://127.0.0.1:${port}`;
 
@@ -363,6 +364,21 @@ check(
 
 patientSocket.close();
 boardSocketBlocked.close();
+
+
+// A screen that has just been switched on must not sit blank until the next
+// thing happens, which in a quiet clinic could be twenty minutes.
+const fresh = await open({ token: patientToken });
+const seeding = nextUpdate(fresh, 2000);
+fresh.emit('queue:join', { doctorId: String(doctor!._id), date: todayKey });
+const seededSnapshot = await seeding;
+check('joining a queue hands the screen the state as it stands', seededSnapshot !== null);
+check(
+  'and it is the right doctor queue',
+  seededSnapshot?.doctorId === String(doctor!._id),
+  seededSnapshot?.doctorId,
+);
+fresh.close();
 
 
 /* ---------------------------------------------------- the wait estimate --- */

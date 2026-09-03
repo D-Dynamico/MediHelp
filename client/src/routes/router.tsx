@@ -18,12 +18,22 @@ import { DoctorLayout } from '../pages/doctor/DoctorLayout';
 import { DoctorDashboard } from '../pages/doctor/Dashboard';
 import { DoctorAppointments } from '../pages/doctor/Appointments';
 import { DoctorProfile } from '../pages/doctor/Profile';
+import { DoctorQueue } from '../pages/doctor/Queue';
+import { Board } from '../pages/public/Board';
 
 /**
  * Route groups by role. The guards keep people off pages that would only show
  * them errors; the server is what actually decides who may do what.
  */
 export const router = createBrowserRouter([
+  {
+    // Outside every shell and every guard: a screen on a waiting-room wall with
+    // no keyboard and nobody signed in. Its only credential is the signed link
+    // it was opened with.
+    path: '/board/:doctorId',
+    element: <Board />,
+  },
+
   {
     element: <GuestOnlyRoute />,
     children: [
@@ -60,6 +70,7 @@ export const router = createBrowserRouter([
         element: <DoctorLayout />,
         children: [
           { path: '/doctor', element: <DoctorDashboard /> },
+          { path: '/doctor/queue', element: <DoctorQueue /> },
           { path: '/doctor/appointments', element: <DoctorAppointments /> },
           { path: '/doctor/profile', element: <DoctorProfile /> },
         ],

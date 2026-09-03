@@ -45,13 +45,26 @@ export function userRoom(userId: string): string {
 let io: SocketServer | null = null;
 
 /**
+ * How a joining screen is given the queue as it stands right now.
+ *
+ * Passed in rather than imported, because the module that builds a snapshot is
+ * the same one that calls `emitQueueUpdate` — importing it here would make the
+ * two require each other. It also keeps this file about sockets and nothing
+ * else.
+ */
+export type SnapshotProvider = (
+  doctorId: string,
+  dateKey: string,
+) => Promise<QueueSnapshotDto | null>;
+
+/**
  * Mounts Socket.IO on a running HTTP server.
  *
  * Called from the bootstrap, not from `createApp`, so the check scripts and any
  * test that only wants the Express app get one without a socket server attached.
  * `emitQueueUpdate` is a no-op in that case rather than a crash.
  */
-export function mountRealtime(server: HttpServer): SocketServer {
+export function mountRealtime(server: HttpServer, snapshotFor?: SnapshotProvider): SocketServer {
   const { CORS_ORIGINS } = getSettings();
 
   io = new SocketServer(server, {
@@ -110,6 +123,13 @@ export function mountRealtime(server: HttpServer): SocketServer {
         if (room.startsWith('queue:')) void socket.leave(room);
       }
       void socket.join(queueRoom(doctorId, date));
+
+      // The queue as it stands, to this socket alone. Without it a screen shows
+      // nothing until the next thing happens — which in a quiet clinic could be
+      // twenty minutes of a blank board.
+      void snapshotFor?.(doctorId, date).then((snapshot) => {
+        if (snapshot) socket.emit(QUEUE_UPDATE_EVENT, snapshot);
+      });
     });
   });
 

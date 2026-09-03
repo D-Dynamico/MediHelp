@@ -3,6 +3,7 @@ import { connectDb } from './config/db.js';
 import { logger } from './config/logger.js';
 import { createApp } from './app.js';
 import { mountRealtime } from './realtime/io.js';
+import { snapshotProvider } from './modules/queue/queue.snapshot.js';
 
 async function main(): Promise<void> {
   const settings = getSettings();
@@ -17,7 +18,7 @@ async function main(): Promise<void> {
 
   // The queue's sockets share the API's HTTP server: one port, one origin, and
   // the same CORS answer for both.
-  mountRealtime(server);
+  mountRealtime(server, snapshotProvider);
 }
 
 main().catch((error: unknown) => {

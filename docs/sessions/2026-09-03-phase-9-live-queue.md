@@ -216,3 +216,81 @@ Fourteen more assertions in `check-queue.ts`.
 
 **Verified.** `npm run check:queue --workspace server` — **51 assertions, all
 passing**. `npm run typecheck` and `npm run lint` clean.
+
+---
+
+## 9.5 and 9.6 — The three screens
+
+**Committed together**, unlike every other substep this session. The patient's
+card, the doctor's queue and the wall board share one hook and one route table;
+splitting them would have meant a commit whose router imported a page that did
+not exist yet, and a broken intermediate commit is worse than a wide one.
+
+**What changed.** `socket.io-client` on the client. New `api/queue.ts`,
+`hooks/useQueue.ts`, `components/QueueCard.tsx`, `pages/doctor/Queue.tsx`,
+`pages/public/Board.tsx`. The patient's appointments screen shows the queue card;
+the doctor's shell gained a Queue section; the router gained `/doctor/queue` and
+`/board/:doctorId`. On the server, joining a queue room now hands that socket the
+current snapshot (`snapshotProvider`, injected into `mountRealtime`).
+
+**Decisions.**
+
+- *Joining hands the screen the queue as it stands.* Without it a board switched
+  on mid-morning shows nothing until the next thing happens, which in a quiet
+  clinic is twenty minutes of a blank wall. The provider is **injected into**
+  `mountRealtime` rather than imported by it, because the module that builds a
+  snapshot is the one that calls `emitQueueUpdate` — importing it inside the
+  socket file would have made the two require each other.
+- *The socket's `auth` is a function, not an object.* The access token is
+  refreshed in the background and rotates. Read once at connect, a reconnection
+  an hour later would present a token that expired forty-five minutes earlier
+  and the screen would silently stop updating.
+- *The doctor's screen ignores the payload and re-reads over HTTP.* The
+  broadcast carries no names by design, so for that screen it is a signal that
+  something changed rather than a state to render. The doctor's own actions take
+  the queue out of their own response and do not wait for the round trip.
+- *A lost connection is shown, not hidden.* The patient's card swaps the wait
+  time — the one number that can go stale — for an amber "Reconnecting" chip,
+  keeping the token and the position, which are still true. The board dims to
+  60% and puts a bar at the top. A queue screen that has quietly stopped
+  updating is worse than one that admits it.
+- *The board's first read is HTTP, everything after is the socket.* An expired
+  link has to be able to say so in words; a failed handshake alone would leave
+  the wall reading "Reconnecting" forever with no explanation.
+- *The board is a `BoardColumn` component even though the route names one
+  doctor.* `docs/PHASES.md` says `/board/:doctorId` and the screen content says
+  one column per doctor; this satisfies the first and leaves the second a list
+  rather than a rewrite.
+- *Motion is spent only on the number changing.* A 200ms crossfade keyed on the
+  token, and nothing else on the wall moves — movement in the corner of an eye
+  reads as "something happened", and on a waiting-room screen that should only
+  ever be true.
+- *The queue card only exists on the day, and only once checked in.* A live card
+  on Tuesday for a Thursday appointment is an invitation to arrive two days
+  early. It is read off the list already on screen rather than fetched
+  separately, because a checked-in appointment is by definition in "upcoming".
+- *The doctor's nav is now at its ceiling of four.* The mobile tab bar splits the
+  width equally; a fifth item leaves labels too narrow to read. Noted in
+  `DoctorLayout` so the next section has to go somewhere other than the nav.
+- *The board link is copied to the clipboard, and a refused clipboard says so.*
+  An insecure origin or a browser setting blocks it often enough that failing
+  silently would look like a broken button.
+
+**Files.** `client/src/api/queue.ts`, `client/src/hooks/useQueue.ts`,
+`client/src/components/QueueCard.tsx`, `client/src/pages/doctor/Queue.tsx`,
+`client/src/pages/public/Board.tsx` (all new),
+`client/src/pages/patient/Appointments.tsx`,
+`client/src/pages/doctor/DoctorLayout.tsx`, `client/src/routes/router.tsx`,
+`server/src/realtime/io.ts`, `server/src/modules/queue/queue.snapshot.ts`,
+`server/src/index.ts`, `server/scripts/dev-sandbox.ts`,
+`server/scripts/check-queue.ts`, `shared/queue.ts`, `server/src/utils/dates.ts`,
+`client/package.json`.
+
+**Verified.** `npm run typecheck`, `npm run lint` and `npm run build` all clean.
+The whole check suite, run one script at a time: **620 assertions across 15
+scripts, zero failures** — env 12, tokens 17, models 13, errors 6, auth 26,
+auth:http 28, ratelimit 5, seed 28, upload 21, admin 87, doctor 94, booking 95,
+payments 52, triage 83, **queue 53**.
+
+**Not verified in a browser.** Nothing on these three screens has been clicked —
+see the open items at the end of this note.

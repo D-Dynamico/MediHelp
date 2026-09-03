@@ -36,17 +36,11 @@ export function ageFrom(dob: Date | null | undefined): number | undefined {
 }
 
 /**
- * The day as "YYYY-MM-DD" in UTC.
- *
- * This is the string in a queue's socket room name, so it has to be derived the
- * same way on both sides of the wire. Taking it off the ISO string rather than
- * building it from the local getters is what keeps it in UTC — a client in
- * Kolkata formatting its own date would name a different room after 18:30 and
- * silently hear nothing.
+ * The day as "YYYY-MM-DD" in UTC. Re-exported from `shared/queue.ts`, which the
+ * client also builds socket room names from — two copies of this would name two
+ * different rooms the first time either was touched.
  */
-export function dayKeyUtc(date = new Date()): string {
-  return startOfDayUtc(date).toISOString().slice(0, 10);
-}
+export { dayKeyUtc } from '@shared/queue.js';
 
 /** Midnight UTC for a "YYYY-MM-DD" key. Throws on anything else. */
 export function dayFromKey(key: string): Date {

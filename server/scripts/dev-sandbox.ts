@@ -28,6 +28,7 @@ const { createApp } = await import('../src/app.js');
 const { seedDatabase } = await import('../src/seed.js');
 const { getSettings } = await import('../src/config/env.js');
 const { mountRealtime } = await import('../src/realtime/io.js');
+const { snapshotProvider } = await import('../src/modules/queue/queue.snapshot.js');
 
 await connectDb();
 await mongoose.connection.syncIndexes();
@@ -44,7 +45,7 @@ const server = createApp().listen(port, () => {
 
 // The sandbox is where the live queue actually gets clicked, so it needs the
 // sockets as much as the real server does.
-mountRealtime(server);
+mountRealtime(server, snapshotProvider);
 
 async function shutdown() {
   server.close();

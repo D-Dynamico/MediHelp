@@ -2,7 +2,7 @@ import { Types } from 'mongoose';
 import type { QueueSnapshotDto, Speciality } from '@shared/types.js';
 import { AppointmentModel, DoctorModel, QueueSessionModel } from '../../models/index.js';
 import { ApiError } from '../../utils/apiError.js';
-import { dayKeyUtc, endOfDayUtc, startOfDayUtc } from '../../utils/dates.js';
+import { dayFromKey, dayKeyUtc, endOfDayUtc, startOfDayUtc } from '../../utils/dates.js';
 import { emitQueueUpdate } from '../../realtime/io.js';
 
 /**
@@ -100,6 +100,22 @@ export async function recordServed(doctorId: Types.ObjectId | string, day: Date)
     { $inc: { servedCount: 1 } },
   );
 }
+
+/**
+ * What a joining socket is handed, so a screen is never blank while it waits for
+ * something to happen. Answers null rather than throwing: a board link naming a
+ * doctor who has since been removed should show nothing, not break the socket.
+ */
+export const snapshotProvider = async (
+  doctorId: string,
+  dateKey: string,
+): Promise<QueueSnapshotDto | null> => {
+  try {
+    return await buildSnapshot(doctorId, dayFromKey(dateKey));
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Rebuilds the snapshot and pushes it to the room.

@@ -21,6 +21,7 @@ import {
   useToast,
   whenOf,
 } from '../../components/ui';
+import { isLiveToday, QueueCard } from '../../components/QueueCard';
 
 /**
  * A patient's own appointments, and the confirmation of one just booked.
@@ -126,6 +127,15 @@ export function MyAppointments() {
   const booked = data?.items.find((appointment) => appointment.id === justBooked);
 
   /**
+   * The appointment the live queue card is about, if there is one.
+   *
+   * Read off whichever list is on screen rather than fetched separately — a
+   * checked-in appointment is by definition today's, so it is in "upcoming" and
+   * in "all", and the patient looking for their token is on one of those.
+   */
+  const live = data?.items.find(isLiveToday);
+
+  /**
    * The confirmation, as a toast rather than a banner.
    *
    * It fires once, when the just-booked row has actually arrived, so it can name
@@ -171,6 +181,10 @@ export function MyAppointments() {
       />
 
       {error && <ErrorNote message={error} />}
+
+      {/* Always first, and only on the day. Someone in the waiting room is
+          looking for one number, and it should not be below a list. */}
+      {live && <QueueCard appointment={live} />}
 
       {!data ? (
         <div className="space-y-3">

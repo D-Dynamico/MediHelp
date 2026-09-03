@@ -8,6 +8,19 @@
  * screens. Kept free of imports, like `types.ts`, so either runtime can load it.
  */
 
+/**
+ * The day as "YYYY-MM-DD" in UTC.
+ *
+ * This string is half of a socket room name, so the two sides have to build it
+ * identically. An ISO timestamp is already UTC, so slicing it is both the
+ * shortest way to get this and the only one that cannot pick up the reader's
+ * offset — a client in Kolkata using local getters would name tomorrow's room
+ * after 18:30 and hear nothing at all.
+ */
+export function dayKeyUtc(date: Date = new Date()): string {
+  return date.toISOString().slice(0, 10);
+}
+
 /** A doctor's consult length when nothing has been learned from them yet. */
 export const DEFAULT_CONSULT_MINS = 15;
 

@@ -13,6 +13,7 @@ import { ApiError } from '../../utils/apiError.js';
 import { logger } from '../../config/logger.js';
 import { startOfDayUtc } from '../../utils/dates.js';
 import { horizonEnd, isOfferedSlot, slotsFor } from '../../utils/slots.js';
+import { refreshMedianConsultMins } from '../../utils/eta.js';
 import { refundFor } from '../payments/payment.service.js';
 import { broadcastQueue, recordServed } from '../queue/queue.snapshot.js';
 import {
@@ -321,40 +322,13 @@ export async function completeAppointment(id: string, actor: Actor): Promise<App
   }
 
   await appointment.save();
-  await recordConsultLength(appointment.doctorId, appointment.consultStartedAt, endedAt);
+  // Recomputed from the last twenty finished consults, so the queue's estimate
+  // is this doctor's real pace rather than a constant.
+  await refreshMedianConsultMins(appointment.doctorId);
   await recordServed(appointment.doctorId, appointment.slotStart);
   await broadcastQueue(appointment.doctorId, appointment.slotStart);
 
   return present(appointment._id);
-}
-
-/**
- * Keeps the doctor's typical consult length current.
- *
- * The queue's wait estimate reads this number on every socket update, so it is
- * stored rather than recomputed from the appointment history each time. Only a
- * consult that was actually started has a length worth learning from.
- */
-async function recordConsultLength(
-  doctorId: Types.ObjectId,
-  startedAt: Date | null | undefined,
-  endedAt: Date,
-): Promise<void> {
-  if (!startedAt) return;
-
-  const minutes = Math.round((endedAt.getTime() - startedAt.getTime()) / 60_000);
-  // A consult that reads as zero minutes or as half a day is a clock problem or
-  // a forgotten "start", not a real measurement.
-  if (minutes < 1 || minutes > 240) return;
-
-  const doctor = await DoctorModel.findById(doctorId).select('medianConsultMins');
-  if (!doctor) return;
-
-  // A rolling average rather than a true median: the real median needs the whole
-  // history on every completion, and this tracks the same signal closely enough
-  // for a wait estimate while staying a single small write.
-  doctor.medianConsultMins = Math.round(doctor.medianConsultMins * 0.8 + minutes * 0.2);
-  await doctor.save();
 }
 
 /** Re-reads one appointment through the same shape every list returns. */

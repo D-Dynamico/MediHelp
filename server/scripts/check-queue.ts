@@ -31,6 +31,8 @@ const { AppointmentModel, DoctorModel, QueueSessionModel, UserModel } = await im
   '../src/models/index.js'
 );
 const { startOfDayUtc, dayKeyUtc } = await import('../src/utils/dates.js');
+const { refreshMedianConsultMins, median } = await import('../src/utils/eta.js');
+const { etaMinutes, etaText } = await import('../../shared/queue.js');
 
 await connectDb();
 await mongoose.connection.syncIndexes();
@@ -361,6 +363,70 @@ check(
 
 patientSocket.close();
 boardSocketBlocked.close();
+
+
+/* ---------------------------------------------------- the wait estimate --- */
+
+check('nobody ahead means no wait at all', etaMinutes(0, 20) === 0, etaMinutes(0, 20));
+check('three ahead at twenty minutes each is an hour', etaMinutes(3, 20) === 60, etaMinutes(3, 20));
+// Rounded to five, because a queue forecast given to the minute reads as a
+// promise and is remembered as a lie.
+check('the estimate is rounded to five minutes', etaMinutes(1, 12) === 10, etaMinutes(1, 12));
+check('and never rounds down to nothing', etaMinutes(1, 1) === 5, etaMinutes(1, 1));
+
+check('the person at the front is told they are next', etaText(0, 20) === 'You are next', etaText(0, 20));
+check('a short wait reads in minutes', etaText(2, 20) === 'About 40 min', etaText(2, 20));
+check('an hour reads as an hour', etaText(3, 20) === 'About 1 hour', etaText(3, 20));
+check('and a longer one carries both parts', etaText(4, 20) === 'About 1 hour 20 min', etaText(4, 20));
+
+check('a median of nothing is nothing', median([]) === null);
+check('an even count averages the middle two', median([10, 20, 30, 40]) === 25, median([10, 20, 30, 40]));
+
+// The reason this is a median and not the rolling average it replaced: one
+// consult that genuinely ran two hours must not move every later estimate.
+// The seed and the completion above both leave finished consults behind, and
+// the window is the last twenty of them. Clearing first makes the figure below
+// a fact about the five rows written here.
+await AppointmentModel.deleteMany({ doctorId: doctor!._id, status: 'completed' });
+
+const lengths = [10, 10, 12, 10, 120];
+for (const [index, minutes] of lengths.entries()) {
+  const start = new Date(today.getTime() - (index + 2) * 86_400_000 + 9 * 3_600_000);
+  await AppointmentModel.create({
+    patientId: patients[0]!._id,
+    doctorId: doctor!._id,
+    slotStart: start,
+    slotEnd: new Date(start.getTime() + 20 * 60_000),
+    tokenNumber: 1,
+    status: 'completed',
+    amount: 500,
+    payment: { mode: 'cash', status: 'paid' },
+    docSnapshot: { name: doctorUser!.name, speciality: doctor!.speciality, fees: 500 },
+    consultStartedAt: start,
+    consultEndedAt: new Date(start.getTime() + minutes * 60_000),
+  });
+}
+
+const learned = await refreshMedianConsultMins(doctor!._id);
+check('a doctor pace is learned from their finished consults', learned === 10, learned);
+
+const withPace = await DoctorModel.findById(doctor!._id).select('medianConsultMins');
+check(
+  'and stored on the record the queue reads',
+  withPace?.medianConsultMins === 10,
+  withPace?.medianConsultMins,
+);
+
+// The same rows through an average would have landed near 30. One long consult
+// must not tell every patient after it to expect half an hour.
+check('one very long consult does not drag the estimate', learned !== null && learned < 15, learned);
+
+const paced = await call('/api/doctor/queue', { token: doctorToken });
+check(
+  'the snapshot carries that pace to every screen',
+  paced.body.snapshot.medianConsultMins === 10,
+  paced.body.snapshot.medianConsultMins,
+);
 
 console.log(`\n${results.join('\n')}\n`);
 

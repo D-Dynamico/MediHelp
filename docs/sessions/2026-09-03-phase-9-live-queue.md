@@ -172,3 +172,47 @@ passing**, including the three the phase turns on: a listening patient socket is
 told about "call next" without asking, the payload it receives contains no
 patient name, and a board link for one doctor cannot read or listen to another's
 queue. `npm run typecheck` and `npm run lint` clean.
+
+---
+
+## 9.4 — What the wait is actually built on
+
+**What changed.** New `shared/queue.ts` — `etaMinutes`, `etaText`, `positionOf`,
+`DEFAULT_CONSULT_MINS`. New `server/src/utils/eta.ts` — re-exports those and adds
+`median` and `refreshMedianConsultMins`. `recordConsultLength` is gone from the
+appointment service; completing a consult now recomputes the median instead.
+Fourteen more assertions in `check-queue.ts`.
+
+**Decisions.**
+
+- *A true median over the last twenty consults, replacing the rolling average.*
+  The average was the cheaper thing to keep and it is the wrong shape: one
+  consult that genuinely ran ninety minutes because a patient needed ninety
+  minutes would drag every estimate after it. A median steps past that. Twenty
+  rows sorted on a stored field is a small query and it only runs when a consult
+  ends — which is what the phase asked for, and it also makes the field's name
+  true for the first time. The check writes lengths of 10, 10, 12, 10 and 120
+  and asserts the answer is 10; through the old average it would have been
+  around 30.
+- *The formula lives in `shared/`, not on one side.* The server reasons about a
+  doctor's day with it and the patient's card turns a snapshot into "about 25
+  minutes" with it. Two copies would disagree the first time either was tuned,
+  and the disagreement would surface as the app quoting one person two different
+  waits on two screens. `server/src/utils/eta.ts` re-exports it so the filename
+  `docs/PHASES.md` names still exists and still means something.
+- *Estimates are rounded to five minutes and phrased with "about".* A queue
+  forecast is built on a single number. "About 25 minutes" is honest in a way
+  "23 minutes" is not — the false precision gets read as a promise and
+  remembered as a lie when the consult before runs long.
+- *Zero ahead is "You are next", not one consult's worth.* The person at the
+  front is waiting for a door to open, not for another appointment to happen.
+- *The sanity window stayed.* Under a minute is a double-tap; over four hours is
+  a doctor who forgot to press complete before going home. Neither is a
+  measurement, and either would move the estimate for everyone after them.
+
+**Files.** `shared/queue.ts` (new), `server/src/utils/eta.ts` (new),
+`server/src/modules/appointments/appointment.service.ts`,
+`server/scripts/check-queue.ts`.
+
+**Verified.** `npm run check:queue --workspace server` — **51 assertions, all
+passing**. `npm run typecheck` and `npm run lint` clean.

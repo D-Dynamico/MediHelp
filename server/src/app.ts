@@ -13,6 +13,7 @@ import { appointmentRouter } from './modules/appointments/appointment.routes.js'
 import { patientRouter } from './modules/patients/patient.routes.js';
 import { paymentRouter } from './modules/payments/payment.routes.js';
 import { triageRouter } from './modules/triage/triage.routes.js';
+import { boardRouter, queueRouter } from './modules/queue/queue.routes.js';
 import { UPLOAD_DIR, UPLOAD_URL_PREFIX } from './providers/storage/local.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 
@@ -68,6 +69,9 @@ export function createApp(): Express {
 
   app.use('/api/auth', authRouter);
   app.use('/api/admin', adminRouter);
+  // Above the doctor's own router, so the more specific prefix wins outright
+  // rather than falling through it.
+  app.use('/api/doctor/queue', queueRouter);
   app.use('/api/doctor', doctorRouter);
   // Plural and public: the catalogue a patient browses before signing up.
   app.use('/api/doctors', publicDoctorRouter);
@@ -75,6 +79,9 @@ export function createApp(): Express {
   app.use('/api/patient', patientRouter);
   app.use('/api/payments', paymentRouter);
   app.use('/api/triage', triageRouter);
+  // The one route with no login behind it: a screen on a waiting-room wall,
+  // holding a signed link and nothing else.
+  app.use('/api/board', boardRouter);
   // Further feature routers mount here, above the two handlers below.
 
   app.use(notFound);

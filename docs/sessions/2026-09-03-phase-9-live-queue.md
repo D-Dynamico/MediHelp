@@ -118,3 +118,57 @@ complete.
 `server/src/modules/appointments/appointment.service.ts`.
 
 **Verified.** `npm run typecheck` clean.
+
+---
+
+## 9.3 — The doctor's controls, and the board's way in
+
+**What changed.** New `modules/queue/` — `queue.service.ts`, `queue.controller.ts`,
+`queue.routes.ts`, `queue.schema.ts`. `markNoShow` added to the appointment
+service. Two routers mounted in `app.ts`: `/api/doctor/queue` (guarded) and
+`/api/board` (open, signed link only). New `scripts/check-queue.ts`, wired into
+`npm run check`, and `socket.io-client` added as a server devDependency so the
+check can open a real socket rather than assert about one.
+
+**Decisions.**
+
+- *Calling next refuses while somebody is in the room.* The alternative —
+  quietly completing the current consult and calling the next — would record a
+  consult length nobody measured and mark a patient seen on a mis-click. Two
+  taps is the right price. The message says what to do: "Finish with the patient
+  you are seeing first."
+- *The next patient is the lowest waiting **token**, not the earliest arrival.*
+  Someone who turns up at 09:00 for a 10:30 appointment has not moved ahead of
+  the 09:20 one by being early.
+- *Checking in twice is a 409, not a no-op.* The second call would move
+  `checkedInAt` forward and reset the waiting time the doctor is reading to
+  decide who has been kept longest — the opposite of harmless.
+- *No-show is its own ending, not a flavour of cancelled.* The slot is released
+  either way, but a no-show says the clinic held the time and nobody came. No
+  refund is attempted: money taken for a slot that was kept open is a decision
+  for a person.
+- *An appointment belonging to another doctor answers 404, not 403.* Same reason
+  `requireOwnership` does it — a 403 confirms the id exists.
+- *`callNext` writes the session before it moves the appointment.* That is what
+  leaves a token on the wall after the patient walks out and before the next one
+  is called, which is what a waiting-room board is for.
+- *The board's doctor id comes out of the token, and the one in the path is only
+  compared with it.* Reading the path instead would turn one valid link into a
+  key to every doctor's queue. The check asserts exactly that, and also that an
+  access token is refused as a board link.
+- *Board links are minted, never stored.* No list of live links to leak, no
+  revocation story to get wrong; a link stops working after thirty days and the
+  doctor asks for another.
+- *`/api/doctor/queue` is mounted above `/api/doctor`.* It would have worked
+  either way by falling through, but only by accident of the doctor router
+  having no `/queue` route of its own.
+
+**Files.** `server/src/modules/queue/{queue.service,queue.controller,queue.routes,queue.schema}.ts`
+(new), `server/scripts/check-queue.ts` (new), `server/src/app.ts`,
+`server/src/modules/appointments/appointment.service.ts`, `server/package.json`.
+
+**Verified.** `npm run check:queue --workspace server` — **37 assertions, all
+passing**, including the three the phase turns on: a listening patient socket is
+told about "call next" without asking, the payload it receives contains no
+patient name, and a board link for one doctor cannot read or listen to another's
+queue. `npm run typecheck` and `npm run lint` clean.

@@ -29,10 +29,10 @@ export async function sessionFor(doctorId: Types.ObjectId | string, day: Date) {
   const session = await QueueSessionModel.findOneAndUpdate(
     { doctorId: id, date: startOfDayUtc(day) },
     { $setOnInsert: { currentToken: 0, servedCount: 0 } },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
+    { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
   );
-  // `new: true` with `upsert` always returns a document; the assertion is for
-  // the type, not for a case that happens.
+  // An upsert returning the document after the write always has one; the
+  // assertion is for the type, not for a case that happens.
   if (!session) throw ApiError.notFound('No queue for that doctor.');
   return session;
 }

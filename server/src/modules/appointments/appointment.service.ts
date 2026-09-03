@@ -265,6 +265,36 @@ export async function startConsult(id: string, actor: Actor): Promise<Appointmen
 }
 
 /**
+ * Marks a patient as not having turned up.
+ *
+ * A separate ending from `cancelled`, and the difference is not cosmetic: the
+ * slot is released either way, but a no-show says the clinic held the time and
+ * nobody came, while a cancellation says the time was given back. The doctor's
+ * day, the patient's history and any future policy about repeat no-shows all
+ * need to tell those apart.
+ *
+ * No refund is attempted. Money taken for a slot the clinic kept open is a
+ * decision for a person, not something to hand back automatically.
+ */
+export async function markNoShow(id: string, actor: Actor): Promise<AppointmentDto> {
+  const appointment = await load(id);
+  await assertMayAct(appointment, actor, { patientsAllowed: false });
+
+  if (appointment.status === 'no_show') {
+    throw ApiError.conflict('That appointment is already marked as a no-show.');
+  }
+  if (!OPEN_STATUSES.includes(appointment.status as AppointmentStatus)) {
+    throw ApiError.conflict('A finished appointment cannot be marked as a no-show.');
+  }
+
+  appointment.status = 'no_show';
+  await appointment.save();
+  await broadcastQueue(appointment.doctorId, appointment.slotStart);
+
+  return present(appointment._id);
+}
+
+/**
  * Marks a consult done and settles a cash payment.
  *
  * Cash is `pending_at_desk` from the moment of booking until someone confirms

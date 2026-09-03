@@ -194,23 +194,30 @@ Dermatology; with the API key unset the behavior is identical and `source` is
 
 ## Phase 9 — Live queue and token board *(differentiator)*
 
-- [ ] **9.1 Socket.IO server** — mounted on the same HTTP server, JWT handshake
+- [x] **9.1 Socket.IO server** — mounted on the same HTTP server, JWT handshake
       auth, rooms `queue:{doctorId}:{date}` and `user:{userId}`, join/leave rules.
-- [ ] **9.2 QueueSession** — created lazily per doctor per day; token allocation
-      moved into the booking transaction.
-- [ ] **9.3 Doctor controls** — `checkIn`, `callNext` and `complete` mutating the
+- [x] **9.2 QueueSession** — created lazily per doctor per day. Token allocation
+      was **not** moved into the session: tokens stay the slot's position in the
+      doctor's day, which needs no lock and reads in time order. See the session
+      note for 2026-09-03 and `SYSTEM_DESIGN.md` §6.3.
+- [x] **9.3 Doctor controls** — `checkIn`, `callNext` and `complete` mutating the
       session and emitting `queue:update` to the room.
-- [ ] **9.4 ETA calculation** — `utils/eta.ts` using `peopleAhead ×
+- [x] **9.4 ETA calculation** — `utils/eta.ts` using `peopleAhead ×
       medianConsultMins`, with the median recomputed from the doctor's last 20
       completed consults on each completion.
-- [ ] **9.5 Patient live card** — `useQueue` hook subscribing to the room, showing
+- [x] **9.5 Patient live card** — `useQueue` hook subscribing to the room, showing
       token, people ahead and estimated wait, with a graceful reconnect.
-- [ ] **9.6 Waiting-room board** — `/board/:doctorId`, full-screen now-serving plus
+- [x] **9.6 Waiting-room board** — `/board/:doctorId`, full-screen now-serving plus
       next five, reachable with a signed link and no login.
 
 **Exit**: with three windows open (doctor, patient, board), clicking "next patient"
 updates the other two within a second without a refresh; the ETA reflects the
 doctor's real consult times, not a constant; a dropped socket recovers on its own.
+
+Covered by `npm run check:queue --workspace server` — 53 assertions, including a
+real socket receiving `queue:update` without asking, that payload carrying no
+patient name, and the median moving with the doctor's own consult lengths. The
+three-windows walkthrough itself is a human check and has not been done.
 
 ---
 

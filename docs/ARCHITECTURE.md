@@ -37,7 +37,7 @@ MediHelp/
 │  │  │                 payment, triage, queue, waitlist
 │  │  ├─ middleware/    auth (requireAuth, requireRole, requireOwnership),
 │  │  │                 validate, error, rateLimit, upload
-│  │  ├─ realtime/      io.ts (server + handshake auth), queue.gateway.ts
+│  │  ├─ realtime/      io.ts (socket server, handshake auth, room names)
 │  │  ├─ jobs/          waitlistSweeper.ts (node-cron)
 │  │  ├─ providers/     payment/, storage/, ai/ — swappable integrations
 │  │  ├─ utils/         tokens, apiError, eta, slots
@@ -46,11 +46,11 @@ MediHelp/
 └─ client/
    └─ src/
       ├─ api/           axios instance with refresh interceptor, typed endpoints
-      ├─ context/       AuthContext, SocketContext
+      ├─ context/       AuthContext
       ├─ routes/        router.tsx, ProtectedRoute, RoleRoute
-      ├─ pages/         public/ patient/ doctor/ admin/ board/
-      ├─ components/    ui/ primitives, domain/ composites
-      └─ hooks/         useAuth, useSocket, useQueue
+      ├─ pages/         public/ (catalogue and the board), patient/, doctor/, admin/
+      ├─ components/    ui/ primitives, plus composites (WorkShell, QueueCard)
+      └─ hooks/         useAuth, useQueue
 ```
 
 ## Layering rules

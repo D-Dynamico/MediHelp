@@ -184,19 +184,88 @@ at all.
 
 **Goal** — patients stop guessing when they will be seen.
 
-- `realtime/io.ts` runs Socket.IO on the same HTTP server with **JWT handshake
-  auth** (access token in `auth.token`). Rooms: `queue:{doctorId}:{date}` and
-  `user:{userId}`.
-- Each booking gets a sequential `tokenNumber` for that doctor and day, allocated
-  with the appointment itself.
-- Doctor actions — `checkIn`, `callNext`, `complete` — mutate `QueueSession` and
-  emit `queue:update` to the room.
-- `utils/eta.ts` computes each waiting patient's ETA as
-  `peopleAhead × medianConsultMins`, where the median is a rolling figure over the
-  doctor's last 20 completed consults. Real data, not a fixed 15-minute guess.
-- Patients see a live card: *Token 14 · 3 ahead · about 18 min.*
-- `/board/:doctorId` is a full-screen waiting-room display — now serving plus the
-  next five — reachable with a signed board link, no login.
+### 6.1 The connection
+
+`realtime/io.ts` runs Socket.IO on the same HTTP server as the API — one port,
+one origin, nothing extra to deploy. Rooms are `queue:{doctorId}:{YYYY-MM-DD}`
+and `user:{userId}`, the day being a **UTC** key both sides build from
+`dayKeyUtc` in `shared/queue.ts`; two copies of that function would eventually
+name two different rooms.
+
+Two identities are allowed through the handshake and are told apart there rather
+than per event:
+
+- a **signed-in user** sending an access token in `auth.token`. Their own
+  `user:{userId}` room is joined for them, so nothing they send can put them in
+  someone else's;
+- a **board screen** sending a board token in `auth.board`, which may join
+  exactly the one doctor that token names.
+
+A handshake with neither is refused. Joining a queue room leaves any other, and
+the joining socket is immediately handed the current snapshot so a screen
+switched on mid-morning is never blank.
+
+### 6.2 What travels over it, and what does not
+
+`queue:update` carries `QueueSnapshotDto` — doctor, day, the token being seen,
+the tokens still waiting, and the doctor's median consult length. **Numbers
+only.** The room holds every patient of that doctor and an unauthenticated
+display on a public wall, so a payload with names in it would put the day's
+patient list on that wall.
+
+The doctor's screen needs names, so it reads them from `GET /api/doctor/queue`
+— authenticated, their own day only — and treats the socket event purely as the
+signal to re-read.
+
+### 6.3 Tokens
+
+A token is the **position of the slot in the doctor's day**, derived at booking
+from the working hours (`tokenFor`). Not a counter: two concurrent bookings can
+never collide, so no lock and no transaction is needed, and the board reads in
+time order. A counter would number patients by who clicked "book" first, which
+is not the order anyone is seen in. Numbers therefore have gaps where slots went
+unbooked, which is honest — token 7 is the seventh slot of the day.
+
+`QueueSession` is one document per doctor per day, upserted the first time
+anyone looks at or acts on that day. It holds the token being called, when it
+was called, and how many people have been through. "Now serving" is read from
+the `in_progress` appointment where there is one, and falls back to the session —
+which is what keeps a token on the wall between one patient leaving and the next
+being called.
+
+### 6.4 The doctor's controls
+
+`checkIn`, `callNext`, `complete` and `noShow`, all under `/api/doctor/queue`
+and all scoped to the signed-in doctor. `callNext` takes the lowest waiting
+token — the earliest slot, not the earliest arrival — and refuses while somebody
+is already in the room, rather than silently completing that consult. `complete`
+and `noShow` delegate to the shared appointment transitions, so a consult
+finished from the appointments table means exactly what one finished from the
+queue means.
+
+### 6.5 The wait
+
+`shared/queue.ts` owns the arithmetic, because the server and the patient's card
+both do it: `etaMinutes(peopleAhead, medianConsultMins)`, rounded to five
+minutes and phrased "about", because a forecast given to the minute is read as a
+promise. `server/src/utils/eta.ts` re-exports it and adds
+`refreshMedianConsultMins`, which recomputes a doctor's median from their **last
+twenty finished consults** each time one ends. A median rather than an average:
+one consult that genuinely ran ninety minutes must not drag every estimate after
+it.
+
+### 6.6 The board
+
+`/board/:doctorId?t=<board token>` is a full-screen dark display with no shell,
+no nav and nothing clickable. Its credential is a signed JWT naming one doctor,
+carrying no user and no role, good for thirty days, minted on request and never
+stored — there is no list of live links to leak. `verifyBoardToken` insists on
+`typ: 'board'`; without that check the same secret and issuer would let a board
+token pass as a login. The doctor id the snapshot is built from comes out of the
+**token**, and the one in the URL is only compared with it.
+
+The board's first read is over HTTP so an expired link can say so in words;
+after that the socket keeps it current.
 
 ---
 

@@ -294,3 +294,40 @@ payments 52, triage 83, **queue 53**.
 
 **Not verified in a browser.** Nothing on these three screens has been clicked —
 see the open items at the end of this note.
+
+---
+
+## Docs updated
+
+- `docs/PHASES.md` — 9.1–9.6 ticked, with 9.2 rewritten to record that token
+  allocation deliberately stayed where it was, and the exit criteria annotated
+  with what the check covers and what still needs a human.
+- `docs/SYSTEM_DESIGN.md` §6 — rewritten from a six-bullet sketch into the six
+  subsections the feature actually has, including the snapshot's privacy rule
+  and the board token's `typ` check.
+- `docs/ARCHITECTURE.md` — the folder tree said `realtime/queue.gateway.ts`,
+  `context/SocketContext` and `hooks/useSocket`, none of which were built. It
+  now names what is there.
+- `README.md` — the check line said "models, errors, auth, rate limiting, seed",
+  which stopped being the whole list several phases ago.
+
+## Open items
+
+- **Nothing in phase 9 has been opened in a browser.** The exit criterion is
+  explicitly a three-window walkthrough — doctor, patient, board — and that is a
+  human check. The scripted check proves the wire; it does not prove the screens
+  read well. Worth clicking: check a patient in and watch the board and the
+  patient's card both move; pull the network out and confirm the board dims and
+  says "Reconnecting" rather than freezing; open `/doctor/queue` under 768px and
+  confirm the two panels stack and the four-item tab bar still reads.
+- **The board has never been seen on a real television**, which is the only
+  place the `lg:text-[6rem]` step matters.
+- **Carried forward, unchanged from the last handoff:** 14 commits now unpushed
+  and the branch has never been pushed; phase 8 and the design pass have not
+  been reviewed or opened in a browser; the Claude triage path and the Razorpay
+  provider have still never spoken to a real API, deliberately;
+  `SEED_ADMIN_EMAIL` still defaults to `admin@medihelp.test`.
+- **Phase 10 (auto-waitlist) plugs into what was built here.** `user:{userId}`
+  rooms exist and are joined at connection but nothing emits to them yet — that
+  is the channel a waitlist offer goes down. The `Waitlist` model is already in
+  place and the offer card is specified in design system §6.4.

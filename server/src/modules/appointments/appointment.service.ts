@@ -14,6 +14,7 @@ import { logger } from '../../config/logger.js';
 import { startOfDayUtc } from '../../utils/dates.js';
 import { horizonEnd, isOfferedSlot, slotsFor } from '../../utils/slots.js';
 import { refundFor } from '../payments/payment.service.js';
+import { broadcastQueue, recordServed } from '../queue/queue.snapshot.js';
 import {
   patientLookupStages,
   triageLookupStages,
@@ -226,6 +227,9 @@ export async function cancelAppointment(id: string, actor: Actor): Promise<Appoi
   }
 
   await appointment.save();
+  // A cancellation takes someone out of the waiting line, so every board and
+  // queue card watching that day is now showing a stale count.
+  await broadcastQueue(appointment.doctorId, appointment.slotStart);
   return present(appointment._id);
 }
 
@@ -254,6 +258,7 @@ export async function startConsult(id: string, actor: Actor): Promise<Appointmen
     appointment.status = 'in_progress';
     appointment.consultStartedAt ??= new Date();
     await appointment.save();
+    await broadcastQueue(appointment.doctorId, appointment.slotStart);
   }
 
   return present(appointment._id);
@@ -287,6 +292,8 @@ export async function completeAppointment(id: string, actor: Actor): Promise<App
 
   await appointment.save();
   await recordConsultLength(appointment.doctorId, appointment.consultStartedAt, endedAt);
+  await recordServed(appointment.doctorId, appointment.slotStart);
+  await broadcastQueue(appointment.doctorId, appointment.slotStart);
 
   return present(appointment._id);
 }

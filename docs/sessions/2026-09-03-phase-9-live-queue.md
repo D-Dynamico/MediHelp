@@ -65,3 +65,56 @@ so both sides agree on them.
 
 **Verified.** `npm run typecheck` and `npm run lint` clean. The Vite dev proxy
 already forwarded `/socket.io` with `ws: true`, so nothing was needed there.
+
+---
+
+## 9.2 — The queue session, and where tokens really come from
+
+**What changed.** New `server/src/modules/queue/queue.snapshot.ts`: `sessionFor`
+(lazy per doctor per day), `buildSnapshot`, `recordServed`, `broadcastQueue`.
+`QueueSession` lost `lastIssuedToken` and `avgConsultMins`. `Appointment` gained
+`checkedInAt`. The appointment service now broadcasts after cancel, start and
+complete.
+
+**Decisions.**
+
+- *Token allocation was not moved into the session, and that is a deliberate
+  departure from the substep as written in `docs/PHASES.md`.* 9.2 asked for the
+  allocation to move into the booking transaction, which implies a counter on
+  the session. The existing `tokenFor` derives a token from the slot's
+  **position in the doctor's day**, and that is the better scheme on every axis
+  that matters here: two concurrent bookings can never be handed the same
+  number, so no lock and no transaction is needed; the board reads in time
+  order; and token 7 means the seventh slot of the morning rather than the
+  seventh person to click. A counter would have numbered patients by booking
+  order, which is not the order anyone is seen in — it would have made the board
+  wrong to fix a race that positions do not have. `lastIssuedToken` is therefore
+  gone from the model, with a comment in its place saying why, rather than left
+  as a field nothing writes.
+- *The session is upserted, never found-then-created.* Two screens opening the
+  same board at the same moment would both find nothing and both insert, and the
+  unique index would answer one of them with a 500. `$setOnInsert` also means an
+  upsert racing a real update cannot reset `currentToken` to zero mid-morning.
+- *The snapshot's "now serving" comes from the appointment, not the session.*
+  The `in_progress` appointment is the fact; `session.currentToken` is a cache of
+  it. When they disagree — a consult completed from the appointments table — the
+  fact wins. The session is the fallback, which is also what keeps "Now serving
+  14" on the wall after 14 walks out and before 15 is called.
+- *Broadcasting lives in its own module, not beside the queue's actions.* The
+  appointment service has to broadcast too, and putting the broadcast next to
+  the queue's own actions would have had the two services importing each other.
+  `queue.snapshot.ts` reads models and emits; it calls no service.
+- *A failed broadcast is swallowed.* The write already happened. Turning a
+  completed consult into an error for the doctor who completed it, because a
+  socket was unhappy, would be the wrong trade — the next event or page load
+  repairs every screen anyway.
+- *`servedCount` is bumped from `completeAppointment`, not from the queue
+  screen.* A doctor finishes consults from the appointments table as often as
+  from the queue, and a tally that counted only one route would be wrong by
+  lunchtime.
+
+**Files.** `server/src/modules/queue/queue.snapshot.ts` (new),
+`server/src/models/QueueSession.ts`, `server/src/models/Appointment.ts`,
+`server/src/modules/appointments/appointment.service.ts`.
+
+**Verified.** `npm run typecheck` clean.

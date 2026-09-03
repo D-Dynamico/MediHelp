@@ -59,6 +59,8 @@ const appointmentSchema = new Schema(
       image: { type: String },
     },
 
+    /** When the desk marked the patient present. What waiting time is measured from. */
+    checkedInAt: { type: Date },
     consultStartedAt: { type: Date },
     consultEndedAt: { type: Date },
   },

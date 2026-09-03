@@ -1,10 +1,17 @@
 import { Schema, model, Types, type InferSchemaType, type HydratedDocument } from 'mongoose';
 
 /**
- * A doctor's queue for one day: which token is being seen, how many are done,
- * and the running average consult time behind the wait estimate.
+ * A doctor's queue for one day: which token is being seen, when it was called,
+ * and how many people have been through.
  *
- * `date` is the day at midnight UTC, so one document per doctor per day.
+ * `date` is the day at midnight UTC, so one document per doctor per day, created
+ * the first time anyone looks at or acts on that day's queue.
+ *
+ * There is deliberately **no token counter here**. Tokens are a slot's position
+ * in the doctor's day, worked out from the working hours at booking time — see
+ * `tokenFor` in the appointment service for why. A counter in this document
+ * would number patients by who clicked "book" first, which is not the order
+ * anyone is seen in, and it would need a lock that positions do not.
  */
 const queueSessionSchema = new Schema(
   {
@@ -13,11 +20,8 @@ const queueSessionSchema = new Schema(
 
     /** Token being seen now. 0 means the day has not started. */
     currentToken: { type: Number, default: 0, min: 0 },
-    /** Highest token handed out today; the allocator increments this. */
-    lastIssuedToken: { type: Number, default: 0, min: 0 },
     lastCalledAt: { type: Date },
     servedCount: { type: Number, default: 0, min: 0 },
-    avgConsultMins: { type: Number, min: 1 },
   },
   { timestamps: true },
 );

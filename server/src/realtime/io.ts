@@ -40,7 +40,7 @@ export function queueRoom(doctorId: string, dateKey: string): string {
   return `queue:${doctorId}:${dateKey}`;
 }
 
-/** The room a single user's own notifications go to (phase 10 uses this). */
+/** The room a single user's own notifications go to — waitlist offers, for one. */
 export function userRoom(userId: string): string {
   return `user:${userId}`;
 }
@@ -156,6 +156,17 @@ export function mountRealtime(server: HttpServer, snapshotFor?: SnapshotProvider
  */
 export function emitQueueUpdate(snapshot: QueueSnapshotDto): void {
   io?.to(queueRoom(snapshot.doctorId, snapshot.date)).emit(QUEUE_UPDATE_EVENT, snapshot);
+}
+
+/**
+ * Sends something to one person, on every device they have open.
+ *
+ * The user's room is joined for them at connection from their verified token,
+ * so this reaches exactly the account named and nobody who merely claims to be
+ * it. A no-op when no socket server is mounted, like `emitQueueUpdate`.
+ */
+export function emitToUser(userId: string, event: string, payload: unknown): void {
+  io?.to(userRoom(userId)).emit(event, payload);
 }
 
 /** For tests and shutdown. */

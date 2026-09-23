@@ -7,6 +7,7 @@ import {
   DoctorModel,
   TriageAssessmentModel,
   UserModel,
+  WaitlistModel,
   type DoctorDocument,
 } from '../../models/index.js';
 import { ApiError } from '../../utils/apiError.js';
@@ -16,6 +17,7 @@ import { horizonEnd, isOfferedSlot, slotsFor } from '../../utils/slots.js';
 import { refreshMedianConsultMins } from '../../utils/eta.js';
 import { refundFor } from '../payments/payment.service.js';
 import { broadcastQueue, recordCalled, recordServed } from '../queue/queue.snapshot.js';
+import { isHeld, offerNext } from '../waitlist/waitlist.offers.js';
 import {
   patientLookupStages,
   triageLookupStages,
@@ -231,6 +233,13 @@ export async function cancelAppointment(id: string, actor: Actor): Promise<Appoi
   // A cancellation takes someone out of the waiting line, so every board and
   // queue card watching that day is now showing a stale count.
   await broadcastQueue(appointment.doctorId, appointment.slotStart);
+
+  // The freed slot goes to the first person waiting for that doctor's day, and
+  // is held for them while they decide. Every cancellation comes through here —
+  // patient, doctor or admin — which is why this is the one place it is done.
+  await afterward('offer the slot to the waitlist', () =>
+    offerNext(appointment.doctorId, appointment.slotStart, appointment.slotEnd),
+  );
   return present(appointment._id);
 }
 
@@ -456,6 +465,13 @@ export async function bookAppointment(
     }
   }
 
+  // A slot under an open waitlist offer belongs to the person it was offered
+  // to until their window closes. The catalogue already shows it as taken; this
+  // is the refusal for anyone who kept an old page open.
+  if (await isHeld(doctor._id, request.slotStart)) {
+    throw ApiError.conflict('Someone just took that time. Pick another.');
+  }
+
   try {
     const appointment = await AppointmentModel.create({
       patientId: new Types.ObjectId(patientId),
@@ -480,6 +496,21 @@ export async function bookAppointment(
         ...(account.image ? { image: account.image } : {}),
       },
     });
+
+    // Someone waiting for this doctor's day who has now booked a time on it is
+    // not waiting any more. Left in place, their entry would be offered the next
+    // cancellation and hold a slot they have no use for while it timed out.
+    await afterward('retire a waitlist entry this booking replaces', () =>
+      WaitlistModel.updateMany(
+        {
+          patientId: appointment.patientId,
+          doctorId: appointment.doctorId,
+          date: startOfDayUtc(appointment.slotStart),
+          state: 'waiting',
+        },
+        { $set: { state: 'withdrawn' } },
+      ),
+    );
 
     return await present(appointment._id);
   } catch (caught) {

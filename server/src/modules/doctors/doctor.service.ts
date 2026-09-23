@@ -20,6 +20,7 @@ import {
   type Page,
 } from '../appointments/appointment.service.js';
 import { toDoctorProfileDto } from './doctor.mapper.js';
+import { heldSlots } from '../waitlist/waitlist.offers.js';
 import type {
   AppointmentWhen,
   PublicDoctorQuery,
@@ -330,16 +331,21 @@ export async function slotsOn(id: string, date: Date): Promise<SlotDto[]> {
   // Past days and anything beyond the booking horizon have no slots to offer.
   if (date >= horizonEnd()) return [];
 
-  const taken = await AppointmentModel.find({
-    doctorId: doctor._id,
-    status: { $in: [...ACTIVE_APPOINTMENT_STATUSES] },
-    slotStart: { $gte: startOfDayUtc(date), $lt: endOfDayUtc(date) },
-  }).select('slotStart');
+  const [taken, held] = await Promise.all([
+    AppointmentModel.find({
+      doctorId: doctor._id,
+      status: { $in: [...ACTIVE_APPOINTMENT_STATUSES] },
+      slotStart: { $gte: startOfDayUtc(date), $lt: endOfDayUtc(date) },
+    }).select('slotStart'),
+    // A slot being offered to someone on the waitlist is theirs until the offer
+    // lapses, so to everyone else it reads as taken.
+    heldSlots(doctor._id, date),
+  ]);
 
   return slotsFor({
     workingHours: doctor.workingHours ?? [],
     slotDurationMins: doctor.slotDurationMins,
     date,
-    taken: taken.map((appointment) => appointment.slotStart),
+    taken: [...taken.map((appointment) => appointment.slotStart), ...held],
   });
 }

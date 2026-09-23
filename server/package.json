@@ -14,7 +14,7 @@
     "check:errors": "tsx scripts/check-errors.ts",
     "seed": "tsx src/seed.ts",
     "check:seed": "tsx scripts/check-seed.ts",
-    "check": "npm run check:env && npm run check:tokens && npm run check:models && npm run check:errors && npm run check:auth && npm run check:auth:http && npm run check:ratelimit && npm run check:seed && npm run check:upload && npm run check:admin && npm run check:doctor && npm run check:booking && npm run check:payments && npm run check:triage && npm run check:queue",
+    "check": "npm run check:env && npm run check:tokens && npm run check:models && npm run check:errors && npm run check:auth && npm run check:auth:http && npm run check:ratelimit && npm run check:seed && npm run check:upload && npm run check:admin && npm run check:doctor && npm run check:booking && npm run check:payments && npm run check:triage && npm run check:queue && npm run check:waitlist",
     "check:tokens": "tsx scripts/check-tokens.ts",
     "check:auth": "tsx scripts/check-auth.ts",
     "check:auth:http": "tsx scripts/check-auth-http.ts",
@@ -28,7 +28,8 @@
     "check:booking": "tsx scripts/check-booking.ts",
     "check:payments": "tsx scripts/check-payments.ts",
     "check:triage": "tsx scripts/check-triage.ts",
-    "check:queue": "tsx scripts/check-queue.ts"
+    "check:queue": "tsx scripts/check-queue.ts",
+    "check:waitlist": "tsx scripts/check-waitlist.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",
@@ -40,6 +41,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.4",
     "multer": "^2.3.0",
+    "node-cron": "^4.6.0",
     "socket.io": "^4.8.3",
     "zod": "^4.5.4"
   },

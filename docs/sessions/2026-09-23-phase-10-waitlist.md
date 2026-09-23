@@ -96,3 +96,92 @@ reads — a day long gone, today, and a malformed id — write no session. Findi
 4 and 8–10 are not scripted: 4 needs a failing database mid-request, and 8–10
 are browser behaviour. Full suite **630 assertions across 15 scripts, zero
 failures**; `typecheck`, `lint` and `build` clean.
+
+---
+
+## 10.1–10.5 — The waitlist, on the server
+
+**Committed together.** Joining, offering, notifying, claiming and sweeping
+are one mechanism. Each substep calls the others, and none of them can be checked
+on its own — an offer is only meaningful if it can be claimed, a claim only if
+it was offered. They ship as one commit with one check script. The UI (10.6)
+follows separately.
+
+**What changed.** `node-cron` added to the server. New `modules/waitlist/`:
+`waitlist.offers.ts` (`offerNext`, `sweepWaitlist`, `heldSlots`, `isHeld`,
+`toWaitlistDto`, `notify`), `waitlist.service.ts` (`joinWaitlist`, `listMine`,
+`withdraw`, `claim`), and the schema, controller and routes, mounted at
+`/api/waitlist`. New `jobs/waitlistSweeper.ts`, started from `index.ts` and the
+sandbox. `emitToUser` in `realtime/io.ts`. `WaitlistEntryDto` and
+`WAITLIST_UPDATE_EVENT` in `shared/types.ts`. The appointment service now offers
+every cancelled slot, refuses to book a held one, and retires a patient's
+waiting entry once they book that day directly. `slotsOn` treats held slots as
+taken. New `scripts/check-waitlist.ts`, in `npm run check`.
+
+**Decisions.**
+
+- *An offered slot is held.* `SYSTEM_DESIGN.md` §7 says the slot "returns to open
+  inventory" only when the list runs out, which means it is not open while
+  someone is being offered it. Without a hold, "you have ten minutes to claim
+  this" is a race the person offered it cannot see, against anybody who happens
+  to refresh the doctor's page. The catalogue shows a held slot as taken, and a
+  booking for it is refused with the same words as a taken slot. The hold is
+  worked out from open, unexpired offers — there is no separate lock to release,
+  so an offer that lapses holds nothing, whether or not the sweeper has run.
+- *Only for a genuinely full day.* Joining is refused while any slot is free.
+  Nothing gets cancelled into a day that still has room, so an entry there would
+  never be offered anything. It is also refused for a patient who already has an
+  appointment with that doctor that day.
+- *Offering is one sorted `findOneAndUpdate`.* Picking the first waiting entry
+  and marking it offered happen in one atomic step, so two cancellations landing
+  together cannot offer both slots to one person or one slot to two people.
+  Positions can collide when two people join in the same instant; the sort
+  breaks ties by `_id`, so the order stays total and nobody is skipped.
+- *No offer for a slot that has begun, and no window past the slot's start.* The
+  window is `min(now + 10 min, slotStart)`. A ten-minute claim on a slot starting
+  in six would let someone claim a consult already under way.
+- *A claim is marked before it is booked, conditionally on the clock.* The
+  entry flips `offered → claimed` only if the offer is still open *and*
+  `offerExpiresAt` is still ahead. Whichever of claim and sweeper changes the
+  state first wins; the other finds nothing to change. Because the clock is in
+  the condition, a lapsed offer is refused even on a host that slept through the
+  sweeper — which Render's free tier does. A lapsed claim also runs the sweep on
+  the spot, so the next person hears straight away.
+- *A failed booking after a claim puts the patient back where they were.* The
+  booking still goes through the ordinary path — fee from the doctor record,
+  token from the slot's position, the unique index. If it fails anyway, the
+  patient did nothing wrong, so the entry returns to `waiting` at its original
+  position instead of being lost.
+- *Letting an offer go passes it on at once.* Withdrawing an offered entry
+  cascades immediately rather than holding the slot until the window would have
+  closed. Declining and leaving the list are one action, because they are one
+  decision: "I no longer want a place that day".
+- *Booking directly retires the same patient's waiting entry for that day.*
+  Otherwise it would be offered the next cancellation, and hold a slot they have
+  no use for until it timed out.
+- *The offer is logged.* There is no SMS or email provider, so
+  `logger.info('Waitlist offer sent', …)` is the record that an offer went out,
+  and the only way to see one in the sandbox without a browser open as that
+  patient. That is 10.3's "logged in mock mode".
+- *The sweep is a plain function, and the cron job only calls it.*
+  `sweepWaitlist(now)` takes the clock as an argument, so the check lapses an
+  offer by passing a time eleven minutes ahead instead of waiting eleven
+  minutes. The job skips a run while the previous one is still going. Every step
+  is a conditional update, so overlap would be safe, but it would be wasted
+  work.
+- *Offers are pushed to `user:{patientId}`* — the room phase 9 set up and nothing
+  used until now. The server joins it for the user from the verified token, so a
+  push reaches exactly that account.
+
+**Verified.** `npm run check:waitlist --workspace server`: **41 assertions, all
+passing**, covering the phase's three exit sentences with a real socket: the
+first person waiting is told live about exactly the freed slot, with about ten
+minutes to decide; a lapsed window passes it on live and tells the person whose
+window closed; a claim creates an appointment for that slot, with its original
+token, at the doctor-record fee. Also covered: the held slot reads as taken and
+refuses a walk-in; one patient cannot claim another's offer; an offer claimed
+after its window closes is refused before the sweeper runs, and no appointment
+is made; with nobody left waiting, a cancelled slot reopens.
+
+Full suite: **671 assertions across 16 scripts, zero failures**. `typecheck` and
+`lint` clean.

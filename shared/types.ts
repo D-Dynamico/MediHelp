@@ -325,3 +325,25 @@ export interface BoardLinkDto {
 export const QUEUE_UPDATE_EVENT = 'queue:update';
 export const QUEUE_JOIN_EVENT = 'queue:join';
 
+/* ------------------------------------------------------------- waitlist --- */
+
+/** One place in a doctor's waitlist for a day, as the patient on it sees it. */
+export interface WaitlistEntryDto {
+  id: string;
+  doctor: Pick<DoctorDto, 'id' | 'name' | 'speciality' | 'image'>;
+  /** The day being waited for, "YYYY-MM-DD" in UTC. */
+  date: string;
+  state: WaitlistState;
+  /** How many active entries are ahead of this one. 0 means next in line. */
+  ahead: number;
+  /** Present only while an offer is open. */
+  offer?: {
+    slotStart: string;
+    slotEnd: string;
+    /** When the held slot passes to the next person. */
+    expiresAt: string;
+  };
+}
+
+/** Sent to `user:{patientId}` whenever one of that patient's entries changes. */
+export const WAITLIST_UPDATE_EVENT = 'waitlist:update';

@@ -62,12 +62,21 @@ export function DoctorQueue() {
     void load();
   }, [load]);
 
-  // Subscribing to the doctor's own room. The payload is ignored on purpose:
-  // it carries no names, so it is a signal to re-read rather than a state to
-  // render. `updatedAt` changes on every broadcast, so this fires each time.
+  // Subscribing to the doctor's own room. The payload carries no names, so it
+  // is a signal to re-read rather than a state to render — but only when it
+  // says something this screen does not already show. The doctor's own actions
+  // return the new list in their response and are then broadcast back here a
+  // moment later; re-reading on that echo would double every click.
   const { snapshot, status } = useQueue(queue?.snapshot.doctorId ?? null);
+  const shown = queue?.snapshot;
+  const differs =
+    snapshot !== null &&
+    (shown === undefined ||
+      snapshot.currentToken !== shown.currentToken ||
+      snapshot.inRoom !== shown.inRoom ||
+      snapshot.waiting.join(',') !== shown.waiting.join(','));
   useEffect(() => {
-    if (snapshot) void load();
+    if (differs) void load();
   }, [snapshot?.updatedAt, load]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Every action is the same shape: run it, take the queue it returns, say so. */

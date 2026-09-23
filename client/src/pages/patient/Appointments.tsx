@@ -184,7 +184,7 @@ export function MyAppointments() {
 
       {/* Always first, and only on the day. Someone in the waiting room is
           looking for one number, and it should not be below a list. */}
-      {live && <QueueCard appointment={live} />}
+      {live && <QueueCard appointment={live} onSettled={() => void load()} />}
 
       {!data ? (
         <div className="space-y-3">

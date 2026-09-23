@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { AppointmentDto } from '@shared/types';
 import { etaText, positionOf } from '@shared/queue';
 import { Card, Chip } from './ui';
@@ -22,15 +23,39 @@ export function isLiveToday(appointment: AppointmentDto): boolean {
   return appointment.slotStart.slice(0, 10) === new Date().toISOString().slice(0, 10);
 }
 
-export function QueueCard({ appointment }: { appointment: AppointmentDto }) {
-  const { snapshot, status } = useQueue(appointment.doctor.id);
-
+/**
+ * Every line on the card is read from the live snapshot, never from the
+ * appointment it was drawn for. That appointment came from a list loaded when
+ * the page opened; by the time the consult has finished it still says
+ * "in progress", and a card believing it would keep telling someone the doctor
+ * was ready for them after they had gone home.
+ *
+ * `onSettled` fires when the snapshot shows this token neither waiting nor in
+ * the room — the consult is over, or the patient was marked absent — so the
+ * page can re-read its list, and the card, no longer live, goes away.
+ */
+export function QueueCard({
+  appointment,
+  onSettled,
+}: {
+  appointment: AppointmentDto;
+  onSettled: () => void;
+}) {
   const token = appointment.tokenNumber;
-  const beingSeen =
-    appointment.status === 'in_progress' || snapshot?.currentToken === token;
+  const { snapshot, status } = useQueue(appointment.doctor.id, {
+    // Pinned to the appointment's own day, so there is nothing to roll over.
+    date: appointment.slotStart.slice(0, 10),
+  });
 
   const position = snapshot ? positionOf(snapshot.waiting, token) : -1;
-  const peopleAhead = position < 0 ? 0 : position;
+  const inRoom = Boolean(snapshot?.inRoom && snapshot.currentToken === token);
+  const settled = snapshot !== null && !inRoom && position < 0;
+
+  useEffect(() => {
+    if (settled) onSettled();
+    // Keyed on the snapshot changing, not on the callback's identity: a parent
+    // that re-creates `onSettled` each render must not trigger a reload loop.
+  }, [settled, snapshot?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Card padding="lg">
@@ -41,22 +66,29 @@ export function QueueCard({ appointment }: { appointment: AppointmentDto }) {
         </div>
 
         <div className="text-right">
-          {beingSeen ? (
+          {!snapshot || settled ? (
+            // Nothing heard yet — or the list is being re-read. Saying
+            // "You are next" here, as the card once did, is a guess presented as
+            // a fact.
+            <Chip tone="warning" dot>
+              {status === 'live' ? 'Checking the queue' : 'Reconnecting'}
+            </Chip>
+          ) : inRoom ? (
             <p className="text-body font-medium text-ink">The doctor is ready for you</p>
           ) : (
             <>
               <p className="text-body text-ink">
-                {peopleAhead === 0
+                {position === 0
                   ? 'You are next'
-                  : `${peopleAhead} ${peopleAhead === 1 ? 'person' : 'people'} ahead`}
+                  : `${position} ${position === 1 ? 'person' : 'people'} ahead`}
               </p>
               {/* The wait is the one number here that can be wrong, so it is the
                   one the connection state replaces. Showing a stale "about 25
                   min" from ten minutes ago is worse than admitting the screen
                   has lost touch. */}
-              {status === 'live' && snapshot ? (
+              {status === 'live' ? (
                 <p className="text-sm text-ink-muted">
-                  {etaText(peopleAhead, snapshot.medianConsultMins)}
+                  {etaText(position, snapshot.medianConsultMins)}
                 </p>
               ) : (
                 <span className="mt-1 inline-flex">

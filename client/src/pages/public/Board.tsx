@@ -37,6 +37,12 @@ export function Board() {
   const { snapshot: live, status } = useQueue(error ? null : doctorId || null, { boardToken });
   const snapshot = live ?? initial;
 
+  // The link worked when the page opened and has since run out — boards stay on
+  // for weeks, and links last thirty days. Saying so is the only way anybody
+  // finds out why the wall stopped moving.
+  const shownError =
+    error ?? (status === 'refused' ? 'This board link has expired. Ask for a new one.' : null);
+
   // A board that has lost touch dims rather than freezes: the numbers are still
   // the last thing that was true, and a waiting room reads a dimmed board as
   // "wait" rather than as "this is current".
@@ -44,15 +50,15 @@ export function Board() {
 
   return (
     <div className="flex min-h-screen flex-col bg-board-bg px-8 py-10 text-board-ink">
-      {stale && !error && (
+      {stale && !shownError && (
         <div className="mb-6 rounded-sm bg-warning-solid px-4 py-2 text-center text-h3 font-medium text-white">
           Reconnecting
         </div>
       )}
 
-      {error ? (
+      {shownError ? (
         <div className="flex flex-1 items-center justify-center">
-          <p className="text-h1 text-board-muted">{error}</p>
+          <p className="text-h1 text-board-muted">{shownError}</p>
         </div>
       ) : !snapshot ? (
         <div className="flex flex-1 items-center justify-center">

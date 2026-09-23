@@ -99,6 +99,26 @@ api.interceptors.response.use(
   },
 );
 
+/**
+ * A fresh access token for something that is not an axios request.
+ *
+ * The live queue's socket presents the access token at its handshake, and the
+ * server refuses an expired one. Axios would refresh on the resulting 401 by
+ * itself; a socket has no such hook, so it asks here. Shares the same
+ * one-at-a-time refresh as every request, for the same reason: two refreshes in
+ * parallel look like a stolen token to the server. Answers null, and sends the
+ * person to sign in, when the session cannot be renewed.
+ */
+export async function refreshSession(): Promise<string | null> {
+  try {
+    return await refreshAccessToken();
+  } catch {
+    setAccessToken(null);
+    onSessionLost();
+    return null;
+  }
+}
+
 /** Pulls the message out of an API error, with a fallback for network failures. */
 export function messageFrom(error: unknown, fallback = 'Something went wrong.'): string {
   if (axios.isAxiosError<ApiErrorBody>(error)) {

@@ -14,6 +14,7 @@ const {
   newTokenFamily,
   durationToMs,
   refreshTokenExpiry,
+  signBoardToken,
 } = await import('../src/utils/tokens.js');
 const { hashPassword, verifyPassword } = await import('../src/utils/password.js');
 
@@ -79,6 +80,32 @@ check('the stored hash is not the token', a.tokenHash !== a.token);
 check('hashing is repeatable for lookup', hashRefreshToken(a.token) === a.tokenHash);
 check('a different token hashes differently', hashRefreshToken(b.token) !== a.tokenHash);
 check('families are unique', newTokenFamily() !== newTokenFamily());
+
+// --- token kinds and algorithms ---
+const rejects = (candidate: string) => {
+  try {
+    verifyAccessToken(candidate);
+    return false;
+  } catch {
+    return true;
+  }
+};
+const jsonwebtoken = (await import('jsonwebtoken')).default;
+const secret = process.env.JWT_SECRET!;
+
+check('a board link is not a login', rejects(signBoardToken('64b000000000000000000001').token));
+check(
+  'a token carrying `typ` is refused even with a sub and a role',
+  rejects(jsonwebtoken.sign({ sub: 'user-1', role: 'admin', typ: 'board' }, secret, { issuer: 'medihelp' })),
+);
+check(
+  'a token signed with another algorithm is refused, even with the right secret',
+  rejects(jsonwebtoken.sign({ sub: 'user-1', role: 'admin' }, secret, { issuer: 'medihelp', algorithm: 'HS512' })),
+);
+check(
+  'an unsigned token is refused',
+  rejects(jsonwebtoken.sign({ sub: 'user-1', role: 'admin' }, '', { issuer: 'medihelp', algorithm: 'none' })),
+);
 
 // --- passwords ---
 const hash = await hashPassword('Password123!');

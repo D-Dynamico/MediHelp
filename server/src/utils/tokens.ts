@@ -31,6 +31,16 @@ export function durationToMs(duration: string): number {
   return amount * factor;
 }
 
+/**
+ * Pinned rather than read from the token's own header. The library already
+ * refuses `none` and public-key algorithms for a shared secret, but a pinned
+ * list doesn't depend on that default staying as it is.
+ */
+const VERIFY_OPTIONS: jwt.VerifyOptions & { complete?: false } = {
+  issuer: 'medihelp',
+  algorithms: ['HS256'],
+};
+
 export function signAccessToken(payload: AccessTokenPayload): string {
   const { JWT_SECRET, ACCESS_TOKEN_TTL } = getSettings();
   return jwt.sign(payload, JWT_SECRET, {
@@ -47,8 +57,11 @@ export function signAccessToken(payload: AccessTokenPayload): string {
 export function verifyAccessToken(token: string): AccessTokenPayload {
   const { JWT_SECRET } = getSettings();
   try {
-    const decoded = jwt.verify(token, JWT_SECRET, { issuer: 'medihelp' });
-    if (typeof decoded === 'string' || !decoded.sub || !('role' in decoded)) {
+    const decoded = jwt.verify(token, JWT_SECRET, VERIFY_OPTIONS);
+    // A board token is refused by name, not just because it happens to lack
+    // `sub` and `role`. Otherwise one field added to it later would turn a
+    // thirty-day wall link into a login.
+    if (typeof decoded === 'string' || !decoded.sub || !('role' in decoded) || 'typ' in decoded) {
       throw new Error('malformed payload');
     }
     return { sub: String(decoded.sub), role: decoded.role as Role };
@@ -115,7 +128,7 @@ export function signBoardToken(doctorId: string): { token: string; expiresAt: Da
 export function verifyBoardToken(token: string): BoardTokenPayload {
   const { JWT_SECRET } = getSettings();
   try {
-    const decoded = jwt.verify(token, JWT_SECRET, { issuer: 'medihelp' });
+    const decoded = jwt.verify(token, JWT_SECRET, VERIFY_OPTIONS);
     if (typeof decoded === 'string' || decoded.typ !== 'board' || !decoded.doctorId) {
       throw new Error('not a board token');
     }

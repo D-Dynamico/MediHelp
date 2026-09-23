@@ -69,7 +69,10 @@ doctor changing their fee), `consultStartedAt`, `consultEndedAt`
 leak if someone asks for it explicitly.
 
 **Access token** — JWT, 15 minutes, returned in the JSON body and held **in memory**
-on the client. Never `localStorage`; that is the XSS exfiltration path.
+on the client. Never `localStorage`; that is the XSS exfiltration path. Verified
+with the algorithm pinned to `HS256` and the issuer checked. A token carrying a
+`typ` (the waiting-room board's link) is refused by name, so a thirty-day board
+link can never act as a login.
 
 **Refresh token** — an opaque 32-byte random value stored **hashed** in Mongo, sent
 as an `httpOnly`, `sameSite=strict` cookie (`secure` in production) scoped to
@@ -85,11 +88,23 @@ requirement back; treat it as a security decision, not a hosting one.
 that was already rotated means it was stolen: the whole family is revoked and the
 user must log in again.
 
-**Authorization** — `requireAuth` verifies the access token and attaches the user;
-`requireRole('admin')` gates by role; `requireOwnership` additionally checks the
-resource belongs to the caller. Role alone is the classic hole in these projects —
-a doctor with a valid token must not be able to complete another doctor's
-appointment by changing an id in the URL.
+**Authorization** — `requireAuth` verifies the access token and attaches the user,
+and `requireRole('admin')` gates by role. Every router applies both. Role alone
+is the classic hole in these projects: a doctor with a valid token must not be
+able to complete another doctor's appointment by changing an id in the URL. So
+**ownership is checked in the services**, where the record is already loaded:
+
+- `assertMayAct` covers the shared appointment actions;
+- `ownAppointment` covers payments and the queue;
+- `ownEntry` covers the waitlist, and `getOwn` covers triage;
+- the doctor's own profile, earnings and lists are read by their own id, never
+  by one from the URL.
+
+`requireOwnership` exists as a middleware and is tested, but no route uses it,
+because every ownership check needs the record the service loads anyway. A
+missing record answers 404. For one that exists but isn't yours, the
+appointment routes answer 403 and the queue answers 404. Both refuse, and an
+ObjectId reveals nothing about the record behind it.
 
 **Brute force** — `express-rate-limit` on `/api/auth/*` plus per-account
 `failedLogins` / `lockUntil` (locks after 6 failures).

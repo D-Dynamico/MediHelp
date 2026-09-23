@@ -127,6 +127,77 @@ it in a few lines if it's ever wanted.
 
 ---
 
+## 12.3 Security sweep
+
+**How.** Walked SYSTEM_DESIGN §3 against the code by hand, rule by rule, rather
+than running the `security-review` skill. That skill reviews a diff, and there
+was no pending diff: 12.3 is a sweep of the whole codebase against a checklist.
+
+**What held (no change needed).**
+
+| Rule | Where it's enforced |
+|---|---|
+| Role guard on every guarded router | `router.use(requireAuth, requireRole(...))` in admin, doctor, queue, patient, triage, waitlist and the payment routes after the webhook. Appointments guard per route: booking and `mine` are patient-only, and cancel is any role, with ownership checked in the service. |
+| Ownership | `assertMayAct` (appointments), `ownAppointment` (payments, queue), `ownEntry` (waitlist), `getOwn` (triage), with the doctor's own id taken from the token |
+| Fees are never read from the client | Booking uses `amount: doctor.fees`, and payments read `appointment.amount` |
+| Roles are never read from the client | Registration hard-codes `role: 'patient'`, and no schema has a `role` key. zod strips unknown keys. |
+| No password is ever serialised | `passwordHash` is `select: false`. Only `login` asks for it. Every response goes through an explicit DTO mapper, and every `$lookup` into `users` has a `$project` that leaves the hash out. |
+| Tokens | The access token is held in memory on the client (no `localStorage` anywhere in `client/src`). The refresh cookie is `httpOnly`, `sameSite=strict`, scoped to `/api/auth`, and `secure` in production. It is cleared with the same path. |
+| Brute force | `authLimiter` on login and refresh, `registerLimiter`, a lock after 6 failures, and dummy bcrypt work for unknown emails so response timing gives nothing away |
+| Inactive accounts | Refused at login, refresh and `/me`. Deactivation revokes refresh tokens. |
+| Search | Every `RegExp` built from input is escaped first |
+| Payments | `confirm-mock` refuses unless the provider is the mock. The webhook refuses when no secret is set, refuses without a signature, and compares signatures in constant time. `settle` is idempotent. |
+| Errors | Production 500s carry no stack or message |
+
+**What changed.**
+
+- *The JWT algorithm is pinned to `HS256`* in both verifiers. jsonwebtoken 9
+  already refuses `none` and public-key algorithms for a shared secret, but it
+  accepted an `HS512` token signed with our secret. Harmless today, but the
+  pinned list doesn't depend on the library's defaults.
+- *`verifyAccessToken` refuses any token with a `typ`.* A board token was only
+  refused by accident, because it happens to lack `sub` and `role`. `check-queue`
+  covered the other direction (an access token used as a board link), not this
+  one.
+- *SYSTEM_DESIGN §3 "Authorization" corrected.* It said `requireOwnership`
+  checks ownership, but no route uses it. Ownership is checked in the services,
+  where the record is already loaded. The middleware stays, because it is tested
+  in `check-auth-http` and ready if a route ever needs it.
+
+**Files.** `server/src/utils/tokens.ts`, `server/scripts/check-tokens.ts`,
+`docs/SYSTEM_DESIGN.md` §3, `docs/PHASES.md` (12.3 ticked).
+
+**Verified.**
+
+- `check:tokens`: 21/21, 4 of them new. The new `typ` and HS512 assertions were
+  also run against the old `tokens.ts` and **fail there**, so they test the
+  change and aren't passing by accident.
+- `check:auth` 26, `check:auth:http` 28, `check:queue` 63 and `check:waitlist` 41
+  are unchanged. Typecheck and lint are clean.
+
+**Found and accepted, below the bar for a change.**
+
+1. *403 versus 404 for someone else's record.* The doctor and appointment routes
+   answer 403, while the queue answers 404. Both refuse, and each is asserted by
+   its own check. The only thing a 403 leaks is that the id exists.
+2. *The lockout message reveals that an account exists.* An unknown email always
+   gets "do not match", so six wrong tries followed by "too many attempts"
+   confirms the email is registered. Registration's 409 already reveals the same
+   thing. This is the usual trade-off: an honest lockout message beats a
+   confusing one.
+3. *A deactivated doctor's access token lasts up to 15 minutes.* This is
+   documented in `deactivateDoctor`, and it is the cost of not querying the
+   database on every request.
+4. *Mock payments in production.* With no Razorpay keys, production runs the
+   mock provider, and the "pay" button marks a booking paid with no money moving.
+   That is intended for the demo deploy (the ground rule is that the project
+   boots with only `MONGODB_URI`). It must stay a conscious choice. 12.4 makes
+   sure `.env.example` and the deploy doc say so.
+5. *Anyone signed in can join any doctor's queue room.* This is by design: the
+   payload carries token numbers and no names, as `check-queue` asserts.
+
+---
+
 ## Open items
 
 - **Planned by the user, not started:** replace Claude symptom triage with
@@ -139,7 +210,7 @@ it in a few lines if it's ever wanted.
   same reason.
 - `SEED_ADMIN_EMAIL` still defaults to `admin@medihelp.test`. It needs a
   decision before deploying.
-- Phase 12.3–12.6, then phase 13: 13.1 root `start`, 13.2 serving `client/dist`
+- Phase 12.4–12.6, then phase 13: 13.1 root `start`, 13.2 serving `client/dist`
   (and checking the CSP there), 13.6 deploy, 13.7 live checks.
 - The phase 9 and 10 screens and the redesign have still never been clicked
   through in a browser.

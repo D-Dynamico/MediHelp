@@ -289,9 +289,11 @@ reconciled with the code.
       an `AuditLog` row; add the ones that were missed. *(None was missing. Profile
       edits now record what changed, not what was sent. `check:audit`, 22
       assertions.)*
-- [ ] **12.3 Security sweep** — walk the checklist in `docs/SYSTEM_DESIGN.md` §3
+- [x] **12.3 Security sweep** — walk the checklist in `docs/SYSTEM_DESIGN.md` §3
       against the built routes: role plus ownership on every guarded route, no
       client-supplied fees or roles, no password field ever serialised.
+      *(Everything held. JWT verification now pins `HS256` and refuses board
+      tokens by name. Every finding is listed in the 2026-09-24 session note.)*
 - [ ] **12.4 Config and secrets review** — `.env.example` complete and accurate,
       nothing secret committed, production cookie flags correct.
 - [ ] **12.5 Documentation pass** — README with setup, demo credentials and a

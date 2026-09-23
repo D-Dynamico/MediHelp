@@ -298,7 +298,7 @@ reconciled with the code.
       nothing secret committed, production cookie flags correct. *(`LOG_LEVEL`
       added. `check:env` now holds `.env.example` to the schema in both
       directions. Git history is clean of the real credentials.)*
-- [ ] **12.5 Documentation pass** — README with setup, demo credentials and a
+- [x] **12.5 Documentation pass** — README with setup, demo credentials and a
       feature tour; `ARCHITECTURE.md` and `SYSTEM_DESIGN.md` reconciled with what
       was actually built; session notes complete.
 - [ ] **12.6 Fresh-clone test** — clone to a new directory, set only `MONGODB_URI`

@@ -247,6 +247,55 @@ was no pending diff: 12.3 is a sweep of the whole codebase against a checklist.
 
 ---
 
+## 12.5 Documentation pass
+
+**What changed.**
+
+- *README rewritten around a first-time reader.*
+  - Setup now runs in the order it actually works: install, copy `.env`, seed,
+    run. It explains the two required keys, including that the Atlas URI needs
+    the database name and the IP allowlist.
+  - A demo-accounts table covers all eight doctors and five patients, and says
+    that production refuses the well-known password.
+  - A feature tour covers each role, using the real route paths and a
+    two-window setup, so the live parts can be seen working.
+  - The check counts are current: 18 scripts, around 700 assertions.
+  - Removed "the page shows the live API status", which the redesign took away:
+    no client code calls `/api/health` any more.
+- *Every tour claim was checked against the code before it was written.*
+  - The ten-minute window is `OFFER_WINDOW_MS`.
+  - Triage links to the matching doctors with `?triage=`, and the booking
+    carries it.
+  - The waitlist and the live position both sit on the patient's appointments
+    page.
+  - The admin can reinstate a doctor through `isActive`.
+  - The sandbox sets its own `MONGODB_URI` and `JWT_SECRET`.
+  - I didn't promise that the seeded data already has a full day. The waitlist
+    walkthrough says how to make one.
+- *ARCHITECTURE.md reconciled with the tree.*
+  - Module folders are plural, and `*.mapper.ts` files exist.
+  - `sanitize` and `audit` are now listed in middleware.
+  - The utils list is complete, and `types/express.d.ts`, `scripts/` and
+    `shared/queue.ts` are included.
+  - `routes/guards.tsx` replaces `ProtectedRoute`/`RoleRoute`, which never
+    existed under those names.
+  - The module table now says what each module really owns: the public
+    catalogue lives in `doctors`, token numbers are given at booking in
+    `appointments`, and there is no "cash settlement" in `payments`.
+- *SYSTEM_DESIGN.md §8* listed `PATCH /api/appointments/:id/complete`, which no
+  router defines. Completion goes through the doctor, queue and admin routes. It
+  was also missing `/api/health` and `/api/specialities`. I compared all 47
+  documented routes mechanically against every `*.routes.ts`. That stale route
+  was the only mismatch.
+
+**Files.** `README.md`, `docs/ARCHITECTURE.md`, `docs/SYSTEM_DESIGN.md`,
+`docs/PHASES.md` (12.5 ticked).
+
+**Verified.** Read against the code as described above. No code changed in this
+step.
+
+---
+
 ## Open items
 
 - **Planned by the user, not started:** replace Claude symptom triage with
@@ -260,7 +309,7 @@ was no pending diff: 12.3 is a sweep of the whole codebase against a checklist.
 - `SEED_ADMIN_EMAIL` still defaults to `admin@medihelp.test`. The deploy doc and
   `.env.example` now say to set a real mailbox. Choosing it is the user's call,
   at deploy time.
-- Phase 12.5–12.6, then phase 13: 13.1 root `start`, 13.2 serving `client/dist`
+- Phase 12.6, then phase 13: 13.1 root `start`, 13.2 serving `client/dist`
   (and checking the CSP there), 13.6 deploy, 13.7 live checks.
 - The phase 9 and 10 screens and the redesign have still never been clicked
   through in a browser.

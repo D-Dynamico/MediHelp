@@ -371,7 +371,13 @@ so it is not offered a slot they no longer need.
 
 ## 8. API surface
 
+Completing is done from the doctor's routes (`/api/doctor/...` and the queue) and
+the admin's, not from `/api/appointments`.
+
 ```
+GET    /api/health                     liveness, for Render's health check
+GET    /api/specialities               the fixed list the filters and forms use
+
 POST   /api/auth/register              patient self-signup
 POST   /api/auth/login
 POST   /api/auth/refresh               rotates the refresh cookie
@@ -387,8 +393,7 @@ GET    /api/triage/:id                 read one back; 404 unless it is yours
 
 POST   /api/appointments               book
 GET    /api/appointments/mine          patient's own
-PATCH  /api/appointments/:id/cancel
-PATCH  /api/appointments/:id/complete  doctor or admin
+PATCH  /api/appointments/:id/cancel    any role, ownership checked in the service
 
 POST   /api/payments/order             create a gateway order
 POST   /api/payments/verify            verify signature

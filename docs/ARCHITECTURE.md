@@ -26,29 +26,35 @@ MediHelp/
 ├─ README.md            Human setup and run instructions
 ├─ docs/                Architecture, system design, workflow, phases, sessions
 ├─ shared/
-│  └─ types.ts          Roles, statuses, DTOs — imported by client and server
+│  ├─ types.ts          Roles, statuses, DTOs — imported by client and server
+│  └─ queue.ts          Wait-estimate maths, so both sides show the same number
 ├─ server/
 │  ├─ src/
 │  │  ├─ config/        env.ts (zod-validated settings), db.ts, logger.ts
 │  │  ├─ models/        Mongoose schemas (see SYSTEM_DESIGN.md)
 │  │  ├─ modules/       One folder per domain; each has
-│  │  │                 *.routes.ts / *.controller.ts / *.service.ts / *.schema.ts
-│  │  │                 auth, admin, doctor, patient, appointment,
-│  │  │                 payment, triage, queue, waitlist
-│  │  ├─ middleware/    auth (requireAuth, requireRole, requireOwnership),
-│  │  │                 validate, error, rateLimit, upload
+│  │  │                 *.routes.ts / *.controller.ts / *.service.ts / *.schema.ts,
+│  │  │                 plus *.mapper.ts where a DTO is shared
+│  │  │                 auth, admin, doctors, patients, appointments,
+│  │  │                 payments, triage, queue, waitlist
+│  │  ├─ middleware/    auth (requireAuth, requireRole, requireOwnership, audit),
+│  │  │                 validate, sanitize, error, rateLimit, upload
 │  │  ├─ realtime/      io.ts (socket server, handshake auth, room names)
 │  │  ├─ jobs/          waitlistSweeper.ts (node-cron)
 │  │  ├─ providers/     payment/, storage/, ai/ — swappable integrations
-│  │  ├─ utils/         tokens, apiError, eta, slots
+│  │  ├─ utils/         tokens, password, apiError, dates, slots, availability,
+│  │  │                 eta, changes (what an edit changed, for the audit trail)
+│  │  ├─ types/         express.d.ts (req.auth, req.rawBody, req.uploadedImage)
 │  │  └─ seed.ts
+│  ├─ scripts/          check-*.ts (one per area, run by `npm run check`),
+│  │                    dev-sandbox.ts, refresh-demo-photos.ts
 │  └─ uploads/          Local image store (default storage provider)
 └─ client/
    └─ src/
       ├─ api/           axios instance with refresh interceptor, typed endpoints,
       │                 socket.ts (the one live connection, with session renewal)
       ├─ context/       AuthContext
-      ├─ routes/        router.tsx, ProtectedRoute, RoleRoute
+      ├─ routes/        router.tsx, guards.tsx (signed-in and role guards)
       ├─ pages/         public/ (catalogue and the board), patient/, doctor/, admin/
       ├─ components/    ui/ primitives, plus composites (WorkShell, QueueCard,
       │                 WaitlistPanel)
@@ -72,13 +78,13 @@ A request that skips a layer is a bug waiting to happen. Keep the chain intact.
 |---|---|
 | `auth` | Register, login, refresh rotation, logout, current user |
 | `admin` | Dashboard stats, doctor CRUD, all-appointments view and actions |
-| `doctor` | Own profile, own appointments, earnings, availability |
-| `patient` | Own profile, browse doctors, own appointments |
-| `appointment` | Slot generation, booking, cancellation, completion — the shared core |
-| `payment` | Order creation, verification, cash settlement |
+| `doctors` | The doctor's own profile, appointments, earnings and availability, plus the public catalogue and free slots (`public.routes.ts`) |
+| `patients` | The patient's own profile |
+| `appointments` | Booking (with its token number), the patient's own list, and cancel, start, complete and no-show, shared by every role |
+| `payments` | Order creation, signature verification, the signed webhook, the demo's mock confirmation |
 | `triage` | Symptom assessment and specialty routing |
-| `queue` | Token allocation, call-next, live ETA |
-| `waitlist` | Waiting entries, cancellation offers, claims |
+| `queue` | Check-in, call-next, the live snapshot and wait estimate, the waiting-room board |
+| `waitlist` | Waiting entries, cancellation offers (and the hold on the offered slot), claims |
 
 Cross-module work goes through the owning module's **service**, never by reaching
 into another module's models directly.

@@ -7,7 +7,7 @@ import type {
   QueueSnapshotDto,
   Urgency,
 } from '@shared/types.js';
-import { AppointmentModel, DoctorModel, QueueSessionModel } from '../../models/index.js';
+import { AppointmentModel, DoctorModel } from '../../models/index.js';
 import { ApiError } from '../../utils/apiError.js';
 import { dayFromKey, dayKeyUtc, endOfDayUtc, startOfDayUtc } from '../../utils/dates.js';
 import { signBoardToken } from '../../utils/tokens.js';
@@ -17,7 +17,7 @@ import {
   startConsult,
   type Actor,
 } from '../appointments/appointment.service.js';
-import { broadcastQueue, buildSnapshot, sessionFor } from './queue.snapshot.js';
+import { broadcastQueue, buildSnapshot } from './queue.snapshot.js';
 
 /**
  * The doctor's controls over their own queue.
@@ -50,12 +50,17 @@ function dayOf(dateKey?: string): Date {
  * *what changed* and carries numbers only; this says *who*, and only a signed-in
  * doctor looking at their own day ever sees it.
  */
-export async function doctorQueue(userId: string, dateKey?: string): Promise<DoctorQueueDto> {
+export async function doctorQueue(
+  userId: string,
+  dateKey?: string,
+  /** One just built for the broadcast, so an action does not build it twice. */
+  built?: QueueSnapshotDto | null,
+): Promise<DoctorQueueDto> {
   const doctor = await ownDoctor(userId);
   const day = dayOf(dateKey);
 
   const [snapshot, rows] = await Promise.all([
-    buildSnapshot(doctor._id, day),
+    built ?? buildSnapshot(doctor._id, day),
     AppointmentModel.find({
       doctorId: doctor._id,
       slotStart: { $gte: startOfDayUtc(day), $lt: endOfDayUtc(day) },
@@ -125,8 +130,8 @@ export async function checkIn(userId: string, appointmentId: string): Promise<Do
   appointment.checkedInAt = new Date();
   await appointment.save();
 
-  await broadcastQueue(appointment.doctorId, appointment.slotStart);
-  return doctorQueue(userId, dayKeyUtc(appointment.slotStart));
+  const snapshot = await broadcastQueue(appointment.doctorId, appointment.slotStart);
+  return doctorQueue(userId, dayKeyUtc(appointment.slotStart), snapshot);
 }
 
 /**
@@ -146,13 +151,6 @@ export async function callNext(userId: string, dateKey?: string): Promise<Doctor
   const day = dayOf(dateKey);
   const window = { $gte: startOfDayUtc(day), $lt: endOfDayUtc(day) };
 
-  const inRoom = await AppointmentModel.exists({
-    doctorId: doctor._id,
-    slotStart: window,
-    status: 'in_progress',
-  });
-  if (inRoom) throw ApiError.conflict('Finish with the patient you are seeing first.');
-
   const next = await AppointmentModel.findOne({
     doctorId: doctor._id,
     slotStart: window,
@@ -163,17 +161,10 @@ export async function callNext(userId: string, dateKey?: string): Promise<Doctor
 
   if (!next) throw ApiError.conflict('Nobody is checked in and waiting.');
 
-  // The session records the call before the appointment moves, so the board has
-  // a token to keep showing after this patient leaves the room and before the
-  // next one is called.
-  await sessionFor(doctor._id, day);
-  await QueueSessionModel.updateOne(
-    { doctorId: doctor._id, date: startOfDayUtc(day) },
-    { $set: { currentToken: next.tokenNumber, lastCalledAt: new Date() } },
-  );
-
-  // Reuses the shared transition, so `consultStartedAt` is stamped exactly once
-  // and "started" means the same thing here as it does in the appointments table.
+  // The shared transition does the rest: it refuses while somebody is already
+  // in the room, stamps `consultStartedAt` exactly once, and records the called
+  // token on the session — so "started" means the same thing here as it does in
+  // the appointments table, and the board moves either way.
   await startConsult(String(next._id), { userId, role: 'doctor' });
 
   return doctorQueue(userId, dateKey);

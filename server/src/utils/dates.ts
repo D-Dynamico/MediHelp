@@ -42,10 +42,23 @@ export function ageFrom(dob: Date | null | undefined): number | undefined {
  */
 export { dayKeyUtc } from '@shared/queue.js';
 
-/** Midnight UTC for a "YYYY-MM-DD" key. Throws on anything else. */
+/**
+ * Midnight UTC for a "YYYY-MM-DD" key. Throws on anything else.
+ *
+ * Including keys that look right and name no real day. `new Date` rolls
+ * 2026-02-31 over into 3 March without complaint, which would put a socket in a
+ * room named for February while its snapshot said March — and every later
+ * broadcast would go to the March room it is not in. Round-tripping the result
+ * back to a key is what catches that.
+ */
 export function dayFromKey(key: string): Date {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) throw new Error(`Not a day key: ${key}`);
+  if (!isDayKey(key)) throw new Error(`Not a day key: ${key}`);
+  return new Date(`${key}T00:00:00.000Z`);
+}
+
+/** Whether a string is a "YYYY-MM-DD" key for a day that exists. */
+export function isDayKey(key: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return false;
   const day = new Date(`${key}T00:00:00.000Z`);
-  if (Number.isNaN(day.getTime())) throw new Error(`Not a day key: ${key}`);
-  return day;
+  return !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === key;
 }

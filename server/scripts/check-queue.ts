@@ -381,6 +381,76 @@ check(
 fresh.close();
 
 
+
+/* ------------------------------------------- what the code review found --- */
+
+// A consult started and finished from the appointments table, not the queue.
+// The board used to fall back to whatever "call next" had last recorded, so it
+// went from "Now serving T-8" back to T-5.
+const tableStart = await call(`/api/doctor/appointments/${String(third._id)}/start`, {
+  method: 'PATCH',
+  token: doctorToken,
+});
+check('a consult can be started from the appointments table', tableStart.status === 200, tableStart.status);
+const startedSnapshot = (await call('/api/doctor/queue', { token: doctorToken })).body.snapshot;
+check(
+  'and the board shows that token in the room',
+  startedSnapshot.currentToken === 8 && startedSnapshot.inRoom === true,
+  startedSnapshot,
+);
+
+// One patient in the room at a time, whichever screen started them.
+const fourth = await makeAppointment(0, 10, 12);
+const secondStart = await call(`/api/doctor/appointments/${String(fourth._id)}/start`, {
+  method: 'PATCH',
+  token: doctorToken,
+});
+check(
+  'a second consult cannot start while one is under way',
+  secondStart.status === 409,
+  secondStart.status,
+);
+
+await call(`/api/doctor/appointments/${String(third._id)}/complete`, {
+  method: 'PATCH',
+  token: doctorToken,
+});
+const finishedSnapshot = (await call('/api/doctor/queue', { token: doctorToken })).body.snapshot;
+check(
+  'after it finishes the board keeps the last token called, not an older one',
+  finishedSnapshot.currentToken === 8,
+  finishedSnapshot.currentToken,
+);
+check(
+  'and says that token has left the room',
+  finishedSnapshot.inRoom === false,
+  finishedSnapshot.inRoom,
+);
+
+// A date that matches the shape and names no real day.
+const impossible = await call('/api/doctor/queue?date=2026-02-31', { token: doctorToken });
+check('the thirty-first of February is refused', impossible.status === 422, impossible.status);
+
+// Reading a queue must never create one. Every socket join builds a snapshot;
+// if reads upserted, one account could fill the collection by walking dates.
+const sessionsBefore = await QueueSessionModel.countDocuments();
+const reader = await open({ token: patientToken });
+const farJoin = nextUpdate(reader, 800);
+reader.emit('queue:join', { doctorId: String(otherDoctor!._id), date: '2020-01-01' });
+check('a join for a day long gone is ignored', (await farJoin) === null);
+const nearJoin = nextUpdate(reader, 2000);
+reader.emit('queue:join', { doctorId: String(otherDoctor!._id), date: todayKey });
+check('a join for today is still answered', (await nearJoin) !== null);
+const badJoin = nextUpdate(reader, 800);
+reader.emit('queue:join', { doctorId: 'not-an-id', date: todayKey });
+check('a join with a malformed id is ignored', (await badJoin) === null);
+reader.close();
+check(
+  'and none of those reads wrote a queue session',
+  (await QueueSessionModel.countDocuments()) === sessionsBefore,
+  (await QueueSessionModel.countDocuments()) - sessionsBefore,
+);
+
 /* ---------------------------------------------------- the wait estimate --- */
 
 check('nobody ahead means no wait at all', etaMinutes(0, 20) === 0, etaMinutes(0, 20));

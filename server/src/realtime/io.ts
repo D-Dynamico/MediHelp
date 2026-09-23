@@ -5,6 +5,9 @@ import { QUEUE_JOIN_EVENT, QUEUE_UPDATE_EVENT } from '@shared/types.js';
 import { getSettings } from '../config/env.js';
 import { logger } from '../config/logger.js';
 import { verifyAccessToken, verifyBoardToken } from '../utils/tokens.js';
+import { dayFromKey, startOfDayUtc } from '../utils/dates.js';
+import { horizonEnd } from '../utils/slots.js';
+import { queueJoinSchema } from '../modules/queue/queue.schema.js';
 
 /**
  * The realtime side of the queue.
@@ -109,9 +112,17 @@ export function mountRealtime(server: HttpServer, snapshotFor?: SnapshotProvider
     if (identity.kind === 'user') void socket.join(userRoom(identity.userId));
 
     socket.on(QUEUE_JOIN_EVENT, (payload: unknown) => {
-      const { doctorId, date } = (payload ?? {}) as { doctorId?: unknown; date?: unknown };
-      if (typeof doctorId !== 'string' || typeof date !== 'string') return;
-      if (!/^[a-f\d]{24}$/i.test(doctorId) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+      const parsed = queueJoinSchema.safeParse(payload);
+      if (!parsed.success) return;
+      const { doctorId, date } = parsed.data;
+
+      // Only days a queue can actually be happening on: yesterday (a clinic
+      // running past midnight UTC) through the booking horizon. Every join builds
+      // a snapshot, and without a bound one signed-in account could walk every
+      // date from year 1 to 9999 through the database for free.
+      const day = dayFromKey(date);
+      const earliest = startOfDayUtc(new Date(Date.now() - 86_400_000));
+      if (day < earliest || day >= horizonEnd()) return;
 
       // A board link is for one doctor's wall. Without this, one valid link
       // would open every doctor's queue.

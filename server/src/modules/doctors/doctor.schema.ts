@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isDayKey } from '../../utils/dates.js';
 import { SPECIALITIES } from '@shared/types.js';
 import { findAvailabilityProblems } from '../../utils/availability.js';
 
@@ -134,17 +135,6 @@ export const publicDoctorQuerySchema = z.object({
 
 export type PublicDoctorQuery = z.infer<typeof publicDoctorQuerySchema>;
 
-/**
- * Whether `YYYY-MM-DD` names a day that exists.
- *
- * `new Date()` is no help on its own: it rejects month 13 by returning an
- * Invalid Date, but accepts 30 February by rolling it into March. Parsing and
- * then reading the parts back catches both.
- */
-function isRealCalendarDay(value: string): boolean {
-  const parsed = new Date(`${value}T00:00:00.000Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-}
 
 /** The date a patient is asking a doctor's free slots for. */
 export const slotQuerySchema = z.object({
@@ -160,7 +150,7 @@ export const slotQuerySchema = z.object({
     // Date, which threw out of the handler as a 500; 2026-02-30 quietly rolls
     // over to 2026-03-02 and answers about a day nobody asked about. Both are
     // refused here so the handler only ever sees a real calendar day.
-    .refine(isRealCalendarDay, 'That is not a real date.')
+    .refine(isDayKey, 'That is not a real date.')
     .optional(),
 });
 

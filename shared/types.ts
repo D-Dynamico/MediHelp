@@ -274,8 +274,17 @@ export interface QueueSnapshotDto {
   speciality: Speciality;
   /** The day this queue belongs to, "YYYY-MM-DD" in UTC. */
   date: string;
-  /** The token being seen now. 0 means the day has not started. */
+  /**
+   * The token being seen now, or the last one called if the room is empty
+   * between patients. 0 means nobody has been called today.
+   */
   currentToken: number;
+  /**
+   * Whether `currentToken` is in the room right now, or has already left it.
+   * Without this a patient whose consult just finished would keep reading "the
+   * doctor is ready for you" until the next patient was called.
+   */
+  inRoom: boolean;
   /** Tokens checked in and still waiting, in the order they will be called. */
   waiting: number[];
   /** Minutes a consult typically takes for this doctor — what the ETA is built on. */
@@ -315,3 +324,4 @@ export interface BoardLinkDto {
 /** The one event the queue room carries. Named here so both sides agree. */
 export const QUEUE_UPDATE_EVENT = 'queue:update';
 export const QUEUE_JOIN_EVENT = 'queue:join';
+

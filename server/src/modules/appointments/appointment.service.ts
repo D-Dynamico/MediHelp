@@ -11,11 +11,11 @@ import {
 } from '../../models/index.js';
 import { ApiError } from '../../utils/apiError.js';
 import { logger } from '../../config/logger.js';
-import { startOfDayUtc } from '../../utils/dates.js';
+import { endOfDayUtc, startOfDayUtc } from '../../utils/dates.js';
 import { horizonEnd, isOfferedSlot, slotsFor } from '../../utils/slots.js';
 import { refreshMedianConsultMins } from '../../utils/eta.js';
 import { refundFor } from '../payments/payment.service.js';
-import { broadcastQueue, recordServed } from '../queue/queue.snapshot.js';
+import { broadcastQueue, recordCalled, recordServed } from '../queue/queue.snapshot.js';
 import {
   patientLookupStages,
   triageLookupStages,
@@ -256,9 +256,25 @@ export async function startConsult(id: string, actor: Actor): Promise<Appointmen
   }
 
   if (appointment.status !== 'in_progress') {
+    // One patient in the room at a time. The queue, the board and "call next"
+    // all assume it; a second consult started from the appointments table would
+    // be hidden behind the first on every screen, and "call next" would refuse
+    // until somebody found and finished the one nobody could see.
+    const occupied = await AppointmentModel.exists({
+      _id: { $ne: appointment._id },
+      doctorId: appointment.doctorId,
+      slotStart: { $gte: startOfDayUtc(appointment.slotStart), $lt: endOfDayUtc(appointment.slotStart) },
+      status: 'in_progress',
+    });
+    if (occupied) throw ApiError.conflict('Finish with the patient you are seeing first.');
+
     appointment.status = 'in_progress';
     appointment.consultStartedAt ??= new Date();
     await appointment.save();
+
+    await afterward('record the called token', () =>
+      recordCalled(appointment.doctorId, appointment.slotStart, appointment.tokenNumber),
+    );
     await broadcastQueue(appointment.doctorId, appointment.slotStart);
   }
 
@@ -324,11 +340,35 @@ export async function completeAppointment(id: string, actor: Actor): Promise<App
   await appointment.save();
   // Recomputed from the last twenty finished consults, so the queue's estimate
   // is this doctor's real pace rather than a constant.
-  await refreshMedianConsultMins(appointment.doctorId);
-  await recordServed(appointment.doctorId, appointment.slotStart);
+  await afterward('refresh the median consult length', () =>
+    refreshMedianConsultMins(appointment.doctorId),
+  );
+  await afterward('count the patient served', () =>
+    recordServed(appointment.doctorId, appointment.slotStart),
+  );
   await broadcastQueue(appointment.doctorId, appointment.slotStart);
 
   return present(appointment._id);
+}
+
+/**
+ * Runs a follow-on step after the appointment itself has been saved.
+ *
+ * The save is the thing the doctor asked for, and it has happened. If the step
+ * after it fails — a blip on the median query, say — reporting the whole action
+ * as an error would be a lie, and pressing the button again would then fail for
+ * real with "already marked complete". So the failure is logged loudly and the
+ * action still succeeds. Every one of these steps is repaired by the next
+ * consult that runs it.
+ */
+async function afterward(what: string, step: () => Promise<unknown>): Promise<void> {
+  try {
+    await step();
+  } catch (error) {
+    logger.error(`Could not ${what} after saving an appointment`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 /** Re-reads one appointment through the same shape every list returns. */

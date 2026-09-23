@@ -16,25 +16,44 @@ import { emitQueueUpdate } from '../../realtime/io.js';
  */
 
 /**
- * The queue session for a doctor's day, created the first time it is needed.
+ * Writes to a doctor's day, creating its session the first time.
  *
- * An upsert rather than a find-then-create: two people opening the board at the
- * same moment would both find nothing and both insert, and the unique index
- * would turn one of them into a 500. `$setOnInsert` means the document is only
- * ever initialised once, so an upsert racing with a real update cannot reset
- * `currentToken` to zero mid-morning.
+ * One `updateOne` with `upsert`, not a find-then-create: two writes landing
+ * together would both find nothing and both insert, and the unique index would
+ * turn one of them into an error. The server retries an upsert that loses that
+ * race on its own, so both writes land.
+ *
+ * Only writes go through here. Reading a queue never creates one — every join
+ * of a socket room builds a snapshot, and a read that upserted would let anyone
+ * signed in fill the collection with sessions for days nobody works.
  */
-export async function sessionFor(doctorId: Types.ObjectId | string, day: Date) {
-  const id = new Types.ObjectId(String(doctorId));
-  const session = await QueueSessionModel.findOneAndUpdate(
-    { doctorId: id, date: startOfDayUtc(day) },
-    { $setOnInsert: { currentToken: 0, servedCount: 0 } },
-    { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
+async function writeSession(
+  doctorId: Types.ObjectId | string,
+  day: Date,
+  update: Record<string, unknown>,
+): Promise<void> {
+  await QueueSessionModel.updateOne(
+    { doctorId: new Types.ObjectId(String(doctorId)), date: startOfDayUtc(day) },
+    update,
+    { upsert: true },
   );
-  // An upsert returning the document after the write always has one; the
-  // assertion is for the type, not for a case that happens.
-  if (!session) throw ApiError.notFound('No queue for that doctor.');
-  return session;
+}
+
+/**
+ * Records that a token has been called into the room.
+ *
+ * Called from the shared `startConsult`, not only from the queue's "call next",
+ * so a consult started from the appointments table moves the board just the
+ * same. When only "call next" wrote this, starting and finishing a consult from
+ * the table let the board fall back to whichever token "call next" had last
+ * seen.
+ */
+export async function recordCalled(
+  doctorId: Types.ObjectId | string,
+  day: Date,
+  token: number,
+): Promise<void> {
+  await writeSession(doctorId, day, { $set: { currentToken: token, lastCalledAt: new Date() } });
 }
 
 /**
@@ -61,7 +80,10 @@ export async function buildSnapshot(
   const account = await doctor.populate<{ userId: { name: string } }>('userId', 'name');
 
   const [session, rows] = await Promise.all([
-    sessionFor(id, day),
+    // A plain read. No session yet simply means nobody has been called today.
+    QueueSessionModel.findOne({ doctorId: id, date: startOfDayUtc(day) })
+      .select('currentToken')
+      .lean(),
     AppointmentModel.find({
       doctorId: id,
       slotStart: { $gte: startOfDayUtc(day), $lt: endOfDayUtc(day) },
@@ -79,7 +101,8 @@ export async function buildSnapshot(
     doctorName: account.userId.name,
     speciality: doctor.speciality as Speciality,
     date: dayKeyUtc(day),
-    currentToken: serving?.tokenNumber ?? session.currentToken ?? 0,
+    currentToken: serving?.tokenNumber ?? session?.currentToken ?? 0,
+    inRoom: Boolean(serving),
     waiting: rows.filter((row) => row.status === 'checked_in').map((row) => row.tokenNumber),
     medianConsultMins: doctor.medianConsultMins,
     updatedAt: new Date().toISOString(),
@@ -94,11 +117,7 @@ export async function buildSnapshot(
  * a tally that only counted one of those routes would be wrong by lunchtime.
  */
 export async function recordServed(doctorId: Types.ObjectId | string, day: Date): Promise<void> {
-  await sessionFor(doctorId, day);
-  await QueueSessionModel.updateOne(
-    { doctorId: new Types.ObjectId(String(doctorId)), date: startOfDayUtc(day) },
-    { $inc: { servedCount: 1 } },
-  );
+  await writeSession(doctorId, day, { $inc: { servedCount: 1 } });
 }
 
 /**

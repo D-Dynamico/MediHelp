@@ -246,22 +246,30 @@ appointment with a token number.
 
 ## Phase 11 — Client polish
 
-- [ ] **11.1 Layout shell** — header, role-aware navigation, footer, consistent page
+- [x] **11.1 Layout shell** — header, role-aware navigation, footer, consistent page
       container across all three role areas.
-- [ ] **11.2 UI primitives** — Button, Card, Modal, Table, StatTile, Badge, all
+- [x] **11.2 UI primitives** — Button, Card, Modal, Table, StatTile, Badge, all
       theme-token driven and reused everywhere.
-- [ ] **11.3 Async states** — loading skeletons, empty states with a next action,
+- [x] **11.3 Async states** — loading skeletons, empty states with a next action,
       toasts for success and failure, and an error boundary per route group.
-- [ ] **11.4 Responsive pass** — every screen at mobile width; tables collapse to
+- [x] **11.4 Responsive pass** — every screen at mobile width; tables collapse to
       cards rather than scrolling off.
-- [ ] **11.5 Accessibility** — labelled form fields, visible focus rings, keyboard
+- [x] **11.5 Accessibility** — labelled form fields, visible focus rings, keyboard
       paths through booking and the doctor actions, sensible contrast in both
       themes.
-- [ ] **11.6 Edge pages** — 404, 403, and a friendly offline/reconnecting state for
+- [x] **11.6 Edge pages** — 404, 403, and a friendly offline/reconnecting state for
       the live queue.
 
 **Exit**: every screen works at mobile width; no raw error text and no
 spinner-forever state anywhere in the three role journeys.
+
+Done early, as the design pass of 2026-09-02 (`6fe7d60`) — see that day's
+phase 8 session note. Two items met differently from how they read here: a 403
+is a redirect to the person's own home rather than a page, because the guards
+exist to keep people off screens that would only show them errors; and the
+"offline/reconnecting state" is the queue's own (phase 9) — the patient card's
+amber chip and the board's dimmed bar. Ticked on 2026-09-23 when the plan was
+reconciled with the code.
 
 ---
 
@@ -298,13 +306,13 @@ settings and the caveats are in `docs/DEPLOYMENT.md`.
 - [ ] **13.2 Serve the client** — in production only, Express serves `client/dist`
       with cache headers and an SPA fallback, ordered after `/api` and
       `/socket.io` so neither falls through to `index.html`.
-- [ ] **13.3 Behind a proxy** — `trust proxy`, `secure` cookies in production
+- [x] **13.3 Behind a proxy** — `trust proxy`, `secure` cookies in production
       (off in development so localhost http still works), rate limiting keyed on
       the forwarded IP rather than the proxy's.
-- [ ] **13.4 Cloudinary provider** — the storage implementation activated by
+- [x] **13.4 Cloudinary provider** — the storage implementation activated by
       `STORAGE_PROVIDER=cloudinary`, with the local provider untouched as the
       development default.
-- [ ] **13.5 Seed safety** — the seed script refuses to run against a database
+- [x] **13.5 Seed safety** — the seed script refuses to run against a database
       that already has users unless `--force` is passed, so seeding production is
       deliberate and a rerun cannot wipe real data.
 - [ ] **13.6 Ship it** — Atlas network access and user, Render service with build,
@@ -316,3 +324,9 @@ settings and the caveats are in `docs/DEPLOYMENT.md`.
 **Exit**: the deployed URL runs the full demo — three roles, triage, live queue,
 waitlist — with no secret in the repo, an uploaded photo still present after a
 redeploy, and the websocket updating a second browser in real time.
+
+13.3–13.5 were built alongside earlier phases and ticked on 2026-09-23: `trust
+proxy` and `secure` cookies in production (`app.ts`, `auth.controller.ts`), the
+Cloudinary provider (`providers/storage/cloudinary.ts`), and the seed's refusal
+without `--force` (`seed.ts`). 13.1 is still open — only the server package has a
+`start` script, the root does not — and 13.2 is untouched.

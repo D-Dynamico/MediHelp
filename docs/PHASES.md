@@ -285,8 +285,10 @@ reconciled with the code.
       allowlist from env, JSON body size cap. *(The two sanitizer packages were
       replaced by `middleware/sanitize.ts`, because both break on Express 5. CORS
       applies only when `CORS_ORIGINS` is set. `check:hardening`, 16 assertions.)*
-- [ ] **12.2 Audit coverage** — confirm every admin and doctor state change writes
-      an `AuditLog` row; add the ones that were missed.
+- [x] **12.2 Audit coverage** — confirm every admin and doctor state change writes
+      an `AuditLog` row; add the ones that were missed. *(None was missing. Profile
+      edits now record what changed, not what was sent. `check:audit`, 22
+      assertions.)*
 - [ ] **12.3 Security sweep** — walk the checklist in `docs/SYSTEM_DESIGN.md` §3
       against the built routes: role plus ownership on every guarded route, no
       client-supplied fees or roles, no password field ever serialised.

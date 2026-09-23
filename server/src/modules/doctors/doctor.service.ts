@@ -9,6 +9,7 @@ import type {
 } from '@shared/types.js';
 import { AppointmentModel, DoctorModel, UserModel } from '../../models/index.js';
 import { ApiError } from '../../utils/apiError.js';
+import { changedFields, feeChange } from '../../utils/changes.js';
 import { endOfDayUtc, startOfDayUtc, startOfMonthUtc } from '../../utils/dates.js';
 import { horizonEnd, slotsFor } from '../../utils/slots.js';
 import {
@@ -65,8 +66,9 @@ export async function updateProfile(
   userId: string,
   input: UpdateProfileInput,
   image?: string,
-): Promise<DoctorProfileDto> {
+): Promise<{ profile: DoctorProfileDto; changes: Record<string, unknown> }> {
   const { doctor, user } = await own(userId);
+  const feesBefore = doctor.fees;
 
   if (input.name !== undefined) user.name = input.name;
   if (input.phone !== undefined) user.phone = input.phone;
@@ -90,8 +92,9 @@ export async function updateProfile(
     doctor.set('workingHours', input.workingHours);
   }
 
+  const changes = { changed: changedFields(user, doctor), ...feeChange(feesBefore, doctor.fees) };
   await Promise.all([user.save(), doctor.save()]);
-  return toDoctorProfileDto(doctor, user);
+  return { profile: toDoctorProfileDto(doctor, user), changes };
 }
 
 /* -------------------------------------------------------- appointments --- */

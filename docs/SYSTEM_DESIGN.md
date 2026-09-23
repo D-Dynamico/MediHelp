@@ -131,7 +131,15 @@ Covered by `npm run check:hardening --workspace server`.
 **Uploads** — multer with a MIME plus magic-byte check, a 2 MB cap, randomised
 filenames, served from a path that cannot execute anything.
 
-**Audit** — every state-changing admin or doctor action writes an `AuditLog` row.
+**Audit** — every state-changing admin or doctor action writes an `AuditLog` row,
+after it succeeds, so refused attempts leave no trace. The actions are
+`doctor.create`, `doctor.update`, `doctor.deactivate`, `doctor.profile.update`,
+`appointment.start`, `.complete`, `.cancel` and `.no_show`, and `queue.check_in`
+and `queue.call_next`. Patient bookings, cancellations and payments are recorded
+too. Profile edits record what **actually changed** (`meta.changed`, read from
+Mongoose's modified paths before saving), not the fields the form sent, because
+the forms always send every field. A fee change also records its before and
+after. Covered by `npm run check:audit --workspace server`.
 
 **Money and identity are server-side facts.** The fee charged comes from the doctor
 record; the acting user comes from the verified token. Neither is ever read from

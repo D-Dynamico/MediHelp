@@ -15,7 +15,7 @@ export const getProfile: RequestHandler = async (req, res) => {
 };
 
 export const updateProfile: RequestHandler = async (req, res) => {
-  const profile = await doctorService.updateProfile(
+  const { profile, changes } = await doctorService.updateProfile(
     req.auth!.userId,
     req.body as UpdateProfileInput,
     req.uploadedImage?.url,
@@ -24,9 +24,7 @@ export const updateProfile: RequestHandler = async (req, res) => {
   // The image belongs to the profile now; the error handler must not reclaim it.
   delete req.uploadedImage;
 
-  await audit(req, 'doctor.profile.update', { type: 'Doctor', id: profile.id }, {
-    fields: Object.keys(req.body as object),
-  });
+  await audit(req, 'doctor.profile.update', { type: 'Doctor', id: profile.id }, changes);
   res.json({ profile });
 };
 

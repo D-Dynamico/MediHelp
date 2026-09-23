@@ -10,6 +10,7 @@ import {
 } from '../../models/index.js';
 import { ApiError } from '../../utils/apiError.js';
 import { hashPassword } from '../../utils/password.js';
+import { changedFields, feeChange } from '../../utils/changes.js';
 import { endOfDayUtc, startOfDayUtc } from '../../utils/dates.js';
 import {
   patientLookupStages,
@@ -274,8 +275,9 @@ export async function updateDoctor(
   id: string,
   input: UpdateDoctorInput,
   image?: string,
-): Promise<DoctorDto> {
+): Promise<{ doctor: DoctorDto; changes: Record<string, unknown> }> {
   const { doctor, user } = await loadDoctor(id);
+  const feesBefore = doctor.fees;
 
   if (input.name !== undefined) user.name = input.name;
   if (input.phone !== undefined) user.phone = input.phone;
@@ -297,8 +299,9 @@ export async function updateDoctor(
     };
   }
 
+  const changes = { changed: changedFields(user, doctor), ...feeChange(feesBefore, doctor.fees) };
   await Promise.all([user.save(), doctor.save()]);
-  return toDoctorDto(doctor, user);
+  return { doctor: toDoctorDto(doctor, user), changes };
 }
 
 /**

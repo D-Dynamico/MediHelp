@@ -15,7 +15,7 @@
     "seed": "tsx src/seed.ts",
     "refresh:photos": "tsx scripts/refresh-demo-photos.ts",
     "check:seed": "tsx scripts/check-seed.ts",
-    "check": "npm run check:env && npm run check:tokens && npm run check:models && npm run check:errors && npm run check:auth && npm run check:auth:http && npm run check:ratelimit && npm run check:seed && npm run check:upload && npm run check:admin && npm run check:doctor && npm run check:booking && npm run check:payments && npm run check:triage && npm run check:queue && npm run check:waitlist && npm run check:hardening",
+    "check": "npm run check:env && npm run check:tokens && npm run check:models && npm run check:errors && npm run check:auth && npm run check:auth:http && npm run check:ratelimit && npm run check:seed && npm run check:upload && npm run check:admin && npm run check:doctor && npm run check:booking && npm run check:payments && npm run check:triage && npm run check:queue && npm run check:waitlist && npm run check:hardening && npm run check:audit",
     "check:tokens": "tsx scripts/check-tokens.ts",
     "check:auth": "tsx scripts/check-auth.ts",
     "check:auth:http": "tsx scripts/check-auth-http.ts",
@@ -31,7 +31,8 @@
     "check:triage": "tsx scripts/check-triage.ts",
     "check:queue": "tsx scripts/check-queue.ts",
     "check:waitlist": "tsx scripts/check-waitlist.ts",
-    "check:hardening": "tsx scripts/check-hardening.ts"
+    "check:hardening": "tsx scripts/check-hardening.ts",
+    "check:audit": "tsx scripts/check-audit.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

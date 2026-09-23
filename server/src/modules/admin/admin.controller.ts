@@ -46,16 +46,14 @@ export const getDoctor: RequestHandler = async (req, res) => {
 };
 
 export const updateDoctor: RequestHandler = async (req, res) => {
-  const doctor = await adminService.updateDoctor(
+  const { doctor, changes } = await adminService.updateDoctor(
     idParam(req),
     req.body as UpdateDoctorInput,
     req.uploadedImage?.url,
   );
   delete req.uploadedImage;
 
-  await audit(req, 'doctor.update', { type: 'Doctor', id: doctor.id }, {
-    fields: Object.keys(req.body as object),
-  });
+  await audit(req, 'doctor.update', { type: 'Doctor', id: doctor.id }, changes);
   res.json({ doctor });
 };
 

@@ -72,6 +72,61 @@ where 12.1 is ticked.
 
 ---
 
+## 12.2 Audit coverage
+
+**What was found.** Every route that lets an admin or a doctor change something
+already writes an audit row, and only after the change succeeds. That was checked
+against a list of every POST, PUT, PATCH and DELETE route. The one socket handler,
+`queue:join`, only reads. What the rows *said* was weaker. Profile edits recorded
+`fields: Object.keys(req.body)`, and both the doctor's form and the admin's edit
+form send the whole form on every save. So every row listed every field, a fee
+change looked exactly like a no-op save, and a new photo didn't appear at all,
+because the image isn't in the body. No script checked the trail either, apart
+from a count of "three or more" in `check-doctor`.
+
+**What changed.**
+
+- *`utils/changes.ts`* reads `directModifiedPaths()` from the user and doctor
+  documents before they are saved. Mongoose marks a path only when its value
+  really differs, which a throwaway test confirmed for plain fields, the address
+  object and the working-hours array. `image` is reported as `photo`.
+  **Decision:** use Mongoose's own change tracking rather than diffing by hand,
+  because it already handles nested paths and arrays correctly.
+- *The fee gets its before and after* (`meta.fees: { from, to }`). It's money, so
+  a field name alone isn't enough to answer "who changed the price".
+- *`doctorService.updateProfile` and `adminService.updateDoctor` return
+  `{ profile | doctor, changes }`*, and the controllers log `changes`. Those two
+  controllers are the only callers.
+
+**Files.** `server/src/utils/changes.ts` (new), `modules/doctors/doctor.service.ts`,
+`modules/doctors/doctor.controller.ts`, `modules/admin/admin.service.ts`,
+`modules/admin/admin.controller.ts`, `server/scripts/check-audit.ts` (new),
+`server/package.json` (`check:audit`, appended to `check`). Docs:
+`SYSTEM_DESIGN.md` §3 "Audit", and `PHASES.md` with 12.2 ticked.
+
+**Verified.**
+
+- `npm run check:audit`: 22/22. It covers each of the 13 admin and doctor actions,
+  with the action name, target and actor checked on the row itself. It also
+  checks that a refused action (a doctor cancelling another doctor's appointment)
+  writes nothing. For edits, it checks that an unchanged save records
+  `changed: []`, that a fee change records `['fees']` with its before and after,
+  that a photo-only change records `['photo']`, and that reinstating a doctor
+  records `['isActive']`.
+- `check:admin` 87, `check:doctor` 94 and `check:upload` 21 are unchanged.
+  Typecheck and lint are clean.
+
+**Noticed, for 12.3.** For another doctor's appointment, the doctor routes answer
+**403** (asserted in `check-doctor`), while the queue routes answer **404**
+(asserted in `check-queue`). Both refuse the action. The difference is whether
+the answer admits the appointment exists.
+
+**Left alone.** The patient's own profile edit still records the fields it was
+sent. Patients are outside the admin-and-doctor rule. The same helper would fix
+it in a few lines if it's ever wanted.
+
+---
+
 ## Open items
 
 - **Planned by the user, not started:** replace Claude symptom triage with
@@ -84,7 +139,7 @@ where 12.1 is ticked.
   same reason.
 - `SEED_ADMIN_EMAIL` still defaults to `admin@medihelp.test`. It needs a
   decision before deploying.
-- Phase 12.2–12.6, then phase 13: 13.1 root `start`, 13.2 serving `client/dist`
+- Phase 12.3–12.6, then phase 13: 13.1 root `start`, 13.2 serving `client/dist`
   (and checking the CSP there), 13.6 deploy, 13.7 live checks.
 - The phase 9 and 10 screens and the redesign have still never been clicked
   through in a browser.

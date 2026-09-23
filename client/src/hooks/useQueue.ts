@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
 import type { QueueSnapshotDto } from '@shared/types';
 import { QUEUE_JOIN_EVENT, QUEUE_UPDATE_EVENT } from '@shared/types';
 import { dayKeyUtc } from '@shared/queue';
-import { getAccessToken, refreshSession } from '../api/client';
+import { openSocket } from '../api/socket';
 
 /**
  * Subscribes to one doctor's queue for one day.
@@ -16,8 +15,9 @@ import { getAccessToken, refreshSession } from '../api/client';
 
 /**
  * `refused` is the one state that does not heal on its own: the server turned
- * the credential away. For a signed-in screen that is handled here by renewing
- * the session; for a wall display it means the board link itself has expired.
+ * the credential away. For a signed-in screen that is handled by renewing the
+ * session (see `api/socket.ts`); for a wall display it means the board link
+ * itself has expired.
  */
 export type QueueStatus = 'connecting' | 'live' | 'reconnecting' | 'refused';
 
@@ -52,22 +52,12 @@ export function useQueue(
   useEffect(() => {
     if (!doctorId) return undefined;
 
-    let closed = false;
     let dayKey = date ?? dayKeyUtc();
     let rollover: ReturnType<typeof setTimeout> | undefined;
-    let retry: ReturnType<typeof setTimeout> | undefined;
 
-    const socket = io({
-      // A function, not an object: the access token is refreshed in the
-      // background and rotates. Read once at connect, a reconnection an hour
-      // later would present the token that expired forty-five minutes ago.
-      auth: (send) => {
-        send(boardToken ? { board: boardToken } : { token: getAccessToken() ?? '' });
-      },
-      // Sockets are the app's only long-lived connection, and a waiting room's
-      // wifi drops. Backing off to ten seconds keeps a display that has been
-      // unplugged from hammering the server all night.
-      reconnectionDelayMax: 10_000,
+    const { socket, close } = openSocket({
+      ...(boardToken ? { boardToken } : {}),
+      onState: setStatus,
     });
 
     /**
@@ -79,7 +69,6 @@ export function useQueue(
      */
     const join = () => {
       if (!date) dayKey = dayKeyUtc();
-      setStatus('live');
       socket.emit(QUEUE_JOIN_EVENT, { doctorId, date: dayKey });
 
       clearTimeout(rollover);
@@ -91,29 +80,6 @@ export function useQueue(
     };
 
     socket.on('connect', join);
-    socket.on('disconnect', () => setStatus('reconnecting'));
-    socket.on('connect_error', () => {
-      // While `active` is true Socket.IO is still retrying by itself. It goes
-      // false only when the server refused the handshake, and from there it
-      // never tries again — so a screen whose access token expired during a
-      // wifi drop would say "Reconnecting" until someone reloaded the page.
-      if (socket.active) {
-        setStatus('reconnecting');
-        return;
-      }
-      if (boardToken) {
-        setStatus('refused');
-        return;
-      }
-      setStatus('reconnecting');
-      void refreshSession().then((token) => {
-        // No token means the session is over, and the client has already sent
-        // the person to sign in. A short pause before retrying keeps a server
-        // that is refusing everyone from being asked again in a tight loop.
-        if (token && !closed) retry = setTimeout(() => socket.connect(), 1000);
-      });
-    });
-
     socket.on(QUEUE_UPDATE_EVENT, (payload: QueueSnapshotDto) => {
       // A late message from a room this socket has since left — another doctor,
       // or yesterday — must not overwrite the one being shown now.
@@ -121,11 +87,8 @@ export function useQueue(
     });
 
     return () => {
-      closed = true;
       clearTimeout(rollover);
-      clearTimeout(retry);
-      socket.removeAllListeners();
-      socket.close();
+      close();
     };
   }, [doctorId, boardToken, date]);
 

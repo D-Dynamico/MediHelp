@@ -69,8 +69,9 @@ Checks — these run against a real MongoDB started on the fly, so they need no
 setup:
 
 ```bash
-npm run check --workspace server   # 15 scripts: models, auth, admin, booking,
-                                   # payments, triage, the live queue, and more
+npm run check --workspace server   # 16 scripts: models, auth, admin, booking,
+                                   # payments, triage, the live queue, the
+                                   # waitlist, and more
 npm run check --workspace client   # the browser side of signing in
 ```
 

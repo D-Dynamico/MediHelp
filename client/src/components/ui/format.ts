@@ -44,3 +44,14 @@ export function timeOf(iso: string): string {
     timeZone: 'UTC',
   });
 }
+
+/** "Thu, 3 Sep" — a day with no time, from an ISO string or a "YYYY-MM-DD" key. */
+export function dateOf(isoOrKey: string): string {
+  const iso = isoOrKey.length === 10 ? `${isoOrKey}T00:00:00.000Z` : isoOrKey;
+  return new Date(iso).toLocaleDateString('en-IN', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
+}

@@ -185,3 +185,80 @@ is made; with nobody left waiting, a cancelled slot reopens.
 
 Full suite: **671 assertions across 16 scripts, zero failures**. `typecheck` and
 `lint` clean.
+
+---
+
+## 10.6 — The waitlist screens
+
+**What changed.** New `client/src/api/socket.ts` (`openSocket`), `api/waitlist.ts`,
+`hooks/useWaitlist.ts` and `components/WaitlistPanel.tsx`. `useQueue` now opens
+its connection through `openSocket`. `dateOf()` added to `format.ts`. The
+booking page offers "Join the waitlist" on a full day. The patient's
+appointments page shows offers, lapsed offers and places in line, between the
+queue card and the list.
+
+**Decisions.**
+
+- *One helper opens every live connection.* The waitlist needed a socket of its
+  own, and the two behaviours the review had just fixed in `useQueue` — reading
+  the token at every handshake, and renewing the session after a refused one —
+  would otherwise have been copied. They live in `openSocket` once.
+- *The waitlist re-reads on every connect, the first included.* A push that
+  arrives while the connection is down is lost, so every reconnect is a
+  catch-up read. That also makes it the initial load, so there is one code
+  path instead of two.
+- *Claims are pay-at-the-clinic.* Online payment in this app is chosen at
+  booking time and the appointments page only offers it for bookings made that
+  way. Ten minutes is no time to put someone through a gateway that might
+  stall. The card says "You will pay at the clinic" before they press anything.
+- *The countdown is calm.* It follows design system §6.4 to the letter: tabular
+  `text-h2`, never red, never flashing. A clock that turns red at thirty
+  seconds is built to hurry people, and someone deciding whether they can get
+  to a clinic should not be hurried into a yes. Its accessible label gives
+  whole minutes, so a screen reader is not announcing every second for ten
+  minutes.
+- *"Let it go" goes through a `Dialog`.* The design system lists it as one of
+  the destructive decisions. It cannot be undone, and the slot goes to someone
+  else immediately.
+- *An expired offer is neutral, and "Stay on the waitlist" rejoins at the
+  back.* Nothing went wrong, so it is not styled as a warning. The copy says
+  "at the end of the line" because the people behind have moved up — promising
+  the old place would be untrue.
+- *The join offer only appears for a patient, or for someone signed out.* A
+  doctor or an admin would be refused by the server, and a button that can only
+  fail is worse than none. Signed out, it goes to login and back here, the same
+  detour as booking.
+
+**Verified.** `npm run typecheck`, `npm run lint` and `npm run build` clean;
+`npm run check --workspace client` 14/14. None of it has been opened in a
+browser.
+
+---
+
+## Docs updated
+
+- `docs/PHASES.md` — phase 10 ticked, with a note on the hold, pay-at-clinic
+  claims, and what the check covers.
+- `docs/SYSTEM_DESIGN.md` §7 — rewritten from five bullets into four subsections
+  covering joining, offering and the hold, claiming, and the sweeper. §8's API
+  surface listed `/api/queue/:doctorId` and `/next`, routes that were never
+  built; it now lists the queue and waitlist routes that exist.
+- `docs/ARCHITECTURE.md` — `api/socket.ts`, `useWaitlist` and `WaitlistPanel`.
+- `README.md` — sixteen check scripts.
+
+## Open items
+
+- **Nothing from phase 9, phase 10 or the design pass has been opened in a
+  browser.** Worth clicking for phase 10: fill a day as one patient, join its
+  waitlist as a second in another browser, cancel as the first, and watch the
+  offer arrive with its countdown; let it lapse (or run the sandbox and wait a
+  minute past the window) and watch it move. The sandbox logs "Waitlist offer
+  sent" when an offer goes out.
+- **Review findings 4 and 8–10 are fixed but unscripted.** A failing database
+  mid-request and browser reconnect behaviour are not something the check
+  scripts can reproduce.
+- **Phase 12 (hardening) and phase 13 (deploy) are what remain.** 13.1 (root
+  `start` script) and 13.2 (serving the built client) are the next deploy work.
+- **Carried forward:** the branch is not merged to `main`; Claude triage and
+  Razorpay have never spoken to the real services; `SEED_ADMIN_EMAIL` still
+  defaults to `admin@medihelp.test`.

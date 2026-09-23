@@ -4,6 +4,7 @@ import type { PaymentMode, PublicDoctorDto, SlotDto } from '@shared/types';
 import { messageFrom } from '../../api/client';
 import { bookAppointment, fetchDoctor, fetchSlots } from '../../api/patient';
 import { PaymentAbandoned, payForAppointment } from '../../api/checkout';
+import { joinWaitlist } from '../../api/waitlist';
 import { useAuth } from '../../hooks/useAuth';
 import {
   Button,
@@ -14,7 +15,9 @@ import {
   Loading,
   Skeleton,
   TriageDisclaimer,
+  dateOf,
   money,
+  useToast,
 } from '../../components/ui';
 
 /**
@@ -60,6 +63,8 @@ export function DoctorDetail() {
   const [mode, setMode] = useState<PaymentMode>('cash');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [joining, setJoining] = useState(false);
+  const { show } = useToast();
 
   useEffect(() => {
     void (async () => {
@@ -144,6 +149,37 @@ export function DoctorDetail() {
 
     navigate(`/my/appointments?booked=${appointmentId}`);
     setBusy(false);
+  }
+
+  /**
+   * Joins the waitlist for the day on screen.
+   *
+   * Signed out, it is the same detour as booking: to sign in and back here. A
+   * doctor or an admin is never shown the option — the server would refuse
+   * them, and a button that can only fail is worse than no button.
+   */
+  async function onJoinWaitlist() {
+    if (!user) {
+      navigate('/login', { state: { from: `/doctors/${id}` } });
+      return;
+    }
+    setJoining(true);
+    try {
+      const entry = await joinWaitlist(id, date);
+      show(
+        'success',
+        entry.ahead === 0
+          ? `You are first on the waitlist for ${dateOf(date)}. If a slot opens, it is yours to claim.`
+          : `You are on the waitlist for ${dateOf(date)}, with ${entry.ahead} ahead of you.`,
+        { label: 'See my waitlist', onClick: () => navigate('/my/appointments') },
+      );
+    } catch (caught) {
+      show('error', messageFrom(caught, 'Could not join the waitlist.'));
+      // Most likely a slot came free in the meantime; the grid should say so.
+      await loadSlots();
+    } finally {
+      setJoining(false);
+    }
   }
 
   if (error && !doctor) return <ErrorNote message={error} />;
@@ -252,6 +288,28 @@ export function DoctorDetail() {
                 ))}
               </div>
             )}
+
+            {/* A full day is not a dead end. Taken slots stay visible above, so
+                the day still reads as a schedule, and this is the way forward. */}
+            {slots && slots.length > 0 && slots.every((slot) => !slot.available) &&
+              (!user || user.role === 'patient') && (
+                <Card tone="info" padding="sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="max-w-prose text-sm text-info-fg">
+                      This day is full. Join the waitlist and, if someone cancels, the slot is
+                      offered to you first — held for ten minutes while you decide.
+                    </p>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => void onJoinWaitlist()}
+                      loading={joining}
+                    >
+                      {user ? 'Join the waitlist' : 'Sign in to join the waitlist'}
+                    </Button>
+                  </div>
+                </Card>
+              )}
 
             <fieldset className="space-y-2 border-t border-line pt-4">
               <legend className="text-sm font-medium">How would you like to pay?</legend>

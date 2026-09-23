@@ -273,16 +273,63 @@ after that the socket keeps it current.
 
 **Goal** — a cancelled slot should never go to waste.
 
-- When a day is full, the booking screen offers **Join waitlist**, creating a
-  `Waitlist` entry with a position.
-- On any cancellation, `offerNext` marks the first `waiting` entry as `offered`
-  with `offerExpiresAt = now + 10 minutes` and pushes a live notification to
-  `user:{patientId}`.
-- `POST /api/waitlist/:id/claim` creates the appointment atomically; the unique
-  slot index guards against a race with a walk-in booking.
-- `jobs/waitlistSweeper.ts` runs every minute: expired offers become `expired` and
-  cascade to the next person. If the list runs out, the slot returns to open
-  inventory.
+### 7.1 Joining
+
+When every slot on a doctor's day is taken, the booking page offers **Join the
+waitlist**: `POST /api/waitlist { doctorId, date }`. Only for a genuinely full
+day — while any time is free, the answer is to book it, and an entry beside an
+open slot would never be offered anything. Refused, too, for a patient who
+already has an appointment with that doctor that day. One active entry per
+patient per doctor per day, enforced by a partial unique index. Position is the
+back of the line; two people joining in the same instant can share a number,
+and every ordering sorts by `(position, _id)` so the line stays total.
+
+### 7.2 Offering, and the hold
+
+Every cancellation goes through the shared `cancelAppointment`, which calls
+`offerNext(doctorId, slotStart, slotEnd)`. That picks the first `waiting` entry
+and marks it `offered` in a single sorted `findOneAndUpdate`, so two
+cancellations landing together cannot give both slots to one person or one slot
+to two. The window is `min(now + 10 min, slotStart)`, and a slot that has
+already begun is never offered.
+
+**While an offer is open, the slot is held.** The catalogue shows it as taken
+and a booking for it is refused. The hold is not a lock: it is read from open,
+unexpired offers (`heldSlots`), so an offer that lapses holds nothing, whether
+or not anything has cleaned it up. Without the hold, the person offered a slot
+would be racing, unknowingly, against anyone who refreshed the doctor's page.
+
+The offer is pushed to `user:{patientId}` as `waitlist:update`, and logged,
+because with no SMS or email provider the log is the record that it went out.
+
+### 7.3 Claiming
+
+`POST /api/waitlist/:id/claim` — own entries only, 404 for anyone else's. The
+entry flips `offered → claimed` with a conditional update that also requires
+`offerExpiresAt` to still be ahead, then books through the ordinary booking
+path: fee from the doctor record, token from the slot's position, and the
+unique slot index as the final word. Whichever of the claim and the sweeper
+changes the entry first wins. Because the clock is part of the condition, a
+lapsed offer is refused even on a host that slept through the sweeper. If the
+booking fails anyway, the entry goes back to `waiting` at its original position.
+
+Offers are claimed as pay-at-the-clinic.
+
+### 7.4 Letting go, lapsing, and the sweeper
+
+`DELETE /api/waitlist/:id` leaves the list. On an open offer it also passes the
+slot straight to the next person, rather than holding it until the window would
+have closed.
+
+`jobs/waitlistSweeper.ts` runs `sweepWaitlist()` every minute on node-cron:
+lapsed offers become `expired` and cascade to the next person; entries for days
+that are over expire. When the list runs out, nothing needs to happen — the slot
+just stops being held and is back in the open catalogue. The sweep takes its
+clock as an argument, so the check lapses an offer by passing a time eleven
+minutes ahead.
+
+Booking a time directly retires the same patient's waiting entry for that day,
+so it is not offered a slot they no longer need.
 
 ---
 
@@ -312,12 +359,18 @@ POST   /api/payments/verify            verify signature
 POST   /api/payments/confirm-mock      settle a mock order; refused once real keys are set
 POST   /api/payments/webhook           gateway callback, HMAC over the raw body
 
-GET    /api/queue/:doctorId            current queue state
-POST   /api/queue/:doctorId/next       doctor calls the next token
+GET    /api/doctor/queue               the signed-in doctor's day, with names
+GET    /api/doctor/queue/board-link    mint a signed 30-day board link
+POST   /api/doctor/queue/call-next     lowest waiting token into the room
+POST   /api/doctor/queue/:id/check-in  mark a patient present
+POST   /api/doctor/queue/:id/complete  finish the consult
+POST   /api/doctor/queue/:id/no-show   mark a patient absent
+GET    /api/board/:doctorId?t=         the wall board; signed link, no login
 
-POST   /api/waitlist                   join
-POST   /api/waitlist/:id/claim         take an offered slot
-DELETE /api/waitlist/:id               withdraw
+GET    /api/waitlist                   the patient's own entries
+POST   /api/waitlist                   join, for a full day only
+POST   /api/waitlist/:id/claim         take an offered slot (pay at clinic)
+DELETE /api/waitlist/:id               withdraw, or let an offer go
 
 GET    /api/patient/profile
 PATCH  /api/patient/profile            multipart, own account only

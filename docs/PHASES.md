@@ -223,24 +223,30 @@ three-windows walkthrough itself is a human check and has not been done.
 
 ## Phase 10 — Auto-waitlist *(differentiator)*
 
-- [ ] **10.1 Join and withdraw** — waitlist entry with position, one active entry
+- [x] **10.1 Join and withdraw** — waitlist entry with position, one active entry
       per patient per doctor per day, `DELETE` to withdraw.
-- [ ] **10.2 Offer on cancellation** — `offerNext(doctorId, slot)` called from the
+- [x] **10.2 Offer on cancellation** — `offerNext(doctorId, slot)` called from the
       shared cancellation path, marking the first `waiting` entry `offered` with a
       10-minute expiry.
-- [ ] **10.3 Live notification** — the offer pushed to `user:{patientId}`, logged in
+- [x] **10.3 Live notification** — the offer pushed to `user:{patientId}`, logged in
       mock mode so it is visible with no notification provider configured.
-- [ ] **10.4 Claim** — `POST /api/waitlist/:id/claim` creating the appointment
+- [x] **10.4 Claim** — `POST /api/waitlist/:id/claim` creating the appointment
       atomically, with the unique slot index guarding against a walk-in race.
-- [ ] **10.5 Sweeper** — `jobs/waitlistSweeper.ts` on node-cron, every minute:
+- [x] **10.5 Sweeper** — `jobs/waitlistSweeper.ts` on node-cron, every minute:
       expire stale offers, cascade to the next person, release the slot when the
       list runs out.
-- [ ] **10.6 Waitlist UI** — "join waitlist" when a day is full, a claim card with
+- [x] **10.6 Waitlist UI** — "join waitlist" when a day is full, a claim card with
       a countdown, and the patient's waitlist state on their appointments page.
 
 **Exit**: cancelling a booked slot pushes an offer to the first waitlisted patient
 live; letting the window lapse passes it to the next; claiming creates a real
 appointment with a token number.
+
+Covered by `npm run check:waitlist --workspace server` — 41 assertions over HTTP
+and live sockets, one group per exit sentence. The offered slot is also **held**
+while the offer is open (see `SYSTEM_DESIGN.md` §7). Offers are claimed as
+pay-at-the-clinic: ten minutes is no time to route someone through a payment
+gateway. The screens (10.6) have not been opened in a browser.
 
 ---
 

@@ -26,4 +26,4 @@ export { Pagination } from './Pagination';
 export { StatTile } from './StatTile';
 export { TriageDisclaimer } from './TriageDisclaimer';
 export { ErrorBoundary, Placeholder } from './ErrorBoundary';
-export { money, whenOf, timeOf } from './format';
+export { money, whenOf, timeOf, dateOf } from './format';

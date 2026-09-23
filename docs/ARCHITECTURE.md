@@ -45,12 +45,14 @@ MediHelp/
 │  └─ uploads/          Local image store (default storage provider)
 └─ client/
    └─ src/
-      ├─ api/           axios instance with refresh interceptor, typed endpoints
+      ├─ api/           axios instance with refresh interceptor, typed endpoints,
+      │                 socket.ts (the one live connection, with session renewal)
       ├─ context/       AuthContext
       ├─ routes/        router.tsx, ProtectedRoute, RoleRoute
       ├─ pages/         public/ (catalogue and the board), patient/, doctor/, admin/
-      ├─ components/    ui/ primitives, plus composites (WorkShell, QueueCard)
-      └─ hooks/         useAuth, useQueue
+      ├─ components/    ui/ primitives, plus composites (WorkShell, QueueCard,
+      │                 WaitlistPanel)
+      └─ hooks/         useAuth, useQueue, useWaitlist
 ```
 
 ## Layering rules

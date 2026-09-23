@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import type { AdminDashboardDto } from '@shared/types';
 import { messageFrom } from '../../api/client';
 import { cancelAppointment, fetchDashboard } from '../../api/admin';
+import { CalendarDays, Stethoscope, Users, Wallet } from 'lucide-react';
 import {
-  Card,
+  Button,
   Empty,
   ErrorNote,
   PageHeader,
+  Section,
   SkeletonTable,
   StatTile,
   money,
@@ -60,19 +62,30 @@ export function AdminDashboard() {
       {error && <ErrorNote message={error} />}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label="Doctors" value={String(data.counts.doctors)} />
-        <StatTile label="Patients" value={String(data.counts.patients)} />
+        <StatTile icon={Stethoscope} label="Doctors" value={String(data.counts.doctors)} />
+        <StatTile icon={Users} label="Patients" value={String(data.counts.patients)} />
         <StatTile
+          icon={CalendarDays}
           label="Appointments"
           value={String(data.counts.appointments)}
           hint={`${data.todayUpcoming} still to come today`}
         />
-        <StatTile label="Revenue" value={money(data.revenue)} hint="Collected, not booked" />
+        <StatTile
+          icon={Wallet}
+          label="Revenue"
+          value={money(data.revenue)}
+          hint="Collected, not booked"
+        />
       </div>
 
-      <Card>
-        <h2 className="mb-3 text-sm font-semibold text-ink">Latest bookings</h2>
-
+      <Section
+        title="Latest bookings"
+        action={
+          <Button as="link" to="/admin/appointments" variant="quiet" size="sm">
+            See all
+          </Button>
+        }
+      >
         {data.latestBookings.length === 0 ? (
           <Empty action={{ label: 'Add a doctor', to: '/admin/doctors/new' }}>
             No bookings yet.
@@ -84,7 +97,7 @@ export function AdminDashboard() {
             onCancel={(id) => void onCancel(id)}
           />
         )}
-      </Card>
+      </Section>
     </div>
   );
 }

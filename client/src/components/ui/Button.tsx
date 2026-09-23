@@ -17,20 +17,27 @@ import { Link } from 'react-router-dom';
 export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
+// Pills, with a real disabled state for the primary. A primary faded to half
+// opacity read as a rendering glitch, not as "not yet"; a pale teal with muted
+// text reads as waiting for you.
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-brand-600 text-white hover:bg-brand-700',
-  secondary: 'border border-line-strong bg-surface text-ink hover:bg-surface-sunken',
-  quiet: 'text-ink-muted hover:bg-surface-sunken',
-  danger: 'border border-danger-solid text-danger-solid hover:bg-danger-bg',
+  primary:
+    'bg-brand-600 text-white shadow-sm hover:bg-brand-700 ' +
+    'disabled:bg-brand-100 disabled:text-brand-700/80 disabled:shadow-none',
+  secondary:
+    'border border-line-strong bg-surface text-ink hover:border-ink-faint hover:bg-surface-sunken ' +
+    'disabled:opacity-50',
+  quiet: 'text-ink-muted hover:bg-surface-sunken hover:text-ink disabled:opacity-50',
+  danger: 'border border-danger-solid/60 text-danger-solid hover:bg-danger-bg disabled:opacity-50',
   /** Only inside a destructive dialog, and on the emergency card. */
 };
 
 const DANGER_FILLED = 'bg-danger-solid text-white hover:brightness-95';
 
 const SIZES: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-sm',
-  md: 'h-10 px-4 text-sm',
-  lg: 'h-12 px-5 text-body',
+  sm: 'h-9 px-4 text-sm',
+  md: 'h-11 px-5 text-sm',
+  lg: 'h-12 px-6 text-body',
 };
 
 interface Common {
@@ -73,12 +80,12 @@ function classesFor({
 }: Common): string {
   const look = filled && variant === 'danger' ? DANGER_FILLED : VARIANTS[variant];
   const box = iconOnly
-    ? { sm: 'h-8 w-8', md: 'h-10 w-10', lg: 'h-12 w-12' }[size]
+    ? { sm: 'h-9 w-9', md: 'h-11 w-11', lg: 'h-12 w-12' }[size]
     : SIZES[size];
 
   return [
-    'inline-flex items-center justify-center gap-2 rounded-sm font-medium transition',
-    'disabled:cursor-not-allowed disabled:opacity-50',
+    'inline-flex shrink-0 items-center justify-center gap-2 rounded-full font-semibold transition',
+    'active:translate-y-px disabled:cursor-not-allowed disabled:active:translate-y-0',
     look,
     box,
     fullWidth ? 'w-full' : '',

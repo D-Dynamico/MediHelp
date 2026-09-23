@@ -101,7 +101,15 @@ export function AdminAppointmentTable({
                 Complete
               </Button>
             )}
-            <Button variant="danger" size="sm" onClick={() => setConfirming(row)}>
+            {/* Quiet, not the red outline. A red button on every row of a
+                table turns the whole list into a warning; the dialog behind
+                this is where the seriousness belongs. */}
+            <Button
+              variant="quiet"
+              size="sm"
+              className="hover:bg-danger-bg hover:text-danger-fg"
+              onClick={() => setConfirming(row)}
+            >
               Cancel
             </Button>
           </div>

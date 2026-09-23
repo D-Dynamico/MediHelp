@@ -9,39 +9,47 @@
  */
 @layer base {
   :root {
+    /* Warm neutrals rather than cool greys. A clinic's own site is the first
+       room a nervous patient walks into, and blue-grey on white reads as the
+       hospital IT system; a warm off-white reads as a place. */
     --surface: #ffffff;
-    --surface-sunken: #f5f7fa;
+    --surface-sunken: #f7f5f2;
     --surface-raised: #ffffff;
 
-    --line: #e4e8ef;
-    --line-strong: #c9d0db;
+    --line: #ebe7e1;
+    --line-strong: #d8d2c9;
 
-    --ink: #111827;
-    --ink-muted: #5b6472;
-    --ink-faint: #8a93a2;
+    --ink: #1c2321;
+    --ink-muted: #58625f;
+    --ink-faint: #858d89;
 
-    /* Slightly less saturated than the old #2F6FED, which read electric for a
-       clinical product. Same hue. */
-    --brand-50: #eef4ff;
-    --brand-500: #2a63d9;
-    --brand-600: #1f4fb8;
-    --brand-700: #193f94;
+    /* A calm teal. Every text use passes AA on both surfaces: brand-500 is 5.1:1
+       on white and 4.7:1 on the sunken surface, and white on brand-600 is
+       5.5:1. The ratios are in docs/medihelp-design-system.md 2.1. */
+    --brand-50: #e8f5f2;
+    --brand-100: #cfeae5;
+    --brand-500: #0e7c71;
+    --brand-600: #0f766e;
+    --brand-700: #115e59;
+    --brand-800: #134e4a;
 
-    --success-bg: #eaf7ee;
-    --success-fg: #14532d;
-    --success-solid: #1e8a4c;
+    --success-bg: #eaf6ee;
+    --success-fg: #1d5c3a;
+    --success-solid: #2f855a;
 
-    --warning-bg: #fff6e5;
+    --warning-bg: #fff5e3;
     --warning-fg: #7a4a00;
     --warning-solid: #d98a0b;
 
-    --danger-bg: #fdecec;
-    --danger-fg: #7f1d1d;
+    --danger-bg: #fdeceb;
+    --danger-fg: #8a2323;
     --danger-solid: #c93b3b;
 
-    --info-bg: #eef4ff;
-    --info-fg: #193f94;
-    --info-solid: #2a63d9;
+    /* Info is its own quiet blue now that the brand is teal, so an informative
+       panel is never mistaken for a brand surface. */
+    --info-bg: #edf4fa;
+    --info-fg: #1e4e79;
+    --info-solid: #3b6fb6;
   }
 
   html {
@@ -84,7 +92,7 @@
     background-image: linear-gradient(
       90deg,
       var(--surface-sunken) 0%,
-      #eceff4 50%,
+      #efebe5 50%,
       var(--surface-sunken) 100%
     );
     background-size: 200% 100%;

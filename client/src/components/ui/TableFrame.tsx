@@ -8,6 +8,10 @@ import { Card } from './Card';
  * scrolling was the old answer and it is a bad one on a phone: the columns that
  * matter — status, and what you can do about it — are the ones that scroll off.
  *
+ * The table is its own card, edge to edge, with a tinted header row. It must
+ * not be put inside another `Card`: that was the double border every dashboard
+ * used to have. A table with a heading goes in a `Section`.
+ *
  * Rows are not striped and not hover-highlighted unless they are clickable,
  * because a highlight that does not mean "you can press this" is noise.
  */
@@ -34,15 +38,15 @@ export function TableFrame<Row>({
   return (
     <>
       <div className="hidden md:block">
-        <Card padding="sm">
+        <Card padding="none" className="overflow-hidden">
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-line">
+              <tr className="border-b border-line bg-surface-sunken/70">
                 {columns.map((column) => (
                   <th
                     key={column.key}
                     scope="col"
-                    className={`px-3 py-2 text-xs font-medium text-ink-muted ${
+                    className={`px-5 py-3 text-xs font-semibold uppercase tracking-wide text-ink-muted ${
                       column.align === 'right' ? 'text-right' : ''
                     }`}
                   >
@@ -57,7 +61,7 @@ export function TableFrame<Row>({
                   {columns.map((column) => (
                     <td
                       key={column.key}
-                      className={`px-3 py-3 align-top text-sm ${
+                      className={`px-5 py-4 align-top text-sm ${
                         column.align === 'right' ? 'text-right' : ''
                       }`}
                     >

@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import type { AppointmentDto, DoctorEarningsDto } from '@shared/types';
 import { messageFrom } from '../../api/client';
 import { fetchAppointments, fetchEarnings } from '../../api/doctor';
+import { Stethoscope, TrendingUp, Users, Wallet } from 'lucide-react';
 import {
-  Card,
+  Button,
   Empty,
   ErrorNote,
   Loading,
   PageHeader,
+  Section,
   StatTile,
   money,
 } from '../../components/ui';
@@ -62,22 +64,34 @@ export function DoctorDashboard() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile
+          icon={Wallet}
           label="Earned"
           value={money(earnings.total)}
           hint="Completed and paid consults"
         />
-        <StatTile label="This month" value={money(earnings.thisMonth)} />
-        <StatTile label="Consults" value={String(earnings.appointments)} hint="All time" />
+        <StatTile icon={TrendingUp} label="This month" value={money(earnings.thisMonth)} />
         <StatTile
+          icon={Stethoscope}
+          label="Consults"
+          value={String(earnings.appointments)}
+          hint="All time"
+        />
+        <StatTile
+          icon={Users}
           label="Patients"
           value={String(earnings.patients)}
           hint="People, not appointments"
         />
       </div>
 
-      <Card>
-        <h2 className="mb-3 text-sm font-semibold text-ink">Today&rsquo;s appointments</h2>
-
+      <Section
+        title="Today's appointments"
+        action={
+          <Button as="link" to="/doctor/queue" variant="secondary" size="sm">
+            Open the queue
+          </Button>
+        }
+      >
         {today.length === 0 ? (
           <Empty action={{ label: 'See all appointments', to: '/doctor/appointments' }}>
             Nothing booked for today.
@@ -85,7 +99,7 @@ export function DoctorDashboard() {
         ) : (
           <AppointmentTable items={today} busyIds={actions.busyIds} onAct={actions.act} />
         )}
-      </Card>
+      </Section>
     </div>
   );
 }

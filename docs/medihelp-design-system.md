@@ -1,133 +1,131 @@
 # MediHelp design system
 
-How the UI should look and behave. Written against the 2026-09-02 UI inventory (end of phase 8) and meant to be the spec for the phase 11 design pass, while already covering the phase 9 and 10 queue screens.
+How the UI should look and behave. First written against the 2026-09-02 UI inventory (end of phase 8) as the spec for the phase 11 design pass. **Revised on 2026-09-23** after the user asked for a warmer, sleeker, more modern-medtech look. The first pass was clean but read like hospital IT. This version keeps its rules about what colour means, and changes the surface: teal on warm neutrals, soft corners, a whisper of depth, and a real front page.
 
-Direction in one line: **a quiet clinical surface where the only things that stand out are the things that matter to a worried person**, which are urgency, the next action, and their place in the queue.
+Direction in one line: **a calm, warm surface where the only things that stand out are the things that matter to a worried person**, which are urgency, the next action, and their place in the queue.
 
 ---
 
 ## 1. Principles
 
-1. **Whitespace is the styling.** Hierarchy comes from spacing, type size and one accent colour, not from borders, shadows, gradients or tinted panels. If a screen needs a box to feel organised, the spacing is wrong.
-2. **One accent, used for actions only.** Brand blue appears on the primary button, links, focus rings and the active nav item. It is never used as decoration, never as a background wash, never on a heading.
+1. **Calm first.** Warm off-white pages, generous spacing, soft corners. A clinic's site is the first room a nervous patient walks into; it should feel like a place, not a system.
+2. **One accent, spent on what to do next.** Brand teal is for primary buttons, links, focus, the active nav item and selected choices. It may also tint a small icon badge, and wash the front-page hero, the one place the product introduces itself. It is never the colour of a heading.
 3. **Colour means something.** Red means emergency or a destructive action. Amber means urgent or pending. Green means completed or paid. Grey means everything else. No colour is used for mood.
-4. **Borders over shadows.** Panels sit on the page with a 1px hairline border. Shadows are reserved for things that float: modals, toasts, popovers, the mobile bottom bar.
+4. **Borders, then a whisper of depth.** Cards have a hairline border and the faintest shadow (`shadow-card`). A border alone turned every page into a grid of outlines; a heavy shadow would make every panel look like it floats. Real floating things (dialogs, toasts, the bottom bar, a hovered doctor card) get `shadow-float` or `shadow-modal`. **No card inside a card**: a table is its own card, and a titled table sits in a `Section`.
 5. **Numbers are data.** Token numbers, fees, wait times and times of day are set in tabular figures so columns line up and values do not jitter when they update.
 6. **Every empty or failed state points somewhere.** No dead ends. An empty list offers the action that fills it; an error says what happened and how to retry.
-7. **Motion only answers an action.** Toasts slide in, dialogs fade in, a queue number changes with a short crossfade. Nothing animates on page load. `prefers-reduced-motion` disables all of it.
+7. **Motion only answers an action.** Toasts slide in, dialogs fade in, a queue number changes with a short crossfade, a doctor card lifts two pixels on hover. Nothing animates on page load. `prefers-reduced-motion` disables all of it.
 
 ---
 
 ## 2. Tokens
 
-All tokens live in `tailwind.config.js` and, for colour, also as CSS variables on `:root` so a dark theme can be added later by swapping variables rather than touching components.
+All tokens live in `tailwind.config.js` and, for colour, also as CSS variables on `:root` in `index.css`, so a dark theme can be added later by swapping variables rather than touching components.
 
 ### 2.1 Colour
 
-Neutrals are slightly cool (blue-leaning grey), never warm. The current `ink` and `surface` tokens are kept and extended into a scale.
+Neutrals are warm (a hint of stone), not the cool blue-grey of the first pass. Blue-grey on white reads as the hospital's IT system.
 
 | Token | Value | Use |
 |---|---|---|
-| `surface` | `#FFFFFF` | Page and card background |
-| `surface-sunken` | `#F5F7FA` | App shell background behind cards, table header rows, inputs on hover |
+| `surface` | `#FFFFFF` | Cards, header, sidebar |
+| `surface-sunken` | `#F7F5F2` | Page background, table header rows, inset panels |
 | `surface-raised` | `#FFFFFF` | Modals, toasts, popovers (same white, differentiated by shadow) |
-| `line` | `#E4E8EF` | Hairline borders, dividers, table rules |
-| `line-strong` | `#C9D0DB` | Input borders, chip outlines |
-| `ink` | `#111827` | Headings, primary text |
-| `ink-muted` | `#5B6472` | Body secondary text, labels, hints |
-| `ink-faint` | `#8A93A2` | Placeholders, disabled text, timestamps |
-| `brand-50` | `#EEF4FF` | Selected slot background, active nav background |
-| `brand-500` | `#2A63D9` | Links, focus ring, active indicators |
-| `brand-600` | `#1F4FB8` | Primary button fill |
-| `brand-700` | `#193F94` | Primary button hover and pressed |
+| `line` | `#EBE7E1` | Hairline borders, dividers, table rules |
+| `line-strong` | `#D8D2C9` | Input borders, secondary button outline |
+| `ink` | `#1C2321` | Headings, primary text (16.0:1 on white) |
+| `ink-muted` | `#58625F` | Secondary text, labels, hints (6.3:1 on white, 5.8:1 on sunken) |
+| `ink-faint` | `#858D89` | Placeholders and decoration only, never information |
+| `brand-50` | `#E8F5F2` | Active nav, selected slot, icon badges, hero wash |
+| `brand-100` | `#CFEAE5` | Hover borders, the disabled primary button |
+| `brand-500` | `#0E7C71` | Links, focus ring (5.1:1 on white, 4.7:1 on sunken) |
+| `brand-600` | `#0F766E` | Primary button fill (white on it is 5.5:1) |
+| `brand-700` | `#115E59` | Primary hover, text on `brand-50` (6.8:1), the auth brand panel |
+| `brand-800` | `#134E4A` | Depth on the auth brand panel |
 
-The existing `#2F6FED` is slightly electric for a clinical product; `#2A63D9` is the same hue with a little less saturation. Keep `brand-100` if it is already referenced, otherwise drop it.
+Teal rather than blue, because health products have moved to softer teals and greens to lower anxiety, and because blue is what every hospital portal already is.
 
-**Semantic colours.** Each has three stops: a `bg` for tinted surfaces, a `fg` for text on that tint, and a `solid` for fills and icons. Nothing else is needed.
+**Semantic colours.** Each has three stops: a `bg` for tinted surfaces, a `fg` for text on that tint, and a `solid` for fills and icons.
 
 | Role | bg | fg | solid |
 |---|---|---|---|
-| `success` | `#EAF7EE` | `#14532D` | `#1E8A4C` |
-| `warning` | `#FFF6E5` | `#7A4A00` | `#D98A0B` |
-| `danger` | `#FDECEC` | `#7F1D1D` | `#C93B3B` |
-| `info` | `#EEF4FF` | `#193F94` | `#2A63D9` |
+| `success` | `#EAF6EE` | `#1D5C3A` | `#2F855A` |
+| `warning` | `#FFF5E3` | `#7A4A00` | `#D98A0B` |
+| `danger` | `#FDECEB` | `#8A2323` | `#C93B3B` |
+| `info` | `#EDF4FA` | `#1E4E79` | `#3B6FB6` |
 
-All `fg` on `bg` pairs pass WCAG AA at body size. `solid` on white passes AA at 14px semibold.
+`info` is its own quiet blue now that the brand is teal, so an informative panel (a waitlist offer, a triage suggestion) is never mistaken for a brand surface. All `fg` on `bg` pairs pass WCAG AA at body size.
 
-**Urgency is mapped, not invented.** `routine` uses `info`, `urgent` uses `warning`, `emergency` uses `danger`. **Appointment status** maps the same way: booked and checked in use neutral grey, in progress uses `info`, completed uses `success`, cancelled and no show use neutral grey with a strikethrough on the label, never red. Red is reserved so that when it appears it means something.
+**Urgency is mapped, not invented.** `routine` uses `info`, `urgent` uses `warning`, `emergency` uses `danger`. **Appointment status** maps the same way: booked and checked in use neutral grey, in progress uses `info`, completed uses `success`, cancelled and no-show use neutral grey with a strikethrough on the label, never red.
 
-Replace every raw `red-*`, `amber-*`, `green-*` and `slate-*` class in the codebase with these tokens. There should be zero raw Tailwind colour classes in page files after phase 11.
+There are no raw Tailwind colour classes in `client/src`, and there should never be.
 
 ### 2.2 Dark mode
 
-**Decision: do not ship a dark theme in phase 11.** Remove `darkMode: 'class'` from the config so it stops implying a promise the app does not keep. Because colours are CSS variables, a dark theme is a future one-file change.
+**Not shipped.** There is no `darkMode` key in the config, so nothing implies a promise the app does not keep. Because colours are CSS variables, a dark theme is a future one-file change.
 
-**Exception: the live queue board (phase 9) is dark by design.** It is a wall display in a waiting room, often on a bright TV, and dark backgrounds read better at distance and are easier on the room. It gets its own fixed palette (see section 6.3) and does not depend on a global theme toggle.
+**Exception: the live queue board (phase 9) is dark by design.** It is a wall display, often on a bright TV; dark reads better at distance. It has its own fixed palette (section 6.3), now with a teal accent (`#5EEAD4`, 12:1 on the board background) to match the app.
 
 ### 2.3 Typography
 
-**Family: IBM Plex Sans**, weights 400, 500, 600. Fallback `Inter, system-ui, sans-serif`. Plex has a clinical, engineered character that suits a hospital tool, and its tabular figures are excellent. If loading a new webfont is not wanted, keep Inter and everything below still applies.
+**Family: Plus Jakarta Sans**, weights 400, 500, 600, 700. Fallback `Inter, system-ui, sans-serif`. Humanist and round-shouldered, with true tabular figures. IBM Plex, the first choice, read engineered: right for a terminal, cold for a waiting room.
 
-Enable `font-variant-numeric: tabular-nums` globally on `body`. Apply `lining-nums` too.
+`font-variant-numeric: tabular-nums lining-nums` is set globally on `body`.
 
-One scale, seven steps, defined as Tailwind `fontSize` entries with paired line height:
+One scale, eight steps, each with its line height fixed:
 
 | Token | Size / line | Weight | Use |
 |---|---|---|---|
-| `text-display` | 40 / 44 | 600 | Live queue board only |
-| `text-h1` | 28 / 34 | 600 | Page title, one per screen |
-| `text-h2` | 20 / 28 | 600 | Section title, card title, dialog title |
-| `text-h3` | 16 / 24 | 600 | Sub-section, table group header |
+| `text-hero` | 52 / 56, -0.025em | 700 | The front page's opening line, and nothing else |
+| `text-display` | 40 / 44, -0.02em | 700 | Page titles on desktop, stat values, the board, the auth headline |
+| `text-h1` | 28 / 34, -0.015em | 700 | Page titles on mobile, section titles on the front page |
+| `text-h2` | 20 / 28, -0.01em | 600 to 700 | Section title, card title, dialog title |
+| `text-h3` | 16 / 24 | 600 | Sub-section |
 | `text-body` | 15 / 24 | 400 | Default body text, form values |
-| `text-sm` | 13 / 20 | 400 or 500 | Labels, table cells, chips, hints |
-| `text-xs` | 12 / 16 | 500 | Timestamps, table headers, badges |
+| `text-sm` | 13 / 20 | 400 to 600 | Labels, table cells, chips, hints |
+| `text-xs` | 12 / 16 | 500 to 600 | Timestamps, table headers, badges |
 
 Rules:
-- Headings are sentence case. No all-caps labels anywhere in the product, including table headers and eyebrow labels.
-- Body line length is capped at `max-w-prose` (about 65ch). Triage advice and the account page explanation both need this.
-- Letter-spacing is default everywhere except `text-display`, which gets `-0.01em`.
+- Headings are sentence case. **One exception:** small tracked uppercase (`text-xs font-semibold uppercase tracking-wide`) for table header rows and slot-group labels ("Morning"), which are signposts rather than reading.
+- Body line length is capped at `max-w-prose`.
 - No italics in the UI.
 
 ### 2.4 Spacing
 
-4px base. Use only these steps: `1` (4), `2` (8), `3` (12), `4` (16), `6` (24), `8` (32), `12` (48), `16` (64). Component internals use 2 to 4, gaps between components use 4 to 6, gaps between sections use 8 to 12, and page padding uses 6 on mobile and 8 or above on desktop.
+4px base. Component internals use 2 to 4, gaps between components 4 to 6, gaps between sections 8 to 12. Page padding is 4 on mobile and 8 to 10 on desktop.
 
 ### 2.5 Radius
 
-Three values only.
-
 | Token | Value | Use |
 |---|---|---|
-| `rounded-sm` | 6px | Inputs, buttons, chips, table containers |
-| `rounded-md` | 10px | Cards, dialogs, toasts |
-| `rounded-full` | 9999px | Avatars, status dots, the pill on the queue board |
+| `rounded-sm` | 8px | Inputs, small inset panels |
+| `rounded-md` | 14px | Cards, day tiles, toasts, pay options |
+| `rounded-lg` | 20px | Large panels: the front-page hero, dialogs, the live queue preview |
+| `rounded-full` | 9999px | Buttons, chips, pills, tabs, nav items, avatars |
 
-Delete every `rounded-lg` and `rounded-xl` usage. Small things get small radii; a card is the only thing that gets the larger one.
+Buttons are pills. The first pass's 6px/10px corners read like a spreadsheet.
 
 ### 2.6 Shadow
 
-Two shadows. Cards get none.
-
 | Token | Value | Use |
 |---|---|---|
-| `shadow-float` | `0 4px 16px rgba(17, 24, 39, 0.08), 0 1px 2px rgba(17, 24, 39, 0.06)` | Popover, toast, mobile bottom bar |
-| `shadow-modal` | `0 16px 48px rgba(17, 24, 39, 0.16)` | Dialog |
+| `shadow-card` | `0 1px 2px rgba(28,35,33,.04), 0 2px 8px rgba(28,35,33,.04)` | Every default card; the search bar; the tab control |
+| `shadow-float` | `0 8px 24px rgba(28,35,33,.10), 0 2px 4px rgba(28,35,33,.04)` | Toasts, the mobile bottom bar, a hovered doctor card |
+| `shadow-modal` | `0 24px 64px rgba(28,35,33,.20)` | Dialogs |
+
+Shadows are tinted with `ink`, not black, so they sit on the warm page instead of greying it. Tinted cards (`tone="info"` and the rest) carry no shadow: their colour already sets them apart.
 
 ### 2.7 Focus
 
-One convention, applied through a `focus-visible` utility on every interactive element:
-
-```
-outline: 2px solid var(--brand-500);
-outline-offset: 2px;
-border-radius: inherit;
-```
-
-Mouse clicks do not show it (`focus-visible` only). Danger buttons use the same blue ring, not red, so the ring never competes with the button's meaning.
+`:focus-visible` draws `2px solid var(--brand-500)` at a 2px offset, on everything interactive. Text inputs also get a soft 4px `brand-50` halo on focus (`focus:ring-4 focus:ring-brand-50`), so where you are typing is unmistakable. Mouse clicks do not show the outline. Danger buttons use the same teal ring, never red.
 
 ### 2.8 Icons
 
-Adopt **Lucide** at 16px inside text and 20px standalone, stroke width 1.75. Icons appear in exactly these places: navigation items, icon buttons, the status of a toast, the leading position of an empty state, and the emergency card. Buttons with text do not get decorative icons.
+**Lucide**, 16px inline and 18 to 20px standalone. Icons appear in navigation, icon buttons, toasts, empty states, the emergency card, and (added in the revision) as small tinted badges that help an eye find something in a group: stat tiles, the doctor's fact tiles, the front page's three promises, and one icon per speciality (`components/specialityIcons.ts`, keyed on the shared speciality list so a new speciality is a type error until it has one). Buttons with text still do not get decorative icons, with one exception: a trailing arrow on a link-like button ("Book →").
+
+### 2.9 The mark
+
+A soft-cornered teal square with a white cross, and a bright teal dot in the corner: the cross says what the place is, and the dot is the "live" in the live queue. It is drawn inline (`components/ui/Logo.tsx`) rather than loaded, so it is sharp at any size, and it has an inverted form for the teal auth panel. The same mark is `public/favicon.svg`.
 
 ---
 
@@ -138,70 +136,70 @@ Adopt **Lucide** at 16px inside text and 20px standalone, stroke width 1.75. Ico
 | Context | Max width | Padding |
 |---|---|---|
 | Patient and public pages | `max-w-6xl` (72rem) | `px-4 sm:px-6 lg:px-8` |
-| Reading surfaces (triage, account, login) | `max-w-xl` (36rem), centred | same |
-| Doctor and admin work areas | fluid, `max-w-7xl` | `px-4 sm:px-6` |
+| Reading surfaces (triage, account) | `max-w-xl`, centred | same |
+| Sign in and sign up | split screen at `lg`, form column `max-w-md` | `px-4 sm:px-10 lg:px-16` |
+| Doctor and admin work areas | `max-w-6xl` beside a 256px sidebar | `px-4 sm:px-6 md:px-10` |
 | Live queue board | full viewport, no container | `p-12` |
 
 ### 3.2 Shells
 
-**SiteLayout (patient and public).** A 64px header on `surface` with a 1px `line` bottom border. Wordmark left, set in `text-h3` weight 600, no logo mark for now. Nav links right in `text-sm` weight 500, active link in `brand-500` with no underline. Sign in is a `quiet` button; sign out sits under the avatar in a small menu. On mobile the nav collapses into a sheet opened by an icon button; the sheet lists the same links at `text-body` with 48px tap targets.
+**SiteLayout (patient and public).** A 64px header, sticky, `surface` at 85% with a backdrop blur so a long doctor list scrolls under it without losing the way home. The mark and wordmark on the left. Nav links on the right as pills: `text-sm` weight 600, the active one on `brand-50` in `brand-700`. Signed out, "Sign in" is a `quiet` button and "Create account" is the `primary`. Signed in, a divider, then the avatar (to the account) and Sign out. On mobile the links move into a sheet with 48px pill rows. **A footer** closes every public page: the mark, one line about the product, and the emergency line on a `danger-bg` panel — "In an emergency, do not book. Call 112" — because the bottom of the page is where people look for "what if it is serious".
 
-**DoctorLayout and AdminLayout.** Keep the sidebar but make it a real one: 240px fixed on `md` and up, `surface-sunken` background, 1px `line` right border, nav items as 40px rows with a 20px icon and label, active row gets `brand-50` background and `brand-500` text, no left bar. The role name sits at the top in `text-xs` `ink-faint`. On mobile the sidebar is replaced by a **bottom tab bar**, 56px, four items max, `shadow-float`, fixed. The horizontal scrolling strip is removed.
-
-The content area of both shells has a `surface-sunken` background so white cards read as raised without needing shadows.
+**WorkShell (doctor and admin).** A full-height 256px sidebar pinned to the left edge, `surface`, with a `line` right border: the mark and a role tag at the top, the sections as 44px pill rows (active on `brand-50` in `brand-700`), and the signed-in person — avatar, name, email and a sign-out icon button — at the foot. The page sits beside it in a `max-w-6xl` column. There is no separate top header on desktop; the first pass centred the sidebar and header inside one container, which left both floating mid-screen on a wide monitor, lined up with nothing. On mobile the sidebar becomes a 56px sticky top bar (mark, role, sign out) and a **bottom tab bar** of at most four items, each an icon in a pill that fills `brand-50` when active, with the label under it.
 
 ### 3.3 Page header
 
-One shared component, used on every screen:
+One shared component, used on every work screen:
 
 ```
 [h1 title]                                  [optional primary action]
 [one sentence in ink-muted, max-w-prose]
 ```
 
-Title in `text-h1`, description in `text-body` `ink-muted`, 16px between them, 32px below the header before content. The action slot holds at most one button. Breadcrumbs go above the title in `text-sm`, only on screens two levels deep (DoctorDetail, AddDoctor).
+Title in `text-h1` bold, `text-display` from `lg`. Description in `text-body` `ink-muted`. At most one action. A back link ("← All doctors") goes above the title only on screens two levels deep.
+
+The front page does not use it: it opens with the hero (section 5.1).
 
 ### 3.4 Responsive rules
 
-Breakpoints are Tailwind defaults. The decisions that matter:
-
-- **Tables become card lists below `md` (768px).** Above it they are tables. `TableFrame` owns this switch (see 4.4); pages never render two layouts by hand.
+- **Tables become card lists below `md` (768px).** `TableFrame` owns this switch; pages never render two layouts by hand.
 - The doctor card grid is 1 column below `sm`, 2 at `sm`, 3 at `lg`.
-- Stat tiles are 2 columns on mobile, 4 at `md`.
-- Forms are single column always. Two short fields (start and end time, first and last name) may share a row at `sm` and up.
-- Minimum tap target is 44px on mobile for anything a patient touches during booking.
+- Speciality pills scroll sideways in one row on a phone and wrap from `sm`.
+- On the doctor page, booking comes first on a phone and the profile second; side by side from `lg`, with the booking panel sticky.
+- Forms are single column. Minimum tap target is 44px for anything a patient touches.
 
 ---
 
 ## 4. Components
 
-Split `ui.tsx` into `components/ui/` with one file per component and a barrel export. The list below is the full set. States are listed once here and apply wherever named: **default, hover, focus-visible, active, disabled, loading, error, selected**.
+`components/ui/`, one file per component, one barrel. States apply wherever named: **default, hover, focus-visible, active, disabled, loading, error, selected**.
 
 ### 4.1 Button
 
 | Prop | Values |
 |---|---|
 | `variant` | `primary`, `secondary`, `quiet`, `danger` |
-| `size` | `sm` (32px), `md` (40px), `lg` (48px, booking and emergency only) |
-| `loading` | boolean, swaps the label for a spinner, keeps width, sets `aria-busy` |
-| `as` | `button` or `Link`, so the triage call-to-action links stop hand-rolling styles |
-| `iconOnly` | boolean, square, requires `aria-label` |
+| `size` | `sm` (36px), `md` (44px), `lg` (48px) |
+| `loading` | swaps the label for a spinner, keeps width, sets `aria-busy` |
+| `as` | `button` or `link` |
+| `iconOnly` | square, requires a label |
+| `filled` | fills a `danger` button: the confirm step of a destructive dialog and the emergency call, nothing else |
 
-Styles: `primary` is `brand-600` fill, white text, `brand-700` on hover. `secondary` is white with a `line-strong` border, `ink` text, `surface-sunken` on hover. `quiet` has no border, `ink-muted` text, `surface-sunken` on hover. `danger` is white with a `danger.solid` border and text, and fills red only on hover; a red filled button is reserved for the confirm step inside a destructive dialog. Disabled is 50% opacity with `cursor-not-allowed`. Text is `text-sm` weight 500 at `sm` and `md`, `text-body` at `lg`. Padding is `px-3` at `sm`, `px-4` otherwise.
+All buttons are **pills**, weight 600, and press down one pixel. `primary` is `brand-600` with a small shadow, `brand-700` on hover; **disabled primary is `brand-100` with `brand-700` text at 80%**, which reads as "not yet" where half-opacity read as a rendering fault. `secondary` is white with a `line-strong` border. `quiet` has no border. `danger` is a red outline. **Destructive row actions are `quiet` and turn `danger-bg` only on hover** — a red outline on every row of a table turned the whole list into a warning; the dialog behind the button carries the seriousness.
 
 ### 4.2 Field, Input, Select, Textarea
 
-`Field` wraps `Label`, the control, an optional `hint` and an optional `error`. The control is 40px tall, white, `line-strong` border, `rounded-sm`, `text-body`. On hover the border goes to `ink-faint`. On focus it gets the focus ring and the border goes to `brand-500`. On error the border goes to `danger.solid` and the error message renders in `text-sm` `danger.fg` with `aria-describedby` wired. Placeholders are `ink-faint`. Label is `text-sm` weight 500 `ink`, 6px above the control. Required fields do not get an asterisk; optional ones get "(optional)" after the label in `ink-muted`.
+`Field` wraps the label, the control, an optional hint and an optional error, and wires `aria-describedby`. The control is 44px, white, `line-strong` border, `rounded-sm`. On focus the border goes `brand-500` and a 4px `brand-50` halo appears. On error the border goes `danger-solid` and the message renders in `danger-fg`. Required fields carry no asterisk; optional ones say "(optional)".
 
-`Textarea` has a minimum of 4 rows and grows to 10. `Select` is a native select styled to match with a Lucide chevron.
+### 4.3 Card and Section
 
-### 4.3 Card
+`Card` props: `padding` (`none`, `sm` 16, `md` 24, `lg` 32) and `tone`. Default is white, `line` border, `rounded-md`, `shadow-card`. Tones use the semantic `bg` with a 20% `solid` border and no shadow.
 
-Props: `padding` (`sm` 16, `md` 24, `lg` 32) and `tone` (`default`, `info`, `success`, `warning`, `danger`). Default is white, `line` border, `rounded-md`, no shadow. Tones set background to the semantic `bg` and border to a 20% mix of `solid`. Remove `className` overrides for colour from every caller; `tone` replaces them.
+`Section` is a titled part of a page: an `h2`, an optional line under it, an optional action on the right, and its children. **It is what a table or list with a heading sits in**, replacing the old pattern of a `Card` with an `h2` inside, which put a table's own card inside a second one.
 
 ### 4.4 TableFrame
 
-Owns the responsive switch. Accepts `columns` (label, key, align, `hideOnCard`) and `rows`, plus a `renderCard(row)` for the mobile layout. Above `md`: header row on `surface-sunken`, `text-xs` weight 500 `ink-muted`, 12px vertical cell padding, hairline row dividers, last column right-aligned. Below `md`: a stack of `Card padding="sm"` with the primary field in `text-body` weight 500, secondary fields in `text-sm` `ink-muted`, and actions in a row at the bottom. Rows are never striped and never hover-highlighted unless they are clickable.
+Owns the responsive switch. Accepts `columns` (label, key, align, `hideOnCard`) and `rows`, plus a `renderCard(row)` for the mobile layout. Above `md`: **the table is its own card**, edge to edge (`Card padding="none"`), with a tinted header row in small tracked uppercase, 16px vertical cell padding, hairline row dividers. It is never placed inside another card; a titled table goes in a `Section`. Below `md`: a stack of `Card padding="sm"` with the primary field in `text-body` weight 500, secondary fields in `text-sm` `ink-muted`, and actions in a row at the bottom. Rows are never striped and never hover-highlighted unless they are clickable.
 
 ### 4.5 Chip
 
@@ -213,7 +211,7 @@ One component replaces `StatusChip` and `UrgencyChip`: `Chip` with `tone` (`neut
 
 ### 4.7 StatTile
 
-Keep, restyle: `Card padding="md"`, label in `text-sm` `ink-muted` above, value in `text-h1` tabular, hint in `text-xs` `ink-faint`. The value is the only large thing. No icons, no trend arrows.
+`Card`, label in `text-sm` `ink-muted`, an optional small icon in a `brand-50` badge on the right, the value in `text-display` bold, a hint in `text-xs`. The value is the largest thing; the icon only helps an eye find "revenue" among four. No trend arrows or sparklines.
 
 ### 4.8 Skeleton and Loading
 
@@ -233,11 +231,11 @@ Bottom-centre on mobile, bottom-right on desktop. `surface-raised`, `shadow-floa
 
 ### 4.12 Dialog
 
-Centred, `max-w-md`, `shadow-modal`, `rounded-md`, 24px padding, title in `text-h2`, body in `text-body` `ink-muted`, actions right-aligned with the primary or danger action last. Backdrop is `ink` at 40%. Focus is trapped, Escape closes, the trigger regains focus on close. Used for cancel confirmations, doctor deactivation and the waitlist claim.
+Centred, `max-w-md`, `shadow-modal`, `rounded-lg`, 24px padding, title in `text-h2`, body in `text-body` `ink-muted`, actions right-aligned with the primary or danger action last. Backdrop is `ink` at 40% with a slight blur. Focus is trapped, Escape closes, the trigger regains focus on close. Used for cancel confirmations, doctor deactivation and the waitlist claim.
 
 ### 4.13 Tabs
 
-Segmented control, 36px tall, `surface-sunken` track, `rounded-sm`, the active segment white with `line` border. Used for the doctor appointment scopes. Keyboard arrows move between tabs.
+A pill segmented control, 44px tall, white with a `line` border and `shadow-card`; the active segment is a `brand-600` pill with white text. Used for the doctor appointment scopes. Keyboard arrows move between tabs.
 
 ### 4.14 Pagination
 
@@ -254,6 +252,13 @@ Previous and next as `secondary sm` buttons with a "Page 3 of 12" label between 
 ---
 
 ## 5. Patterns
+
+**5.1 The front page.** It opens with a hero, not a filter form: someone arriving from a search engine has not decided to book yet. A `rounded-lg` panel with a soft `brand-50` wash holds an eyebrow pill naming the three features, the `text-hero` line, one sentence, a pill search bar with a leading icon that filters the list live, and a text link to the symptom check. On `lg` a tilted picture of the live queue card and a waitlist offer sits beside it, drawn in the app's own components and hidden from assistive technology: it shows the one thing no other booking page has, in the form the patient will meet it. Three promises close the hero, each true of this product. Below it, the doctors: a heading with the count, speciality pills with icons, and cards that lift on hover and end in a "Book →" pill.
+
+**5.2 The booking panel.** Two columns from `lg`: who on the left (avatar, speciality pill, four fact tiles, about, address), when on the right, sticky. Days are 64px tiles; times are pills grouped under Morning, Afternoon and Evening; the selected time is a `brand-50` pill with a `brand-600` ring. The summary line above the full-width `lg` button repeats the exact slot and the fee.
+
+**5.3 Sign in and sign up.** Split screen from `lg`: a `brand-700` panel with soft circles (never a stock photo), the inverted mark, one headline, three one-line reasons, and the emergency line; the form on the right. On a phone, the form alone.
+
 
 **Async triad.** A `useAsync`-style hook returning `status` and a `<AsyncState>` component that takes `skeleton`, `error`, `empty` and `children` so pages stop branching by hand.
 
@@ -303,7 +308,7 @@ Below `md` the same row becomes a card with the patient name as the title, time 
 
 ### 6.3 Live queue board (phase 9)
 
-Dark, fixed palette: background `#0F172A`, primary text `#F8FAFC`, muted `#94A3B8`, accent `#60A5FA`. Layout is one column per doctor, each showing the doctor name in `text-h2`, the current token in `text-display` (scale it up to 96px on large screens), and the next three tokens in `text-h1` muted. A token change crossfades over 200ms. A small "Updated 10:31" line in muted text is the only chrome. No header, no nav, no login state. If the socket drops, a `warning.solid` bar appears at the top reading "Reconnecting" and the numbers dim to 60%.
+Dark, fixed palette: background `#0F172A`, primary text `#F8FAFC`, muted `#94A3B8`, accent `#5EEAD4` (teal, to match the app; 12:1 on the background). Layout is one column per doctor, each showing the doctor name in `text-h2`, the current token in `text-display` (scale it up to 96px on large screens), and the next three tokens in `text-h1` muted. A token change crossfades over 200ms. A small "Updated 10:31" line in muted text is the only chrome. No header, no nav, no login state. If the socket drops, a `warning.solid` bar appears at the top reading "Reconnecting" and the numbers dim to 60%.
 
 ### 6.4 Patient queue card and waitlist (phases 9 and 10)
 
@@ -331,4 +336,6 @@ The patient queue card is a `Card padding="lg"` with the token number in `text-h
 4. `TableFrame` with the card switch, then migrate the four table screens.
 5. Forms: replace hand-rolled fields on Login, Signup, Account, Profile, AddDoctor, AvailabilityGrid.
 6. Emergency card and the doctor appointment row.
-7. Sweep: remove every raw colour class and every `rounded-lg`/`rounded-xl`.
+7. Sweep: remove every raw colour class and every `rounded-xl`.
+
+**Revision of 2026-09-23**, done in this order: the token swap (teal, warm neutrals, Plus Jakarta Sans, 8/14/20px radii, `shadow-card`, the `hero` type step); the primitives (pill buttons with a real disabled state, taller controls with a focus halo, `Section`, the edge-to-edge `TableFrame`, stat tiles with icons, the pill `Tabs`); the mark and favicon; both shells; then the four screens that carried the most weight — the front page, the doctor page, sign in and sign up, and the patient's appointments list.

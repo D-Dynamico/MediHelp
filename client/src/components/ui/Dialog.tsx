@@ -78,7 +78,7 @@ export function Dialog({
       <div
         aria-hidden
         onClick={onClose}
-        className="absolute inset-0 animate-fade-in bg-ink/40"
+        className="absolute inset-0 animate-fade-in bg-ink/40 backdrop-blur-[2px]"
       />
 
       <div
@@ -86,7 +86,7 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative w-full max-w-md animate-fade-in rounded-md bg-surface-raised p-6 shadow-modal"
+        className="relative w-full max-w-md animate-fade-in rounded-lg bg-surface-raised p-6 shadow-modal"
       >
         <h2 className="text-h2 font-semibold text-ink">{title}</h2>
         <div className="mt-2 text-body text-ink-muted">{children}</div>

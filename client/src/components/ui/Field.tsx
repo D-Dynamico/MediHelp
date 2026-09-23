@@ -13,9 +13,12 @@ import { ChevronDown } from 'lucide-react';
  * exceptions is less noise and tells the reader more.
  */
 
+// Taller than before (44px, a thumb's width) and with a soft focus halo in the
+// brand tint alongside the outline, so where you are typing is obvious.
 const CONTROL =
-  'h-10 w-full rounded-sm border bg-surface px-3 text-body text-ink placeholder:text-ink-faint ' +
-  'transition hover:border-ink-faint focus:border-brand-500 disabled:opacity-50';
+  'h-11 w-full rounded-sm border bg-surface px-3.5 text-body text-ink placeholder:text-ink-faint ' +
+  'transition hover:border-ink-faint focus:border-brand-500 focus:ring-4 focus:ring-brand-50 ' +
+  'disabled:opacity-50';
 
 export function Field({
   label,

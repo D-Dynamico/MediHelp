@@ -262,3 +262,95 @@ browser.
 - **Carried forward:** the branch is not merged to `main`; Claude triage and
   Razorpay have never spoken to the real services; `SEED_ADMIN_EMAIL` still
   defaults to `admin@medihelp.test`.
+
+---
+
+## The UI revision: calm teal, warm neutrals
+
+**Asked for.** The user said the interface "feels a bit sloppy" and asked for a
+look at how modern medtech sites handle style and navigation, then an
+improvement. Two decisions were theirs and were asked: the direction (**calm
+teal on warm neutrals** was chosen over a refined blue or a dark navy), and
+whether headless screenshots were acceptable given the standing "don't drive
+Chrome" preference (**yes** — recorded in memory as an exception that covers
+headless scratchpad browsers, not their own Chrome window).
+
+**How it was judged.** Research first (2026 healthcare UX write-ups: calm teals
+and warm neutrals over clinical blue, search-first booking, generous whitespace,
+real trust signals over stock photos, soft error states). Then Playwright in the
+scratchpad screenshotted all 17 screens at desktop and phone width against the
+sandbox, before and after. The sandbox ran with `NODE_ENV=test` for the shoot,
+because the login rate limiter counts every page load's session refresh as a
+sign-in and tripped after nine pages.
+
+**What the "before" screens showed.** A front page that opened on three stacked
+grey boxes with no welcome; dashboards with a table in a card in a card, so
+every section had a double border; the work-area sidebar and header centred in a
+container and floating mid-screen on a wide monitor; a red Cancel/Remove on
+every table row; a sign-in page that was a lone box on grey; a booking page with
+half the screen empty; a disabled primary button that looked like a rendering
+glitch.
+
+**What changed.**
+
+- *Tokens.* Teal brand (`brand-50/100/500/600/700/800`), warm neutrals, a quiet
+  blue for `info` now that the brand is not blue, Plus Jakarta Sans instead of
+  IBM Plex, radii 8/14/20px, a `shadow-card` whisper on every card, and a `hero`
+  type step. Every text colour was contrast-checked before choosing it; all
+  pass AA on both surfaces, and the ratios are in the design doc.
+- *Primitives.* Pill buttons with a real disabled state; 44px controls with a
+  focus halo; `Card padding="none"`; a new `Section` for titled content; an
+  edge-to-edge `TableFrame` that is its own card and must not be put in another;
+  stat tiles with small icon badges; a pill `Tabs`; a blurred dialog backdrop.
+- *The mark.* A teal rounded square with a cross and a "live" dot, inline SVG
+  (`Logo`, `LogoMark`, with an inverted form) and the same as `favicon.svg`.
+- *Shells.* The public header is sticky and translucent with pill nav and a
+  "Create account" call to action, and every public page gets a footer with the
+  emergency line. The work shell is a full-height sidebar pinned left with the
+  signed-in person at its foot, and a slim top bar plus pill tab bar on mobile.
+- *Screens.* The front page opens with a hero — search first, a link to the
+  symptom check, a drawn preview of the live queue card and a waitlist offer,
+  and three promises that are each true of this product — then speciality pills
+  with icons and doctor cards that lift on hover. The doctor page is two
+  columns with a sticky booking panel, times grouped by part of day, and a
+  summary line above a full-width book button. Sign in and sign up are split
+  screen with a teal brand panel. Appointments are cards with a calendar-leaf
+  date. Destructive row actions (admin Cancel, admin Remove, patient Cancel)
+  are quiet until hovered; the dialog behind each one is where the red lives.
+
+**Decisions worth knowing.**
+
+- *The first design doc said "cards get no shadow" and "no all-caps anywhere".*
+  Both were relaxed deliberately and the doc says so: a hairline alone made
+  pages a grid of outlines, and small tracked uppercase is now allowed for table
+  headers and slot-group labels only.
+- *No stock photography, anywhere.* The auth panel uses soft shapes; the hero
+  uses a picture of the product itself. A stock clinician is the least trusted
+  image a health site can show.
+- *Tailwind config changes need the dev server restarted.* The first "after"
+  pass showed the old disabled button because the running Vite still had the
+  old config; a restart fixed it. Worth knowing when touching
+  `tailwind.config.js`.
+- *`npx prettier` is a trap here.* The repo has no Prettier, so `npx` fetched
+  one and reformatted a file into double quotes. The file was restored from git
+  and the edits reapplied by hand.
+
+**Files.** `client/index.html`, `client/public/favicon.svg` (new),
+`client/tailwind.config.js`, `client/src/index.css`,
+`client/src/components/ui/{Button,Card,Dialog,Field,PageHeader,StatTile,TableFrame,Tabs,index}.tsx`,
+`client/src/components/ui/{Logo,Section}.tsx` (new),
+`client/src/components/specialityIcons.ts` (new),
+`client/src/components/WorkShell.tsx`, `client/src/pages/public/{SiteLayout,Doctors,DoctorDetail}.tsx`,
+`client/src/pages/auth/AuthShell.tsx`, `client/src/pages/patient/Appointments.tsx`,
+`client/src/pages/admin/{Dashboard,Doctors,AdminAppointmentTable}.tsx`,
+`client/src/pages/doctor/Dashboard.tsx`, `docs/medihelp-design-system.md`.
+
+**Verified.** `typecheck`, `lint` and `build` clean; client check 14/14; the
+raw-colour grep over `client/src` returns nothing. Every screen was
+re-screenshotted at desktop and phone width and looked at.
+
+**Not verified.** Nothing interactive was clicked through — hover states, the
+sticky booking panel while scrolling, and the mobile menu sheet were seen only
+as still frames. The phase 9 and 10 screens (queue card, board, waitlist offer)
+inherited the new tokens but were not individually re-screenshotted with live
+data in them.

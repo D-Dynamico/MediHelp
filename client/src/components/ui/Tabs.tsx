@@ -31,7 +31,7 @@ export function Tabs<Value extends string>({
       role="tablist"
       aria-label={label}
       onKeyDown={onKeyDown}
-      className="inline-flex h-9 items-center gap-1 rounded-sm bg-surface-sunken p-1"
+      className="inline-flex h-11 items-center gap-1 rounded-full border border-line bg-surface p-1 shadow-card"
     >
       {options.map((option) => {
         const active = option.value === value;
@@ -43,9 +43,9 @@ export function Tabs<Value extends string>({
             aria-selected={active}
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(option.value)}
-            className={`rounded-sm px-3 text-sm font-medium transition ${
-              active ? 'bg-surface text-ink shadow-none ring-1 ring-line' : 'text-ink-muted'
-            } h-7`}
+            className={`h-9 rounded-full px-4 text-sm font-semibold transition ${
+              active ? 'bg-brand-600 text-white' : 'text-ink-muted hover:text-ink'
+            }`}
           >
             {option.label}
           </button>

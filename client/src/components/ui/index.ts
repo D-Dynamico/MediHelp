@@ -9,6 +9,7 @@
 export { Button, IconButton } from './Button';
 export type { ButtonVariant, ButtonSize } from './Button';
 export { Card } from './Card';
+export { Logo, LogoMark } from './Logo';
 export type { Tone } from './Card';
 export { Chip, StatusChip, UrgencyChip, PaymentChip, paymentLabel } from './Chip';
 export { Field, Input, Textarea, Select, controlClasses } from './Field';
@@ -21,6 +22,7 @@ export { Dialog } from './Dialog';
 export { TableFrame } from './TableFrame';
 export type { Column } from './TableFrame';
 export { PageHeader } from './PageHeader';
+export { Section } from './Section';
 export { Tabs } from './Tabs';
 export { Pagination } from './Pagination';
 export { StatTile } from './StatTile';

@@ -101,49 +101,51 @@ export function AdminDoctors() {
         description="Who is on the public list, and who is taking bookings."
       />
 
-      <Card className="space-y-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[12rem] flex-1 space-y-1">
-            <label htmlFor="search" className="block text-sm font-medium">
-              Search
-            </label>
-            <input
-              id="search"
-              value={search}
-              placeholder="Name or email"
-              onChange={(event) => setParam('search', event.target.value)}
-              className={controlClasses}
-            />
-          </div>
+      <div className="space-y-4">
+        <Card padding="sm">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[12rem] flex-1 space-y-1">
+              <label htmlFor="search" className="block text-sm font-medium">
+                Search
+              </label>
+              <input
+                id="search"
+                value={search}
+                placeholder="Name or email"
+                onChange={(event) => setParam('search', event.target.value)}
+                className={controlClasses}
+              />
+            </div>
 
-          <div className="space-y-1">
-            <label htmlFor="speciality" className="block text-sm font-medium">
-              Speciality
-            </label>
-            <select
-              id="speciality"
-              value={speciality}
-              onChange={(event) => setParam('speciality', event.target.value)}
-              className={controlClasses}
-            >
-              <option value="">All</option>
-              {SPECIALITIES.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </div>
+            <div className="space-y-1">
+              <label htmlFor="speciality" className="block text-sm font-medium">
+                Speciality
+              </label>
+              <select
+                id="speciality"
+                value={speciality}
+                onChange={(event) => setParam('speciality', event.target.value)}
+                className={controlClasses}
+              >
+                <option value="">All</option>
+                {SPECIALITIES.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <label className="flex items-center gap-2 py-2 text-sm text-ink-muted">
-            <input
-              type="checkbox"
-              checked={includeInactive}
-              onChange={(event) => setParam('includeInactive', event.target.checked ? 'true' : '')}
-            />
-            Show removed
-          </label>
-        </div>
+            <label className="flex items-center gap-2 py-2 text-sm text-ink-muted">
+              <input
+                type="checkbox"
+                checked={includeInactive}
+                onChange={(event) => setParam('includeInactive', event.target.checked ? 'true' : '')}
+              />
+              Show removed
+            </label>
+          </div>
+        </Card>
 
         {error && <ErrorNote message={error} />}
 
@@ -196,9 +198,12 @@ export function AdminDoctors() {
                 label: '',
                 align: 'right',
                 render: (doctor) => (
+                  // Quiet until hovered: a red button on every row turned the
+                  // whole list into a warning. The dialog carries the weight.
                   <Button
                     size="sm"
-                    variant={doctor.isActive ? 'danger' : 'secondary'}
+                    variant={doctor.isActive ? 'quiet' : 'secondary'}
+                    className={doctor.isActive ? 'hover:bg-danger-bg hover:text-danger-fg' : ''}
                     loading={busyId === doctor.id}
                     onClick={() => (doctor.isActive ? setRemoving(doctor) : void onToggle(doctor))}
                   >
@@ -227,7 +232,7 @@ export function AdminDoctors() {
                 <Button
                   size="sm"
                   fullWidth
-                  variant={doctor.isActive ? 'danger' : 'secondary'}
+                  variant="secondary"
                   loading={busyId === doctor.id}
                   onClick={() => (doctor.isActive ? setRemoving(doctor) : void onToggle(doctor))}
                 >
@@ -237,7 +242,7 @@ export function AdminDoctors() {
             )}
           />
         )}
-      </Card>
+      </div>
 
       <Dialog
         open={removing !== null}

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { Menu, Phone, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { homeFor } from '../../routes/guards';
-import { Avatar, Button, ErrorBoundary, IconButton } from '../../components/ui';
+import { Avatar, Button, ErrorBoundary, IconButton, Logo } from '../../components/ui';
 
 /**
  * The shell around everything a patient sees, signed in or not.
@@ -52,11 +52,13 @@ export function SiteLayout() {
   ];
 
   return (
-    <div className="min-h-screen bg-surface-sunken">
-      <header className="border-b border-line bg-surface">
+    <div className="flex min-h-screen flex-col bg-surface-sunken">
+      {/* Sticky and translucent, so the way home and the account are always one
+          tap away on a long doctor list without a solid bar eating the page. */}
+      <header className="sticky top-0 z-40 border-b border-line/80 bg-surface/85 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <Link to="/" className="rounded-sm text-h3 font-semibold text-ink">
-            MediHelp
+          <Link to="/" className="rounded-sm" aria-label="MediHelp home">
+            <Logo />
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex">
@@ -67,10 +69,14 @@ export function SiteLayout() {
             ))}
 
             {user ? (
-              <div className="ml-3 flex items-center gap-2">
+              <div className="ml-3 flex items-center gap-2 border-l border-line pl-4">
                 {user.role === 'patient' && (
                   <Link to="/account" className="rounded-full" aria-label="Account">
-                    <Avatar name={user.name} size="sm" />
+                    <Avatar
+                      name={user.name}
+                      size="sm"
+                      {...(user.image ? { src: user.image } : {})}
+                    />
                   </Link>
                 )}
                 <Button variant="quiet" size="sm" onClick={() => void onSignOut()}>
@@ -78,9 +84,14 @@ export function SiteLayout() {
                 </Button>
               </div>
             ) : (
-              <Button as="link" to="/login" size="sm" className="ml-3">
-                Sign in
-              </Button>
+              <div className="ml-3 flex items-center gap-2">
+                <Button as="link" to="/login" variant="quiet" size="sm">
+                  Sign in
+                </Button>
+                <Button as="link" to="/signup" size="sm">
+                  Create account
+                </Button>
+              </div>
             )}
           </nav>
 
@@ -104,8 +115,8 @@ export function SiteLayout() {
                   to={link.to}
                   end={link.end}
                   className={({ isActive }) =>
-                    `flex h-12 items-center rounded-sm px-3 text-body font-medium ${
-                      isActive ? 'text-brand-500' : 'text-ink'
+                    `flex h-12 items-center rounded-full px-4 text-body font-semibold ${
+                      isActive ? 'bg-brand-50 text-brand-700' : 'text-ink'
                     }`
                   }
                 >
@@ -146,12 +157,49 @@ export function SiteLayout() {
 
       {/* Inside the shell, not around it: a screen that throws should still
           leave the reader a header they can navigate out of. */}
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
         <ErrorBoundary home="/">
           <Outlet />
         </ErrorBoundary>
       </main>
+
+      <SiteFooter />
     </div>
+  );
+}
+
+/**
+ * The foot of every public page.
+ *
+ * Its one job that matters is the emergency line. A health site that only ever
+ * says "book an appointment" will eventually be read by someone who should not
+ * be booking anything, and the place people look for "what if it is serious"
+ * is the bottom of the page.
+ */
+function SiteFooter() {
+  return (
+    <footer className="border-t border-line bg-surface">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
+        <div className="space-y-2">
+          <Logo />
+          <p className="max-w-sm text-sm text-ink-muted">
+            Book a doctor in under a minute, see your place in the queue live, and get offered
+            cancelled slots automatically.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 rounded-md bg-danger-bg px-4 py-3">
+          <Phone aria-hidden size={18} className="shrink-0 text-danger-solid" />
+          <p className="text-sm text-danger-fg">
+            <span className="font-semibold">In an emergency, do not book.</span> Call{' '}
+            <a href="tel:112" className="font-semibold underline underline-offset-2">
+              112
+            </a>{' '}
+            or go to the nearest emergency department.
+          </p>
+        </div>
+      </div>
+    </footer>
   );
 }
 
@@ -169,8 +217,8 @@ function HeaderLink({
       to={to}
       end={end}
       className={({ isActive }) =>
-        `rounded-sm px-3 py-2 text-sm font-medium transition ${
-          isActive ? 'text-brand-500' : 'text-ink-muted hover:text-ink'
+        `rounded-full px-4 py-2 text-sm font-semibold transition ${
+          isActive ? 'bg-brand-50 text-brand-700' : 'text-ink-muted hover:bg-surface-sunken hover:text-ink'
         }`
       }
     >

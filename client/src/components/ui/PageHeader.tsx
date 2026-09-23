@@ -24,7 +24,7 @@ export function PageHeader({
       {breadcrumb && <div className="text-sm text-ink-muted">{breadcrumb}</div>}
 
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <h1 className="text-h1 font-semibold text-ink">{title}</h1>
+        <h1 className="text-h1 font-bold text-ink lg:text-display">{title}</h1>
         {action}
       </div>
 

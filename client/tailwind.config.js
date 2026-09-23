@@ -34,9 +34,11 @@ export default {
         },
         brand: {
           50: 'var(--brand-50)',
+          100: 'var(--brand-100)',
           500: 'var(--brand-500)',
           600: 'var(--brand-600)',
           700: 'var(--brand-700)',
+          800: 'var(--brand-800)',
         },
         // Three stops each: a tint to sit on, text for that tint, and a fill.
         // Nothing in the product needs a fourth.
@@ -66,36 +68,47 @@ export default {
           bg: '#0F172A',
           ink: '#F8FAFC',
           muted: '#94A3B8',
-          accent: '#60A5FA',
+          // Teal, to match the app, and 12:1 on the board's background.
+          accent: '#5EEAD4',
         },
       },
 
       fontFamily: {
-        sans: ['"IBM Plex Sans"', 'Inter', 'system-ui', 'Segoe UI', 'sans-serif'],
+        // Humanist and round-shouldered, with real tabular figures for tokens,
+        // fees and clocks. IBM Plex read engineered — right for a terminal,
+        // cold for a waiting room.
+        sans: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', 'Segoe UI', 'sans-serif'],
       },
 
-      // Seven steps, each with its line height fixed to it. A size without a
-      // paired leading is how a type scale becomes decorative.
+      // Eight steps, each with its line height fixed to it. A size without a
+      // paired leading is how a type scale becomes decorative. `hero` exists for
+      // exactly one place — the front page's opening line.
       fontSize: {
-        display: ['2.5rem', { lineHeight: '2.75rem', letterSpacing: '-0.01em' }],
-        h1: ['1.75rem', { lineHeight: '2.125rem' }],
-        h2: ['1.25rem', { lineHeight: '1.75rem' }],
+        hero: ['3.25rem', { lineHeight: '3.5rem', letterSpacing: '-0.025em' }],
+        display: ['2.5rem', { lineHeight: '2.75rem', letterSpacing: '-0.02em' }],
+        h1: ['1.75rem', { lineHeight: '2.125rem', letterSpacing: '-0.015em' }],
+        h2: ['1.25rem', { lineHeight: '1.75rem', letterSpacing: '-0.01em' }],
         h3: ['1rem', { lineHeight: '1.5rem' }],
         body: ['0.9375rem', { lineHeight: '1.5rem' }],
         sm: ['0.8125rem', { lineHeight: '1.25rem' }],
         xs: ['0.75rem', { lineHeight: '1rem' }],
       },
 
-      // Three radii. Small things small, cards larger, circles round.
+      // Four radii. Controls small, cards soft, large panels softer, and pills
+      // and avatars round. The old 6/10 read as a spreadsheet's corners.
       borderRadius: {
-        sm: '6px',
-        md: '10px',
+        sm: '8px',
+        md: '14px',
+        lg: '20px',
       },
 
-      // Cards get none. Shadows are for things that float.
+      // Depth in three steps. Cards now carry a whisper of shadow — a hairline
+      // border alone made every page a grid of outlines — but only a whisper:
+      // warm-tinted, low, and never enough to look like it floats.
       boxShadow: {
-        float: '0 4px 16px rgba(17, 24, 39, 0.08), 0 1px 2px rgba(17, 24, 39, 0.06)',
-        modal: '0 16px 48px rgba(17, 24, 39, 0.16)',
+        card: '0 1px 2px rgba(28, 35, 33, 0.04), 0 2px 8px rgba(28, 35, 33, 0.04)',
+        float: '0 8px 24px rgba(28, 35, 33, 0.10), 0 2px 4px rgba(28, 35, 33, 0.04)',
+        modal: '0 24px 64px rgba(28, 35, 33, 0.20)',
       },
 
       keyframes: {

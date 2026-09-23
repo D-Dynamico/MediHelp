@@ -82,7 +82,11 @@ CLOUDINARY_API_SECRET=...
 
 Leave `PAYMENT_PROVIDER=mock` unless you have Razorpay keys, and leave
 `ANTHROPIC_API_KEY` empty to run triage on the offline rules engine. Both degrade
-deliberately, so the deployed demo is complete either way.
+deliberately, so the deployed demo is complete either way. Know what the mock
+means on a public URL: anyone who books can press "pay", and the booking is
+marked paid with no money moving. That's right for a portfolio demo and wrong
+for a real clinic. Set `SEED_ADMIN_EMAIL` to a mailbox you control rather than
+keep the `@medihelp.test` default.
 
 `PORT` is injected by Render — the server must read it and must bind `0.0.0.0`,
 not `localhost`, or the health check never passes.

@@ -198,6 +198,55 @@ was no pending diff: 12.3 is a sweep of the whole codebase against a checklist.
 
 ---
 
+## 12.4 Config and secrets review
+
+**What was found.**
+
+- *`.env.example` was missing `LOG_LEVEL`*, which the schema reads. Every other
+  key matched, and nothing outside `config/env.ts` reads `process.env` (checked
+  across `server/src`, `client/src` and the Vite config).
+- *Its `CORS_ORIGINS` comment* still said a separate frontend "would force
+  sameSite=none", which contradicts 12.1: the cookie stays `strict`, and only a
+  same-site origin works.
+- *Nothing secret was ever committed.* `.env` is gitignored and has never
+  appeared in any commit on any branch. I searched every added line in the
+  history for secret-shaped strings: the three `mongodb+srv` credentials are
+  placeholders (`USER:PASSWORD`, `user:pass`, `dbuser:***`), and the one
+  `sk-ant-` hit is `sk-ant-not-a-real-key`. The real Atlas password and the real
+  `JWT_SECRET` were each compared against the whole history without being
+  printed: 0 occurrences. No other secret is set locally.
+- *Production cookie flags are correct*, as verified in 12.3: `httpOnly`,
+  `sameSite=strict`, `secure` in production, `trust proxy` behind Render, and the
+  path scoped to `/api/auth`.
+- *`TRIAGE_MODEL=claude-opus-5` is valid*, confirmed against the `claude-api`
+  skill's current model table. No change.
+
+**What changed.**
+
+- *`.env.example`:* `LOG_LEVEL` added. The `CORS_ORIGINS` comment now matches
+  12.1. `PAYMENT_PROVIDER` spells out that the mock runs in production and marks
+  bookings paid with no money moving, that `razorpay` with a missing key falls
+  back loudly, and that the webhook secret is optional. `SEED_ADMIN_EMAIL` says to
+  use a mailbox you control for a real deploy.
+- *`ENV_KEYS` is exported from `config/env.ts`*, and `check-env` holds
+  `.env.example` to it in both directions. The example must document every key
+  the server reads, and must list no key the server ignores. It also checks that
+  the example ships no secret values. **Decision:** this was the one drift a
+  review can find but can't prevent, so it's now a check rather than a habit.
+- *`DEPLOYMENT.md`* now says what the mock means on a public URL, and to set
+  `SEED_ADMIN_EMAIL`.
+
+**Files.** `.env.example`, `server/src/config/env.ts`, `server/scripts/check-env.ts`,
+`docs/DEPLOYMENT.md`, `docs/PHASES.md` (12.4 ticked).
+
+**Verified.**
+
+- `check:env`: 15/15, 3 of them new. With `LOG_LEVEL` removed from the example
+  for one run, the check **fails** and names the key. The file was then restored.
+- Typecheck and lint are clean.
+
+---
+
 ## Open items
 
 - **Planned by the user, not started:** replace Claude symptom triage with
@@ -208,9 +257,10 @@ was no pending diff: 12.3 is a sweep of the whole codebase against a checklist.
 - **The user is looking into Razorpay themselves.** The integration has never
   spoken to the real gateway, and the CSP's Razorpay origins are untested for the
   same reason.
-- `SEED_ADMIN_EMAIL` still defaults to `admin@medihelp.test`. It needs a
-  decision before deploying.
-- Phase 12.4–12.6, then phase 13: 13.1 root `start`, 13.2 serving `client/dist`
+- `SEED_ADMIN_EMAIL` still defaults to `admin@medihelp.test`. The deploy doc and
+  `.env.example` now say to set a real mailbox. Choosing it is the user's call,
+  at deploy time.
+- Phase 12.5–12.6, then phase 13: 13.1 root `start`, 13.2 serving `client/dist`
   (and checking the CSP there), 13.6 deploy, 13.7 live checks.
 - The phase 9 and 10 screens and the redesign have still never been clicked
   through in a browser.

@@ -294,8 +294,10 @@ reconciled with the code.
       client-supplied fees or roles, no password field ever serialised.
       *(Everything held. JWT verification now pins `HS256` and refuses board
       tokens by name. Every finding is listed in the 2026-09-24 session note.)*
-- [ ] **12.4 Config and secrets review** — `.env.example` complete and accurate,
-      nothing secret committed, production cookie flags correct.
+- [x] **12.4 Config and secrets review** — `.env.example` complete and accurate,
+      nothing secret committed, production cookie flags correct. *(`LOG_LEVEL`
+      added. `check:env` now holds `.env.example` to the schema in both
+      directions. Git history is clean of the real credentials.)*
 - [ ] **12.5 Documentation pass** — README with setup, demo credentials and a
       feature tour; `ARCHITECTURE.md` and `SYSTEM_DESIGN.md` reconciled with what
       was actually built; session notes complete.

@@ -70,6 +70,13 @@ const schema = z.object({
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 });
 
+/**
+ * Every key the server reads. `check-env` holds `.env.example` to this list in
+ * both directions, so the example can't miss a key or document one that no
+ * longer exists.
+ */
+export const ENV_KEYS: readonly string[] = Object.keys(schema.shape);
+
 export type Settings = z.infer<typeof schema> & {
   isProduction: boolean;
   /** Cloudinary is only usable when the provider is chosen and all keys are set. */

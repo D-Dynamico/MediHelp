@@ -6,7 +6,10 @@ const results: string[] = [];
 const check = (label: string, ok: boolean, got?: unknown) =>
   results.push(`${ok ? 'PASS' : 'FAIL'}  ${label}${ok ? '' : `  (got ${JSON.stringify(got)})`}`);
 
-const { reloadSettings } = await import('../src/config/env.js');
+const { reloadSettings, ENV_KEYS } = await import('../src/config/env.js');
+const fs = await import('node:fs/promises');
+const path = await import('node:path');
+const { fileURLToPath } = await import('node:url');
 
 const base = {
   MONGODB_URI: 'mongodb+srv://user:pass@cluster0.abcde.mongodb.net/medihelp',
@@ -74,6 +77,25 @@ check(
   'a half-configured cloudinary stays off rather than half-working',
   halfConfigured.useCloudinary === false,
   halfConfigured.useCloudinary,
+);
+
+// --- .env.example is the whole story, and only the story ---
+// It's the one file a new setup reads. A key the server reads but the example
+// leaves out is a setting nobody knows exists. A key the example lists but the
+// server ignores sends someone chasing a switch that does nothing.
+const examplePath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.env.example');
+const example = await fs.readFile(examplePath, 'utf8');
+const documented = [...example.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((match) => match[1]!);
+
+const undocumented = ENV_KEYS.filter((key) => !documented.includes(key));
+check('.env.example documents every key the server reads', undocumented.length === 0, undocumented);
+const unknown = documented.filter((key) => !ENV_KEYS.includes(key));
+check('.env.example lists nothing the server ignores', unknown.length === 0, unknown);
+check(
+  '.env.example ships no secret values',
+  !/^(JWT_SECRET|RAZORPAY_KEY_SECRET|RAZORPAY_WEBHOOK_SECRET|CLOUDINARY_API_SECRET|ANTHROPIC_API_KEY|SEED_ADMIN_PASSWORD|SEED_DEMO_PASSWORD)=\S/m.test(
+    example,
+  ),
 );
 
 console.log(`\n${results.join('\n')}\n`);

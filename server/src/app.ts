@@ -1,5 +1,7 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
+import cors from 'cors';
+import helmet from 'helmet';
 import type { Express } from 'express';
 import { SPECIALITIES } from '@shared/types.js';
 import type { HealthResponse } from '@shared/types.js';
@@ -17,6 +19,35 @@ import { boardRouter, queueRouter } from './modules/queue/queue.routes.js';
 import { waitlistRouter } from './modules/waitlist/waitlist.routes.js';
 import { UPLOAD_DIR, UPLOAD_URL_PREFIX } from './providers/storage/local.js';
 import { apiLimiter } from './middleware/rateLimit.js';
+import { sanitizeRequest } from './middleware/sanitize.js';
+
+/**
+ * The content security policy is written for the built client, which this app
+ * serves in production (phase 13.2). In development Vite serves the pages, so
+ * the policy only lands on API responses and uploads, where it costs nothing.
+ * Each outside origin is here for one reason:
+ *
+ * - Google Fonts: the stylesheet and the font files `index.html` loads;
+ * - Razorpay: its checkout script, the frames it opens and the calls it makes;
+ * - Cloudinary: doctor photos, once uploads go there instead of to disk.
+ *
+ * `'unsafe-inline'` for styles covers React's `style={...}` attributes. Scripts
+ * get no such allowance.
+ */
+const contentSecurityPolicy = {
+  directives: {
+    defaultSrc: ["'self'"],
+    scriptSrc: ["'self'", 'https://checkout.razorpay.com'],
+    styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+    fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+    imgSrc: ["'self'", 'data:', 'blob:', 'https://res.cloudinary.com'],
+    connectSrc: ["'self'", 'https://*.razorpay.com'],
+    frameSrc: ['https://api.razorpay.com', 'https://checkout.razorpay.com'],
+    // Render only serves HTTPS, and HSTS already covers it. Upgrading here would
+    // break the production build run locally over plain http.
+    upgradeInsecureRequests: null,
+  },
+};
 
 /**
  * Builds the Express app. Kept separate from the server bootstrap so tests and
@@ -32,6 +63,15 @@ export function createApp(): Express {
   // rate limiting and `secure` cookies both depend on.
   if (getSettings().isProduction) app.set('trust proxy', 1);
 
+  app.use(helmet({ contentSecurityPolicy }));
+
+  // Off unless CORS_ORIGINS lists somewhere, since the client normally shares
+  // the API's origin. This is the same list Socket.IO uses. The refresh cookie
+  // is `sameSite: 'strict'`, so a listed origin only keeps users signed in if
+  // it is on the same site (a subdomain), not merely allowed by CORS.
+  const { CORS_ORIGINS } = getSettings();
+  if (CORS_ORIGINS.length > 0) app.use(cors({ origin: CORS_ORIGINS, credentials: true }));
+
   app.use(
     express.json({
       limit: '100kb',
@@ -44,6 +84,7 @@ export function createApp(): Express {
     }),
   );
   app.use(cookieParser());
+  app.use(sanitizeRequest);
 
   // Locally stored uploads are served by us; on Cloudinary they are served by
   // Cloudinary and this route would only ever 404.

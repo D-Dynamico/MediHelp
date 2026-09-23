@@ -281,8 +281,10 @@ reconciled with the code.
 
 ## Phase 12 — Hardening and docs
 
-- [ ] **12.1 HTTP hardening** — `helmet`, `express-mongo-sanitize`, `hpp`, CORS
-      allowlist from env, JSON body size cap.
+- [x] **12.1 HTTP hardening** — `helmet`, `express-mongo-sanitize`, `hpp`, CORS
+      allowlist from env, JSON body size cap. *(The two sanitizer packages were
+      replaced by `middleware/sanitize.ts`, because both break on Express 5. CORS
+      applies only when `CORS_ORIGINS` is set. `check:hardening`, 16 assertions.)*
 - [ ] **12.2 Audit coverage** — confirm every admin and doctor state change writes
       an `AuditLog` row; add the ones that were missed.
 - [ ] **12.3 Security sweep** — walk the checklist in `docs/SYSTEM_DESIGN.md` §3

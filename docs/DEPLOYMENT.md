@@ -16,7 +16,8 @@ The client and API share an origin, which buys three things:
 - **The refresh cookie keeps `sameSite=strict`.** A split deployment would force
   `sameSite=none`, which sends the cookie on cross-site requests and reopens the
   CSRF hole that `strict` closes for free. Same origin means no CSRF token layer.
-- **No CORS.** Nothing to allowlist, nothing to get wrong between environments.
+- **No CORS.** Leave `CORS_ORIGINS` empty. With nothing to allowlist, there is
+  nothing to get wrong between environments.
 - **One URL, one deploy, one log stream.** Easier to debug, and a portfolio
   reviewer follows one link.
 

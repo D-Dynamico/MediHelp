@@ -115,8 +115,8 @@ fight locally.
 
 The same two packages ship as **one service**: Express serves `/api`,
 `/socket.io` and — in production only — the built client from `client/dist`, all
-on one origin. There is no CORS layer in production either, and the refresh
-cookie keeps `sameSite=strict` because nothing is cross-site.
+on one origin. CORS stays off in production too, because `CORS_ORIGINS` is
+empty. The refresh cookie keeps `sameSite=strict` because nothing is cross-site.
 
 The development proxy exists precisely so the client makes the same same-origin
 relative requests (`/api/...`) in both environments. Nothing in the client knows

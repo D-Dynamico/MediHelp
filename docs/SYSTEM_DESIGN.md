@@ -109,11 +109,24 @@ broken refresh-token reuse detection — the family revocation threw a cast erro
 instead of running, so replayed tokens went uncaught. **The rule that replaces
 it: never build a filter from an object the client sent.**
 
-**Transport and headers** — `helmet`, `express-mongo-sanitize`, `hpp`, and a JSON
-body size cap. No CORS layer: client and API share an origin in both environments
-(Vite proxies in development, Express serves the built client in production), so
-there is no cross-origin request to allowlist. `trust proxy` is set in production
-so `secure` cookies and rate-limit IPs work behind Render's proxy.
+**Transport and headers** — `helmet` on every response, with a content security
+policy written for the built client. Scripts come only from our own origin and
+Razorpay's checkout, with no inline allowance; styles also allow inline, for
+React's `style` attributes. Fonts come from Google, images may come from
+Cloudinary, and `upgrade-insecure-requests` is off. The origins are listed in
+`app.ts`. Then there is a JSON body cap of 100 kB, and `middleware/sanitize.ts`,
+which does the work of `express-mongo-sanitize` and `hpp`. Neither package can be
+used as it is, because both assign `req.query`, which is getter-only in
+Express 5. The sanitizer removes `$`-prefixed and dotted keys from the body at
+any depth, and it collapses a repeated query key to its last value. It sits
+under zod, not in place of it. CORS is **off unless `CORS_ORIGINS` is set**:
+client and API share an origin in both environments (Vite proxies in
+development, Express serves the built client in production), so there is
+normally nothing to allowlist. When set, the same list feeds Express and
+Socket.IO. Because the refresh cookie is `sameSite=strict`, only a same-site
+origin (a subdomain) stays signed in. `trust proxy` is set in production so
+`secure` cookies and rate-limit IPs work behind Render's proxy.
+Covered by `npm run check:hardening --workspace server`.
 
 **Uploads** — multer with a MIME plus magic-byte check, a 2 MB cap, randomised
 filenames, served from a path that cannot execute anything.

@@ -259,7 +259,8 @@ browser.
   scripts can reproduce.
 - **Phase 12 (hardening) and phase 13 (deploy) are what remain.** 13.1 (root
   `start` script) and 13.2 (serving the built client) are the next deploy work.
-- **Carried forward:** the branch is not merged to `main`; Claude triage and
+- **Carried forward:** ~~the branch is not merged to `main`~~ — merged on
+  2026-09-24 as a fast-forward of 21 commits (`7b26927..40613b1`); Claude triage and
   Razorpay have never spoken to the real services; `SEED_ADMIN_EMAIL` still
   defaults to `admin@medihelp.test`.
 

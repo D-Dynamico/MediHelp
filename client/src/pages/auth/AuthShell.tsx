@@ -31,8 +31,9 @@ export function AuthShell({
   return (
     <div className="grid min-h-screen bg-surface lg:grid-cols-2">
       <aside className="relative hidden overflow-hidden bg-brand-700 p-12 text-white lg:flex lg:flex-col lg:justify-between">
-        {/* Soft shapes, not a stock photo: a photograph of a smiling stranger in
-            a white coat is the least trusted image on the internet. */}
+        {/* Soft shapes rather than a photograph. This panel is about what the
+            account does; people's photographs belong where they are the
+            subject — the doctors' own cards and pages. */}
         <div aria-hidden className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-brand-600 opacity-60" />
         <div aria-hidden className="absolute -bottom-32 -left-16 h-96 w-96 rounded-full bg-brand-800 opacity-70" />
 

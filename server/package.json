@@ -13,6 +13,7 @@
     "check:models": "tsx scripts/check-models.ts",
     "check:errors": "tsx scripts/check-errors.ts",
     "seed": "tsx src/seed.ts",
+    "refresh:photos": "tsx scripts/refresh-demo-photos.ts",
     "check:seed": "tsx scripts/check-seed.ts",
     "check": "npm run check:env && npm run check:tokens && npm run check:models && npm run check:errors && npm run check:auth && npm run check:auth:http && npm run check:ratelimit && npm run check:seed && npm run check:upload && npm run check:admin && npm run check:doctor && npm run check:booking && npm run check:payments && npm run check:triage && npm run check:queue && npm run check:waitlist",
     "check:tokens": "tsx scripts/check-tokens.ts",

@@ -123,7 +123,11 @@ Shadows are tinted with `ink`, not black, so they sit on the warm page instead o
 
 **Lucide**, 16px inline and 18 to 20px standalone. Icons appear in navigation, icon buttons, toasts, empty states, the emergency card, and (added in the revision) as small tinted badges that help an eye find something in a group: stat tiles, the doctor's fact tiles, the front page's three promises, and one icon per speciality (`components/specialityIcons.ts`, keyed on the shared speciality list so a new speciality is a type error until it has one). Buttons with text still do not get decorative icons, with one exception: a trailing arrow on a link-like button ("Book →").
 
-### 2.9 The mark
+### 2.9 Photographs
+
+**Doctors are shown with real photographs.** The first seed used generated cartoon avatars, which the user found childish on a clinic's site. The eight demo doctors now use licensed portraits (Pexels License) of South Asian clinicians, chosen to match each profile's age and gender. They are cropped square to the face at 400×400 and shipped in `client/public/doctors/`, with a `CREDITS.md` naming each photographer and source. They are served from our own origin, not hot-linked. `Avatar` renders them in a circle; a doctor's own upload replaces theirs. Photographs are for people, where the person is the subject. Illustration surfaces such as the auth panel and the hero use shapes and the product's own components.
+
+### 2.10 The mark
 
 A soft-cornered teal square with a white cross, and a bright teal dot in the corner: the cross says what the place is, and the dot is the "live" in the live queue. It is drawn inline (`components/ui/Logo.tsx`) rather than loaded, so it is sharp at any size, and it has an inverted form for the teal auth panel. The same mark is `public/favicon.svg`.
 
@@ -257,7 +261,7 @@ Previous and next as `secondary sm` buttons with a "Page 3 of 12" label between 
 
 **5.2 The booking panel.** Two columns from `lg`: who on the left (avatar, speciality pill, four fact tiles, about, address), when on the right, sticky. Days are 64px tiles; times are pills grouped under Morning, Afternoon and Evening; the selected time is a `brand-50` pill with a `brand-600` ring. The summary line above the full-width `lg` button repeats the exact slot and the fee.
 
-**5.3 Sign in and sign up.** Split screen from `lg`: a `brand-700` panel with soft circles (never a stock photo), the inverted mark, one headline, three one-line reasons, and the emergency line; the form on the right. On a phone, the form alone.
+**5.3 Sign in and sign up.** Split screen from `lg`: a `brand-700` panel with soft circles rather than a photograph, the inverted mark, one headline, three one-line reasons, and the emergency line; the form on the right. On a phone, the form alone.
 
 
 **Async triad.** A `useAsync`-style hook returning `status` and a `<AsyncState>` component that takes `skeleton`, `error`, `empty` and `children` so pages stop branching by hand.

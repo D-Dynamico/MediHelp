@@ -354,3 +354,50 @@ sticky booking panel while scrolling, and the mobile menu sheet were seen only
 as still frames. The phase 9 and 10 screens (queue card, board, waitlist offer)
 inherited the new tokens but were not individually re-screenshotted with live
 data in them.
+
+---
+
+## Real photographs for the demo doctors
+
+**Asked for.** The user liked the revision but not the cartoon (DiceBear)
+avatars on the doctors, and asked for stock images.
+
+**Finding them.** Unsplash's search needs an API key, and its pages sit behind a
+proof-of-work bot wall that even the headless browser could not pass, so that
+route was dropped. Openverse's CC0 catalogue was reachable, but its 222 stock
+results were almost all older Western clinicians, engravings and cartoons.
+Portraits like those, put on doctors named Anita Rao or Imran Sheikh, would have
+looked as wrong as the cartoons. Pexels' search pages loaded in the headless
+browser, and its image server is open. Seventy-six candidates were laid out as a
+numbered contact sheet, a shortlist of sixteen was viewed large, and eight were
+cast against the profiles: age against years of experience, and gender. Several
+candidates turned out to be the same person in different shots, so none was
+used twice. Each photographer's name and the licence ("Free", Pexels License)
+were read from the photo page.
+
+**What changed.**
+
+- `client/public/doctors/{surname}.jpg` — the eight portraits, cropped square to
+  the face and resized to 400×400 (14–27 KB each). With no face detector
+  available, and no wish to install one into the user's Python for eight images,
+  the crops were set by eye against a 10% grid laid over each photo. Checked on a
+  contact sheet.
+- `client/public/doctors/CREDITS.md` — photographer and source for each.
+- `seed.ts` — doctors are seeded with `/doctors/{surname}.jpg`, served from our
+  own origin: no third-party image host to go down, and no request to anyone
+  else on each page view.
+- `scripts/refresh-demo-photos.ts` (`npm run refresh:photos --workspace
+  server`) — updates a database seeded before the photos existed, without a
+  wipe. It changes only `@medihelp.test` doctors whose image is still the
+  DiceBear cartoon, and only when a photo ships for that surname. It also fixes
+  the frozen copy of the image in those doctors' appointments (`docSnapshot`).
+  It is idempotent.
+- **Run against Atlas**, at the user's request to see the change in the running
+  app: 8 doctor photos replaced, 14 appointment snapshots updated.
+- The design doc gains a "Photographs" section (2.9). The earlier "no stock
+  photography, anywhere" line in this note is superseded: photographs are for
+  people, where the person is the subject.
+
+**Verified.** `typecheck` and `lint` clean; `check:seed` 28/28. The live front
+page was screenshotted against Atlas after the refresh: every doctor card shows
+their photograph.

@@ -269,12 +269,17 @@ export async function seedDatabase({ force = false } = {}): Promise<SeedResult> 
   // --- doctors -------------------------------------------------------------
   const doctors = [];
   for (const seed of DOCTORS) {
+    const surname = seed.name.split(' ').at(-1)?.toLowerCase();
     const user = await UserModel.create({
       name: seed.name,
-      email: `${seed.name.split(' ').at(-1)?.toLowerCase()}@medihelp.test`,
+      email: `${surname}@medihelp.test`,
       passwordHash,
       role: 'doctor',
-      image: `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(seed.name)}`,
+      // A real photograph per demo doctor, shipped with the client under
+      // `client/public/doctors/` (credits alongside). Served from our own
+      // origin rather than hot-linked, so the demo has no third-party image
+      // host to go down and nothing is fetched from anyone else per page view.
+      image: `/doctors/${surname}.jpg`,
     });
 
     const doctor = await DoctorModel.create({

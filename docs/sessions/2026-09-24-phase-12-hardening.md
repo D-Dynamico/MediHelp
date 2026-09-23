@@ -296,6 +296,79 @@ step.
 
 ---
 
+## 12.6 Fresh-clone test
+
+**How.**
+
+- Pushed `main` (`bf34954`) and cloned it **from GitHub** into the scratchpad.
+  Then followed the README exactly: `npm install`, `cp .env.example .env`, set
+  only `MONGODB_URI` and `JWT_SECRET`, `npm run seed`, `npm run dev`.
+- The URI pointed at a **separate database on the same Atlas cluster**,
+  `medihelp-freshclone`, so the real `medihelp` data was never touched. It was
+  written by a script that only swaps the database name, and neither secret was
+  printed. The `JWT_SECRET` was freshly generated.
+- The tour was driven as a script through the **Vite dev proxy** (`:5173/api`,
+  `/socket.io`), the same path the browser uses, with a real Socket.IO client
+  standing in for each patient's screen. I didn't use a headless browser: the
+  machine had about 0.3 GB of memory free.
+
+**Results.**
+
+- Install, seed and dev all worked first time. The seed printed exactly the
+  logins in the README's table.
+- **Every README login works:** the admin, two doctors and all five patients.
+- **Triage → book → pay.** A free-text rash description went to Dermatologist.
+  The matching doctors were listed, a free slot was booked with a token number,
+  the mock payment settled, and the booking read `paid`. The doctor's list shows
+  the patient's triage note and urgency.
+- **Live queue.** Dr. Rao's queue for today loaded, and the patient's socket got
+  the snapshot on joining. Check-in, call-next (with `currentToken` now showing
+  their token) and finishing each reached the patient live. The board link opened
+  with no sign-in and carried no names.
+- **Admin.** The dashboard, all eight doctors and the appointments list loaded.
+- **Waitlist, end to end,** set up the way the README describes. Dr. Nair set
+  two-hour appointments, so a clear day held three slots. Three patients filled
+  it, and a fourth joined the waitlist. When one of the three cancelled, the
+  offer reached the waiting patient's socket live, and they claimed it into a
+  booking.
+
+**Two things that looked like failures and weren't.**
+
+1. The first run failed the payment and triage-note checks. Both were bugs in
+   the tour script, not in the app. The order endpoint answers **201** and the
+   script expected 200, so it never called `confirm-mock`. And the note is a
+   top-level `intakeNote` on the appointment, not nested. Calling
+   `confirm-mock` by hand confirmed the app settles correctly, and the client
+   does exactly that when `autoSettled` is set (`client/src/api/checkout.ts`).
+   The rerun passed both.
+2. The rerun first hit **429 on login**. The tour plus my debugging made more
+   than 20 logins from one address within 15 minutes, and the limiter did its
+   job. I waited out the window rather than restart the clone with
+   `NODE_ENV=test`, which isn't a README step. On the final run, the queue
+   walkthrough had nothing left to walk: the seed puts one booking in Dr. Rao's
+   queue today, and the first run had already completed it, passing all six
+   queue checks.
+
+**Cleanup.** Stopped the clone's servers (ports 4000 and 5173 free). Dropped
+`medihelp-freshclone` with a script that refuses unless both the URI and the
+live connection name that database. Afterwards the database list showed
+`medihelp-freshclone` gone and `medihelp` still there.
+
+**Noticed, not fixed.** A clean exit from `npm run seed` logs "Mongo
+disconnected" twice, once as WARN and once as INFO. It's cosmetic, but a
+deliberate disconnect shouldn't warn.
+
+---
+
+## Phase 12: closed
+
+All six substeps are done, one commit each. Server checks now number **18
+scripts**: 671 assertions before this session, 716 now (`check:hardening` 16,
+`check:audit` 22, `check:tokens` +4, `check:env` +3). The client check is
+14/14 and was untouched.
+
+---
+
 ## Open items
 
 - **Planned by the user, not started:** replace Claude symptom triage with
@@ -309,7 +382,11 @@ step.
 - `SEED_ADMIN_EMAIL` still defaults to `admin@medihelp.test`. The deploy doc and
   `.env.example` now say to set a real mailbox. Choosing it is the user's call,
   at deploy time.
-- Phase 12.6, then phase 13: 13.1 root `start`, 13.2 serving `client/dist`
+- Phase 13: 13.1 root `start`, 13.2 serving `client/dist`
   (and checking the CSP there), 13.6 deploy, 13.7 live checks.
 - The phase 9 and 10 screens and the redesign have still never been clicked
   through in a browser.
+- The double "Mongo disconnected" log (WARN then INFO) on a deliberate
+  disconnect, seen at the end of `npm run seed`.
+- Suggested before phase 13: `/code-review high` over this session's changes
+  (`71fd073..HEAD`), since 12.1 added middleware to every request.

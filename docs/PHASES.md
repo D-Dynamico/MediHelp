@@ -301,8 +301,11 @@ reconciled with the code.
 - [x] **12.5 Documentation pass** — README with setup, demo credentials and a
       feature tour; `ARCHITECTURE.md` and `SYSTEM_DESIGN.md` reconciled with what
       was actually built; session notes complete.
-- [ ] **12.6 Fresh-clone test** — clone to a new directory, set only `MONGODB_URI`
-      and `JWT_SECRET`, follow the README, and run the full demo.
+- [x] **12.6 Fresh-clone test** — clone to a new directory, set only `MONGODB_URI`
+      and `JWT_SECRET`, follow the README, and run the full demo. *(Cloned from
+      GitHub at `bf34954` and run against a separate `medihelp-freshclone`
+      database, dropped afterwards. The whole README tour passed. See the
+      2026-09-24 session note.)*
 
 **Exit**: a clean clone with only `MONGODB_URI` and `JWT_SECRET` set runs the whole
 demo — all three roles, all three flagship features — by following the README alone.

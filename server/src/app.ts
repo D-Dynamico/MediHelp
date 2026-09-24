@@ -63,7 +63,16 @@ export function createApp(): Express {
   // rate limiting and `secure` cookies both depend on.
   if (getSettings().isProduction) app.set('trust proxy', 1);
 
-  app.use(helmet({ contentSecurityPolicy }));
+  app.use(
+    helmet({
+      contentSecurityPolicy,
+      // Helmet's default, `same-origin`, cuts the link between the page and any
+      // popup it opens. Razorpay's checkout opens one for netbanking and wallets,
+      // and reports back through that link. Without it, the money could be taken
+      // while the booking stays unpaid.
+      crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+    }),
+  );
 
   // Off unless CORS_ORIGINS lists somewhere, since the client normally shares
   // the API's origin. This is the same list Socket.IO uses. The refresh cookie

@@ -23,6 +23,8 @@ await connectDb();
 const { createApp } = await import('../src/app.js');
 const { reloadSettings } = await import('../src/config/env.js');
 const { sanitizeRequest } = await import('../src/middleware/sanitize.js');
+const { uploadImage } = await import('../src/middleware/upload.js');
+const { errorHandler } = await import('../src/middleware/error.js');
 
 const results: string[] = [];
 const check = (label: string, ok: boolean, got?: unknown) => {
@@ -56,6 +58,21 @@ await withServer(createApp(), async (base) => {
   check('nosniff is set on every response', res.headers.get('x-content-type-options') === 'nosniff');
   check('framing is refused', res.headers.get('x-frame-options') === 'SAMEORIGIN');
   check('Express no longer announces itself', res.headers.get('x-powered-by') === null);
+  check(
+    "popups keep their link to the page (Razorpay's checkout needs it)",
+    res.headers.get('cross-origin-opener-policy') === 'same-origin-allow-popups',
+    res.headers.get('cross-origin-opener-policy'),
+  );
+
+  // Parses fine and fits under the size cap, but used to overflow the stack in
+  // the sanitizer and come back as a 500, on a route that needs no login.
+  const deep = '['.repeat(45_000) + ']'.repeat(45_000);
+  const nested = await fetch(`${base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: deep,
+  });
+  check('a deeply nested body is a 400, not a crash', nested.status === 400, nested.status);
 
   // --- CORS, off by default ---
   const preflight = await fetch(`${base}/api/health`, {
@@ -109,6 +126,12 @@ echo.use(sanitizeRequest);
 echo.all('/echo', (req, res) => {
   res.json({ body: req.body as unknown, query: req.query });
 });
+// A multipart form, as the profile and add-doctor routes take them. Its fields
+// only exist once multer has run, after the app-wide sanitizer.
+echo.post('/form', ...uploadImage('image'), (req, res) => {
+  res.json({ body: req.body as unknown });
+});
+echo.use(errorHandler);
 
 await withServer(echo, async (base) => {
   const res = await fetch(`${base}/echo?sort=name&sort=date&%24where=1&plain=ok`, {
@@ -133,6 +156,18 @@ await withServer(echo, async (base) => {
   check('the last value of a repeated query key wins', seen.query.sort === 'date', seen.query);
   check('operator keys are removed from the query', !('$where' in seen.query), seen.query);
   check('ordinary query values pass through untouched', seen.query.plain === 'ok', seen.query);
+
+  const form = new FormData();
+  form.append('name', 'Dr. Form');
+  form.append('$where', 'sleep(1000)');
+  form.append('profile.role', 'admin');
+  const multipart = await fetch(`${base}/form`, { method: 'POST', body: form });
+  const fields = ((await multipart.json()) as { body: Record<string, unknown> }).body;
+  check(
+    'a multipart form is cleaned too, once its fields exist',
+    JSON.stringify(fields) === JSON.stringify({ name: 'Dr. Form' }),
+    fields,
+  );
 });
 
 console.log(`\n${results.join('\n')}\n`);

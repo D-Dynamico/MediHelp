@@ -369,6 +369,63 @@ scripts**: 671 assertions before this session, 716 now (`check:hardening` 16,
 
 ---
 
+## Review fixes (`/code-review high 71fd073..HEAD`)
+
+The review of this session's code found nine issues. Ranked by how critical
+they are, the user chose to fix the top four. The rest are recorded under open
+items.
+
+**What changed.**
+
+1. *A deeply nested body crashed the sanitizer.* A body of about 45,000 nested
+   brackets fits under the 100 kB cap and parses fine, but the recursive walk
+   overflowed the stack. That came back as a 500 on any route, including
+   login, which needs no account. The walk now stops at 32 levels with a 400.
+   The deepest real body, the doctor's working hours, is three levels down.
+2. *The audit trail reported address edits that never happened.* Both update
+   services rebuilt the address as a new object. When no second line was
+   stored, that meant `line2: undefined`, and Mongoose counted it as a change.
+   The address is now written path by path, and a blank second line means
+   none, as it already did when a doctor is added. `changedFields` reports
+   `address.line1` and `address.line2` as a single `address`. **Decision:**
+   write the paths rather than compare values by hand. Mongoose's tracking
+   stays the single source of truth, and a throwaway test confirmed the five
+   cases: same/same, none/blank, none/absent, cleared, and a changed first line.
+3. *Multipart forms skipped the sanitizer.* multer reads a form inside the
+   route, after the app-wide pass has already run and found no body.
+   `sanitizeBody` is now a step in `uploadImage`, between reading the form and
+   storing the image, so a refused form never leaves a file behind.
+4. *Helmet's `Cross-Origin-Opener-Policy: same-origin` would have broken
+   Razorpay's popups.* Netbanking and wallets report back from a popup, so the
+   money could be taken while the booking stayed unpaid. It's now set to
+   `same-origin-allow-popups`. This can't happen until real Razorpay is
+   switched on, but it's the most expensive failure on the list.
+
+**Files.** `server/src/middleware/sanitize.ts`, `server/src/middleware/upload.ts`,
+`server/src/app.ts`, `server/src/utils/changes.ts`,
+`server/src/modules/doctors/doctor.service.ts`,
+`server/src/modules/admin/admin.service.ts`, `server/scripts/check-hardening.ts`,
+`server/scripts/check-audit.ts`, `docs/SYSTEM_DESIGN.md` §3.
+
+**Verified.**
+
+- `check:hardening` 19/19, 3 of them new: the popup header, the deeply nested
+  body returning 400, and a multipart form getting cleaned.
+- `check:audit` 26/26, 4 of them new. The admin's new doctor now has no second
+  address line, as a blank form field leaves it, and the edit resends the
+  unchanged first line. Clearing the second line on the doctor's side records
+  `address` once, then nothing on the next save.
+- **All four new failure cases were run against the old source and fail
+  there:** the header was `same-origin`, the nested body gave a 500, `$where`
+  got through the multipart form, and the audit row said `changed:
+  ["fees","address"]`. They pass on the fix.
+- The whole server suite, run one script at a time: **18 scripts, 723
+  assertions, 0 failures.** Typecheck, lint and build are clean.
+
+**Not fixed, by choice.** These are ranked lower and recorded under open items.
+
+---
+
 ## Open items
 
 - **Planned by the user, not started:** replace Claude symptom triage with
@@ -388,5 +445,19 @@ scripts**: 671 assertions before this session, 716 now (`check:hardening` 16,
   through in a browser.
 - The double "Mongo disconnected" log (WARN then INFO) on a deliberate
   disconnect, seen at the end of `npm run seed`.
-- Suggested before phase 13: `/code-review high` over this session's changes
-  (`71fd073..HEAD`), since 12.1 added middleware to every request.
+- **Review findings left open, lowest risk first:**
+  - Helmet's default `Cross-Origin-Resource-Policy: same-origin` would block
+    `/uploads` images on a same-site subdomain listed in `CORS_ORIGINS`. The
+    normal single-origin setup never hits this. If it ever matters, relax it
+    to `same-site`.
+  - The CSP's `connect-src` relies on `'self'` covering `wss:`. Old WebKit
+    didn't, and Socket.IO falls back to polling there. Adding `wss:` would
+    remove the dependency.
+  - The change-capture lines (`feesBefore`, `changes`) are copied in the doctor
+    and admin services. One helper in `utils/changes.ts` would stop them
+    drifting apart.
+  - The uploads route still sets its own `nosniff` header, which helmet now
+    sets everywhere. It's redundant but harmless.
+  - Collapsing a repeated query key to its last value is a deliberate 12.1
+    decision, not a defect. A future route that takes an array in its query
+    must opt out.

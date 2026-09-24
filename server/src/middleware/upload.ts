@@ -1,6 +1,7 @@
 import multer from 'multer';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { ApiError } from '../utils/apiError.js';
+import { sanitizeBody } from './sanitize.js';
 import { storage, type StoredImage } from '../providers/storage/index.js';
 
 /**
@@ -122,7 +123,9 @@ export function uploadImage(field: string): RequestHandler[] {
     next();
   };
 
-  return [handleMulter, verifyAndStore as RequestHandler];
+  // Cleaned between reading and storing: multipart fields only exist once
+  // multer has run, and a form refused here must not leave an image behind.
+  return [handleMulter, sanitizeBody, verifyAndStore as RequestHandler];
 }
 
 export type { StoredImage };

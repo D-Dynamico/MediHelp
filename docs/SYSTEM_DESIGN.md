@@ -132,9 +132,14 @@ Cloudinary, and `upgrade-insecure-requests` is off. The origins are listed in
 `app.ts`. Then there is a JSON body cap of 100 kB, and `middleware/sanitize.ts`,
 which does the work of `express-mongo-sanitize` and `hpp`. Neither package can be
 used as it is, because both assign `req.query`, which is getter-only in
-Express 5. The sanitizer removes `$`-prefixed and dotted keys from the body at
-any depth, and it collapses a repeated query key to its last value. It sits
-under zod, not in place of it. CORS is **off unless `CORS_ORIGINS` is set**:
+Express 5. The sanitizer removes `$`-prefixed and dotted keys from the body, and
+it collapses a repeated query key to its last value. It refuses a body nested
+more than 32 levels deep with a 400, rather than overflowing the stack. The
+upload chain runs the same body cleaning once multer has read a multipart form,
+because those fields don't exist when the app-wide pass runs. It sits under
+zod, not in place of it. Helmet's popup isolation is relaxed to
+`same-origin-allow-popups`, because Razorpay's checkout reports back from a
+popup. CORS is **off unless `CORS_ORIGINS` is set**:
 client and API share an origin in both environments (Vite proxies in
 development, Express serves the built client in production), so there is
 normally nothing to allowlist. When set, the same list feeds Express and

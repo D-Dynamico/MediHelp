@@ -292,12 +292,12 @@ export async function updateDoctor(
   if (input.available !== undefined) doctor.available = input.available;
   if (input.slotDurationMins !== undefined) doctor.slotDurationMins = input.slotDurationMins;
 
-  if (input.addressLine1 !== undefined || input.addressLine2 !== undefined) {
-    doctor.address = {
-      line1: input.addressLine1 ?? doctor.address?.line1 ?? '',
-      line2: input.addressLine2 ?? doctor.address?.line2,
-    };
-  }
+  // Path by path rather than a new object, so Mongoose marks only what really
+  // changed. A blank second line means none, as it does when a doctor is added.
+  // Otherwise `''` against a stored nothing reads as an edit, and the audit trail
+  // reports address changes that never happened.
+  if (input.addressLine1 !== undefined) doctor.set('address.line1', input.addressLine1);
+  if (input.addressLine2 !== undefined) doctor.set('address.line2', input.addressLine2 || undefined);
 
   const changes = { changed: changedFields(user, doctor), ...feeChange(feesBefore, doctor.fees) };
   await Promise.all([user.save(), doctor.save()]);

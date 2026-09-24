@@ -1,4 +1,5 @@
 import type { RequestHandler } from 'express';
+import { ApiError } from '../utils/apiError.js';
 
 /**
  * Defence in depth under zod. It does the jobs of `express-mongo-sanitize` and
@@ -18,21 +19,44 @@ function isUnsafeKey(key: string): boolean {
 }
 
 /**
- * Removes unsafe keys at any depth, in place. The payment webhook's signature is
- * checked against `req.rawBody`, so editing the parsed copy can't break it.
+ * Deeper than any body this API takes. The deepest real one, the doctor's
+ * working hours, is three levels down.
  */
-function stripOperators(value: unknown): void {
+const MAX_DEPTH = 32;
+
+/**
+ * Removes unsafe keys, in place. The payment webhook's signature is checked
+ * against `req.rawBody`, so editing the parsed copy can't break it.
+ *
+ * The depth is capped because the walk recurses. A 90 kB body of nested brackets
+ * fits under the size limit and parses fine, but it would overflow the stack
+ * here and come back as a 500 on any route, including login. Past the cap it's
+ * a plain 400.
+ */
+function stripOperators(value: unknown, depth = 0): void {
+  if (value === null || typeof value !== 'object') return;
+  if (depth > MAX_DEPTH) throw ApiError.badRequest('That request is nested too deeply.');
+
   if (Array.isArray(value)) {
-    for (const item of value) stripOperators(item);
+    for (const item of value) stripOperators(item, depth + 1);
     return;
   }
-  if (value === null || typeof value !== 'object') return;
 
   for (const key of Object.keys(value)) {
     if (isUnsafeKey(key)) delete (value as Record<string, unknown>)[key];
-    else stripOperators((value as Record<string, unknown>)[key]);
+    else stripOperators((value as Record<string, unknown>)[key], depth + 1);
   }
 }
+
+/**
+ * The body half on its own, for multipart forms. multer reads those inside the
+ * route, after `sanitizeRequest` has already run and found no body, so the
+ * upload chain runs this once the fields exist.
+ */
+export const sanitizeBody: RequestHandler = (req, _res, next) => {
+  if (req.body !== undefined) stripOperators(req.body);
+  next();
+};
 
 export const sanitizeRequest: RequestHandler = (req, _res, next) => {
   if (req.body !== undefined) stripOperators(req.body);

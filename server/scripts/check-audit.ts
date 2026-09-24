@@ -210,6 +210,31 @@ check(
   repriced?.meta,
 );
 
+// The form always sends the second address line, empty when there is none.
+// Clearing it is a change once; saving again after that is not.
+await call('/api/doctor/profile', {
+  method: 'PATCH',
+  token: doctorToken,
+  form: { about: aboutNow, addressLine2: '' },
+});
+const clearedLine = await expectRow('clearing the second address line', 'doctor.profile.update', doctorId, doc);
+check(
+  'clearing the second address line is recorded as "address"',
+  JSON.stringify(clearedLine?.meta) === JSON.stringify({ changed: ['address'] }),
+  clearedLine?.meta,
+);
+await call('/api/doctor/profile', {
+  method: 'PATCH',
+  token: doctorToken,
+  form: { about: aboutNow, addressLine2: '' },
+});
+const blankAgain = await expectRow('saving again with no second line', 'doctor.profile.update', doctorId, doc);
+check(
+  'an empty second line against none stored is not a change',
+  JSON.stringify(blankAgain?.meta) === JSON.stringify({ changed: [] }),
+  blankAgain?.meta,
+);
+
 const photo = await call('/api/doctor/profile', {
   method: 'PATCH',
   token: doctorToken,
@@ -239,7 +264,6 @@ const created = await call('/api/admin/doctors', {
     about: 'Heart rhythm problems, blood pressure and post-surgical follow-up care.',
     fees: '900',
     addressLine1: '5 Hill Road',
-    addressLine2: 'Bengaluru 560046',
   },
 });
 const newDoctorId = String(created.body.doctor?.id);
@@ -248,7 +272,7 @@ await expectRow('adding a doctor', 'doctor.create', newDoctorId, admin);
 await call(`/api/admin/doctors/${newDoctorId}`, {
   method: 'PATCH',
   token: adminToken,
-  form: { fees: '950', degree: 'MBBS, DM' },
+  form: { fees: '950', degree: 'MBBS, DM', addressLine1: '5 Hill Road' },
 });
 const edited = await expectRow('editing a doctor', 'doctor.update', newDoctorId, admin);
 check(

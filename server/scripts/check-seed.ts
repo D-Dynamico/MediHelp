@@ -39,7 +39,7 @@ const check = (label: string, ok: boolean, got?: unknown) =>
 
 // --- first run, on an empty database ---
 const seeded = await seedDatabase();
-check('seeds an empty database', seeded.doctors === 8 && seeded.patients === 5, seeded);
+check('seeds an empty database', seeded.doctors === 8 && seeded.patients === 10, seeded);
 check(
   'reports credentials to sign in with',
   Boolean(seeded.credentials.admin && seeded.credentials.doctor && seeded.credentials.patient),
@@ -56,7 +56,7 @@ const [admins, doctorUsers, patients, doctors, appointments] = await Promise.all
 
 check('one admin created', admins === 1, admins);
 check('eight doctors, each with a profile', doctorUsers === 8 && doctors === 8, { doctorUsers, doctors });
-check('five patients created', patients === 5, patients);
+check('ten patients created', patients === 10, patients);
 check('twelve appointments created', appointments === 12, appointments);
 
 const specialities = await DoctorModel.distinct('speciality');
@@ -93,11 +93,11 @@ try {
 }
 check('re-seeding a populated database is refused', refused.includes('already has'), refused.slice(0, 120));
 check('the refusal explains how to override', refused.includes('--force'), refused.slice(0, 120));
-check('nothing was deleted by the refused run', (await UserModel.countDocuments()) === 14);
+check('nothing was deleted by the refused run', (await UserModel.countDocuments()) === 19);
 
 const reseeded = await seedDatabase({ force: true });
 check('--force re-seeds', reseeded.doctors === 8);
-check('--force leaves exactly one set of data', (await UserModel.countDocuments()) === 14);
+check('--force leaves exactly one set of data', (await UserModel.countDocuments()) === 19);
 
 // --- production refuses the well-known demo password ---
 // The seed creates an admin and eight doctors. In development they share a
@@ -153,7 +153,7 @@ check(
 );
 check(
   'the refused production seed deleted nothing',
-  noPasswords.users === 14,
+  noPasswords.users === 19,
   noPasswords.users,
 );
 

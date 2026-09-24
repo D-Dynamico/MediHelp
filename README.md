@@ -80,9 +80,25 @@ After seeding, in development:
 | Patient | `rahul@medihelp.test` (Rahul Verma) | `Password123!` |
 
 There are eight doctors in all, each signing in as `{surname}@medihelp.test`
-(`nair@`, `menon@`, `iyer@`, `desai@`, `reddy@`, `sheikh@`, `sharma@`), and five
-patients (`rahul@`, `sneha@`, `tarun@`, `fatima@`, `joseph@`). Every demo doctor
-and patient shares the one password. The seed prints the logins it used when it
+(`nair@`, `menon@`, `iyer@`, `desai@`, `reddy@`, `sheikh@`, `sharma@`). Every demo
+doctor and patient shares the one password. The ten patients are:
+
+| Patient | Email | Age group |
+|---|---|---|
+| Rahul Verma | `rahul@medihelp.test` | 30s |
+| Sneha Kulkarni | `sneha@medihelp.test` | 30s |
+| Tarun Bose | `tarun@medihelp.test` | 20s |
+| Fatima Ali | `fatima@medihelp.test` | 40s |
+| Joseph Mathew | `joseph@medihelp.test` | 50s |
+| Ananya Das | `ananya@medihelp.test` | 20s |
+| Vikram Singh | `vikram@medihelp.test` | 40s |
+| Meenakshi Pillai | `meenakshi@medihelp.test` | 60s |
+| Arnav Gupta | `arnav@medihelp.test` | child |
+| Deepa Joshi | `deepa@medihelp.test` | 30s |
+
+A database seeded before the last five existed gets them with
+`npm run add:patients --workspace server`. It only adds the demo patients that
+are missing and changes nothing else. The seed prints the logins it used when it
 finishes.
 
 The well-known password exists only for development. With `NODE_ENV=production`

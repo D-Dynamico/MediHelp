@@ -44,7 +44,7 @@ const DEMO_PASSWORD = 'Password123!';
  * any of them is a published password on all of them — so there both keys must
  * be set explicitly, and neither may be the demo one.
  */
-function resolvePasswords(settings: ReturnType<typeof getSettings>): {
+export function resolvePasswords(settings: ReturnType<typeof getSettings>): {
   admin: string;
   demo: string;
 } {
@@ -179,13 +179,29 @@ const DOCTORS: DoctorSeed[] = [
   },
 ];
 
-const PATIENTS = [
+/**
+ * The demo patients. The later ones cover the ages a clinic sees, a child and
+ * a pensioner among them, so the pediatric and age-sensitive screens have
+ * someone real to show. Exported for `scripts/add-demo-patients.ts`, which adds
+ * any of these missing from a database seeded before they existed.
+ */
+export const PATIENTS = [
   { name: 'Rahul Verma', email: 'rahul@medihelp.test', dob: '1994-04-12', gender: 'male' },
   { name: 'Sneha Kulkarni', email: 'sneha@medihelp.test', dob: '1988-11-30', gender: 'female' },
   { name: 'Tarun Bose', email: 'tarun@medihelp.test', dob: '2001-07-08', gender: 'male' },
   { name: 'Fatima Ali', email: 'fatima@medihelp.test', dob: '1976-01-22', gender: 'female' },
   { name: 'Joseph Mathew', email: 'joseph@medihelp.test', dob: '1969-09-15', gender: 'male' },
+  { name: 'Ananya Das', email: 'ananya@medihelp.test', dob: '1998-02-19', gender: 'female' },
+  { name: 'Vikram Singh', email: 'vikram@medihelp.test', dob: '1983-06-05', gender: 'male' },
+  { name: 'Meenakshi Pillai', email: 'meenakshi@medihelp.test', dob: '1957-12-03', gender: 'female' },
+  { name: 'Arnav Gupta', email: 'arnav@medihelp.test', dob: '2015-08-21', gender: 'male' },
+  { name: 'Deepa Joshi', email: 'deepa@medihelp.test', dob: '1991-10-10', gender: 'female' },
 ] as const;
+
+/** A distinct, obviously fake number for each demo patient. */
+export function demoPhone(index: number): string {
+  return `+91 90000 ${String(index).padStart(5, '0')}`;
+}
 
 /** Weekdays, 09:00–13:00 and 16:00–19:00 — a clinic's usual two sittings. */
 const WORKING_HOURS = [1, 2, 3, 4, 5].flatMap((day) => [
@@ -308,7 +324,7 @@ export async function seedDatabase({ force = false } = {}): Promise<SeedResult> 
       role: 'patient' as const,
       dob: new Date(patient.dob),
       gender: patient.gender,
-      phone: '+91 90000 0000' + PATIENTS.indexOf(patient),
+      phone: demoPhone(PATIENTS.indexOf(patient)),
     })),
   );
 

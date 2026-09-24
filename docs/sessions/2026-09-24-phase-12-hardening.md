@@ -489,6 +489,49 @@ different product and doesn't serve this model.
 
 ---
 
+## Five more demo patients
+
+**Why.** The user asked for at least four more dummy patient accounts with
+passwords.
+
+**What changed.**
+
+- *The seed's `PATIENTS` list grows from 5 to 10*, and is now exported. The new
+  patients cover the ages a clinic sees:
+  - Ananya Das (20s)
+  - Vikram Singh (40s)
+  - Meenakshi Pillai (60s)
+  - Arnav Gupta (a child, born 2015, for the pediatrician)
+  - Deepa Joshi (30s)
+
+  They sign in as `{firstname}@medihelp.test` with the shared demo password
+  (`Password123!` in development). Phone numbers come from `demoPhone(index)`,
+  so each is distinct and five digits wide. The existing five keep the numbers
+  they had.
+- *`npm run add:patients --workspace server`* (`scripts/add-demo-patients.ts`)
+  adds any missing demo patients to a database seeded before they existed.
+  **Decision:** it's a separate script, the same approach as
+  `refresh:photos`, because the seed refuses a database that has accounts and
+  `--force` would wipe the user's real data. It only inserts, never edits or
+  deletes, and does nothing on a second run. It applies the seed's password
+  rules through the now-exported `resolvePasswords`, so production refuses
+  unless `SEED_DEMO_PASSWORD` is set.
+- *Run against the Atlas `medihelp` database with the user's go-ahead.* It
+  added the 5 new patients, and the 5 existing ones were untouched. There are
+  11 patients in total, because one non-demo account was already there. Each
+  new account was verified directly: role `patient`, active, and the demo
+  password matches the stored hash.
+- *`check-seed`* expects 10 patients and 19 users (it expected 5 and 14). The
+  README lists all ten patients.
+
+**Verified.** The add script was first run twice against an in-memory database
+holding one old patient: it added 9, then 0, left the old account's hash as it
+was, and gave distinct phone numbers. Then it ran on Atlas as above.
+`check:seed` 28/28. Full suite: **18 scripts, 737 assertions, 0 failures.**
+Typecheck and lint are clean.
+
+---
+
 ## Open items
 
 - **Triage on gpt-oss-120b is built but not yet tried for real.** Set

@@ -1,11 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { SPECIALITIES, URGENCIES } from '@shared/types.js';
 import { getSettings } from '../../config/env.js';
 import type { TriageInput, TriageResult } from './rules.js';
 
 /**
- * The Claude triage engine.
+ * The model triage engine: `openai/gpt-oss-120b` on Groq, which has a free tier.
  *
  * An upgrade on the rules, never a dependency of them. It reads what the
  * patient actually wrote rather than looking for keywords, so it catches the
@@ -37,7 +36,11 @@ const responseSchema = z.object({
   redFlags: z.array(z.string().min(1).max(120)).max(6),
 });
 
-/** The same shape as JSON Schema, for `output_config.format`. */
+/**
+ * The same shape as JSON Schema, sent as a strict `response_format`. Groq's
+ * strict mode requires every field in `required` and `additionalProperties:
+ * false`. Nullable fields are type unions, which this already is.
+ */
 const OUTPUT_SCHEMA = {
   type: 'object',
   properties: {
@@ -93,70 +96,74 @@ Leave it empty when there are none.`;
 
 /* ------------------------------------------------------------- the call --- */
 
-let client: Anthropic | null = null;
+/** Groq's OpenAI-compatible endpoint. Plain `fetch`: one call needs no SDK. */
+export const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-function anthropic(): Anthropic {
-  const { ANTHROPIC_API_KEY } = getSettings();
-  // maxRetries 0: the caller has a hard deadline and falls back to the rules.
-  // A retry inside the SDK would multiply the wall clock by the retry count and
-  // spend the patient's wait on a call we are willing to abandon.
-  client ??= new Anthropic({ apiKey: ANTHROPIC_API_KEY, maxRetries: 0 });
-  return client;
-}
-
-/** Forgets the cached client. For scripts and tests only. */
-export function resetAiClient(): void {
-  client = null;
+/** The parts of a Groq chat completion this reads. */
+interface GroqCompletion {
+  model?: string;
+  choices?: { message?: { content?: string | null }; finish_reason?: string }[];
 }
 
 /**
- * Assesses symptoms with Claude.
+ * Assesses symptoms with the model.
  *
  * Throws on anything at all — that is the interface. The caller catches and
  * uses the rules, so every failure mode here is a degradation rather than an
  * outage.
  */
-export async function assessWithClaude(
+export async function assessWithModel(
   input: TriageInput,
 ): Promise<TriageResult & { modelUsed: string }> {
-  const { TRIAGE_MODEL, TRIAGE_TIMEOUT_MS } = getSettings();
+  const { GROQ_API_KEY, TRIAGE_MODEL, TRIAGE_TIMEOUT_MS } = getSettings();
 
   const said = input.durationText
     ? `${input.symptomsText}\n\nHow long: ${input.durationText}`
     : input.symptomsText;
 
-  const response = await anthropic().messages.create(
-    {
+  // No retry: the caller has a hard deadline and falls back to the rules. A
+  // retry here would spend the patient's wait on a call we are willing to
+  // abandon.
+  const response = await fetch(GROQ_CHAT_URL, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${GROQ_API_KEY}`, 'content-type': 'application/json' },
+    signal: AbortSignal.timeout(TRIAGE_TIMEOUT_MS),
+    body: JSON.stringify({
       model: TRIAGE_MODEL,
-      max_tokens: 2000,
-      system: SYSTEM_PROMPT,
-      // Low effort on purpose: this is a short classification behind a hard
-      // deadline, and a patient waiting on a form is the wrong place to spend
-      // thinking time. Thinking itself is left at the model's default.
-      output_config: {
-        effort: 'low',
-        format: { type: 'json_schema', schema: OUTPUT_SCHEMA },
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: said },
+      ],
+      // Low effort on purpose: a short classification behind a hard deadline.
+      // Reasoning tokens count against `max_completion_tokens`, hence the room.
+      reasoning_effort: 'low',
+      include_reasoning: false,
+      max_completion_tokens: 4000,
+      response_format: {
+        type: 'json_schema',
+        json_schema: { name: 'triage', strict: true, schema: OUTPUT_SCHEMA },
       },
-      messages: [{ role: 'user', content: said }],
-    },
-    { timeout: TRIAGE_TIMEOUT_MS },
-  );
+    }),
+  });
 
-  // A safety decline is a failure like any other here: fall to the rules rather
-  // than show the patient nothing.
-  if (response.stop_reason === 'refusal') {
-    throw new Error('The model declined to answer this one.');
+  if (!response.ok) {
+    // The status only. The body can echo the request, and the request is a
+    // patient's symptoms, which have no business in a log line.
+    throw new Error(`The model call failed with ${response.status}.`);
   }
 
-  const text = response.content
-    .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-    .map((block) => block.text)
-    .join('');
+  const completion = (await response.json()) as GroqCompletion;
+  const choice = completion.choices?.[0];
 
-  // Parsed, not trusted. Structured outputs constrain generation; they are not
-  // a promise, and a bad shape must land on the rules rather than in the
-  // database.
-  const parsed = responseSchema.parse(JSON.parse(text));
+  // Cut off mid-answer is a failure like any other: fall to the rules rather
+  // than parse half a JSON object.
+  if (choice?.finish_reason && choice.finish_reason !== 'stop') {
+    throw new Error(`The model stopped early (${choice.finish_reason}).`);
+  }
+
+  // Parsed, not trusted. Strict mode constrains generation; it is not a
+  // promise, and a bad shape must land on the rules rather than in the database.
+  const parsed = responseSchema.parse(JSON.parse(choice?.message?.content ?? ''));
 
   const urgency = parsed.urgency;
 
@@ -174,6 +181,6 @@ export async function assessWithClaude(
       severity: parsed.severity ?? undefined,
       redFlags: parsed.redFlags,
     },
-    modelUsed: response.model,
+    modelUsed: completion.model ?? TRIAGE_MODEL,
   };
 }

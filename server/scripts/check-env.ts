@@ -36,7 +36,7 @@ check('cloudinary stays off until every key is present', settings.useCloudinary 
 
 // The trap: .env.example ships `SEED_ADMIN_PASSWORD=`, and a blank value is not
 // the same as an unset one unless the loader says so.
-const blanks = load({ SEED_ADMIN_PASSWORD: '', RAZORPAY_KEY_ID: '', ANTHROPIC_API_KEY: '' });
+const blanks = load({ SEED_ADMIN_PASSWORD: '', RAZORPAY_KEY_ID: '', GROQ_API_KEY: '' });
 check('a blank optional key is treated as unset', blanks.SEED_ADMIN_PASSWORD === undefined);
 check('blank keys do not stop startup', blanks.MONGODB_URI.startsWith('mongodb+srv://'));
 
@@ -93,7 +93,7 @@ const unknown = documented.filter((key) => !ENV_KEYS.includes(key));
 check('.env.example lists nothing the server ignores', unknown.length === 0, unknown);
 check(
   '.env.example ships no secret values',
-  !/^(JWT_SECRET|RAZORPAY_KEY_SECRET|RAZORPAY_WEBHOOK_SECRET|CLOUDINARY_API_SECRET|ANTHROPIC_API_KEY|SEED_ADMIN_PASSWORD|SEED_DEMO_PASSWORD)=\S/m.test(
+  !/^(JWT_SECRET|RAZORPAY_KEY_SECRET|RAZORPAY_WEBHOOK_SECRET|CLOUDINARY_API_SECRET|GROQ_API_KEY|SEED_ADMIN_PASSWORD|SEED_DEMO_PASSWORD)=\S/m.test(
     example,
   ),
 );

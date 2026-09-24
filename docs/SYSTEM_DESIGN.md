@@ -209,10 +209,14 @@ at all.
   breathlessness, stroke FAST signs, heavy bleeding, anaphylaxis) that returns
   `emergency` and shows a "call emergency services now" banner instead of a
   booking form.
-- When `ANTHROPIC_API_KEY` is set, `providers/ai/llm.ts` uses Claude with a
-  schema-constrained JSON response and a hard timeout. **Any failure — timeout, bad
-  JSON, rate limit — falls back to the rules engine.** The booking flow is never
-  blocked on a network call.
+- When `GROQ_API_KEY` is set, `providers/ai/llm.ts` calls `openai/gpt-oss-120b`
+  on Groq (a free tier exists), through its OpenAI-compatible chat endpoint,
+  with plain `fetch`. The request uses a **strict** `json_schema` response
+  format, `reasoning_effort: low` and a hard timeout. The reply is still parsed
+  with zod, because strict mode constrains generation but promises nothing.
+  **Any failure — timeout, an error status, an answer cut off, a shape that
+  doesn't fit — falls back to the rules engine.** The booking flow is never
+  blocked on a network call. `TRIAGE_MODEL` can name another Groq model.
 - The assessment is persisted and linked from the appointment, so the doctor sees
   the urgency chip and structured intake note before the patient walks in.
 - The specialty recommendation is a **filter, not a lock** — the patient can still

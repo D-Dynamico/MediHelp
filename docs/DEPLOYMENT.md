@@ -81,7 +81,7 @@ CLOUDINARY_API_SECRET=...
 ```
 
 Leave `PAYMENT_PROVIDER=mock` unless you have Razorpay keys, and leave
-`ANTHROPIC_API_KEY` empty to run triage on the offline rules engine. Both degrade
+`GROQ_API_KEY` empty to run triage on the offline rules engine. Both degrade
 deliberately, so the deployed demo is complete either way. Know what the mock
 means on a public URL: anyone who books can press "pay", and the booking is
 marked paid with no money moving. That's right for a portfolio demo and wrong

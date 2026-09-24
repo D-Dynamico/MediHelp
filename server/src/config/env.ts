@@ -63,8 +63,8 @@ const schema = z.object({
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),
 
-  ANTHROPIC_API_KEY: z.string().optional(),
-  TRIAGE_MODEL: z.string().default('claude-opus-5'),
+  GROQ_API_KEY: z.string().optional(),
+  TRIAGE_MODEL: z.string().default('openai/gpt-oss-120b'),
   TRIAGE_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
 
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),

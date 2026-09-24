@@ -1,14 +1,14 @@
 import { getSettings } from '../../config/env.js';
 import { logger } from '../../config/logger.js';
 import { assessWithRules, type TriageInput, type TriageResult } from './rules.js';
-import { assessWithClaude } from './llm.js';
+import { assessWithModel } from './llm.js';
 
 /**
  * Which engine assesses symptoms.
  *
  * The rules are the default and need no account, so triage works from a fresh
- * clone with only `MONGODB_URI` set. Claude takes over when `ANTHROPIC_API_KEY`
- * is present — and hands straight back the moment it fails.
+ * clone with only `MONGODB_URI` set. The model (gpt-oss-120b on Groq) takes over
+ * when `GROQ_API_KEY` is present — and hands straight back the moment it fails.
  *
  * The asymmetry with the payment provider is deliberate. A payment provider
  * that is chosen but unconfigured is shouted about at startup, because falling
@@ -22,23 +22,23 @@ export interface Assessment extends TriageResult {
   modelUsed?: string;
 }
 
-/** Whether Claude is configured at all. Read once; `.env` needs a restart anyway. */
-export function usingClaude(): boolean {
-  return Boolean(getSettings().ANTHROPIC_API_KEY);
+/** Whether the model is configured at all. Read once; `.env` needs a restart anyway. */
+export function usingModel(): boolean {
+  return Boolean(getSettings().GROQ_API_KEY);
 }
 
 /**
  * Assesses symptoms with the best engine available.
  *
- * Never throws. Every failure of the Claude path — timeout, rate limit, refusal,
+ * Never throws. Every failure of the model path — timeout, rate limit, refusal,
  * JSON that does not fit the schema, a key that has been revoked — is logged and
  * answered from the rules with `source: 'rules'`, which is exactly what the
  * patient would have got with no key set at all.
  */
 export async function assessSymptoms(input: TriageInput): Promise<Assessment> {
-  if (usingClaude()) {
+  if (usingModel()) {
     try {
-      const { modelUsed, ...result } = await assessWithClaude(input);
+      const { modelUsed, ...result } = await assessWithModel(input);
       return { ...result, source: 'llm', modelUsed };
     } catch (caught) {
       // Warn, not error: the patient still gets an answer, and a clinic whose

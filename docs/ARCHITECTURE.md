@@ -99,7 +99,7 @@ the project boots and demos with just `MONGODB_URI`:
 |---|---|---|
 | `providers/payment` | `mock` — fake order id, marks paid | Razorpay orders + HMAC signature verification |
 | `providers/storage` | `local` — writes to `server/uploads/` | Cloudinary (used in production) |
-| `providers/ai` | `rules` — deterministic offline triage engine | Claude API when `ANTHROPIC_API_KEY` is set |
+| `providers/ai` | `rules` — deterministic offline triage engine | `openai/gpt-oss-120b` on Groq (free tier) when `GROQ_API_KEY` is set |
 
 Adding a real provider must never change a caller. If it does, the interface is
 wrong.

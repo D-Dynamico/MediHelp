@@ -426,13 +426,75 @@ items.
 
 ---
 
+## Triage moves from Claude to gpt-oss-120b on Groq
+
+**Why.** This is the user's plan from the start of the session: gpt-oss-120b
+has a free option, so the triage upgrade costs nothing to switch on. The user
+asked to "change the env to grok gpt oss 120b". I read "grok" as **Groq**, the
+host that serves `openai/gpt-oss-120b` with a free tier. xAI's Grok is a
+different product and doesn't serve this model.
+
+**What changed.**
+
+- *`providers/ai/llm.ts`* now calls Groq's OpenAI-compatible endpoint
+  (`https://api.groq.com/openai/v1/chat/completions`) with plain `fetch`
+  instead of the Anthropic SDK. The facts were checked against Groq's current
+  docs, not memory: the model id `openai/gpt-oss-120b`, strict `json_schema`
+  support for it, `reasoning_effort` low/medium/high, `include_reasoning`, and
+  `max_completion_tokens`, which counts reasoning tokens (hence 4000). The
+  strict schema, the zod parse at the trust boundary, the emergency override
+  and the AI disclaimer on the note are unchanged. It adds one new failure case:
+  a `finish_reason` other than `stop` (a truncated answer) falls to the rules.
+  An error status is logged by code only. The body could echo the patient's
+  symptoms.
+- *Settings:* `ANTHROPIC_API_KEY` is replaced by `GROQ_API_KEY`, and the
+  `TRIAGE_MODEL` default is now `openai/gpt-oss-120b`. `.env.example` explains
+  where to get a free key. `index.ts`: `usingClaude` → `usingModel`,
+  `assessWithClaude` → `assessWithModel`.
+- *`@anthropic-ai/sdk` removed* from the server's dependencies. Nothing else
+  used it.
+- *The local `.env`* (gitignored, not committed): `ANTHROPIC_API_KEY=` (empty)
+  became `GROQ_API_KEY=` (empty, for the user's key), and `TRIAGE_MODEL` became
+  `openai/gpt-oss-120b`. It was `claude-sonnet-5`. A backup of the old file is in
+  the session scratchpad. **Needs a server restart to take effect**, because
+  `getSettings()` is cached.
+
+**Files.** `server/src/providers/ai/llm.ts`, `server/src/providers/ai/index.ts`,
+`server/src/config/env.ts`, `server/scripts/check-triage.ts`,
+`server/scripts/check-env.ts`, `server/package.json`, `package-lock.json`,
+`.env.example`, `docs/ARCHITECTURE.md`, `docs/SYSTEM_DESIGN.md` §5,
+`docs/DEPLOYMENT.md`, `docs/PHASES.md` (8.3 note).
+
+**Verified.**
+
+- `check:triage` 97/97, 14 of them new, with `fetch` stubbed, so no key is
+  needed:
+  - the request goes to Groq's URL with a bearer key, `model:
+    openai/gpt-oss-120b`, a strict `json_schema`, low reasoning effort, and
+    reasoning left out of the reply;
+  - a good answer is used with `source: 'llm'` and the model recorded, and the
+    note carries the disclaimer;
+  - a model emergency never carries a speciality;
+  - a speciality the clinic doesn't have, a truncated answer and a 401 each
+    fall to the rules.
+- The existing "bad key falls back" checks now make a real call to Groq with a
+  fake key. They still pass.
+- The first run caught the check reading `TRIAGE_MODEL=claude-sonnet-5` from
+  the developer's `.env`. The stubbed checks now unset it, so the default is
+  what gets tested.
+- Full server suite, one script at a time: **18 scripts, 737 assertions, 0
+  failures.** Typecheck, lint and build are clean.
+- **Not verified:** a real call with a real Groq key. The user hasn't set one
+  yet.
+
+---
+
 ## Open items
 
-- **Planned by the user, not started:** replace Claude symptom triage with
-  **`gpt-oss-120b`**, which has a free option. When asked for, it goes behind the
-  existing provider interface in `server/src/providers/ai/` (`index.ts`, `llm.ts`,
-  `rules.ts`), with the keyless rules engine as the fallback. Follow that
-  provider's own docs.
+- **Triage on gpt-oss-120b is built but not yet tried for real.** Set
+  `GROQ_API_KEY` in `.env` (free key at console.groq.com/keys), restart, and run
+  one triage. The log line `Triage fell back to the rules engine` means the call
+  failed. Also confirm that Groq's free-tier rate limits suit the demo.
 - **The user is looking into Razorpay themselves.** The integration has never
   spoken to the real gateway, and the CSP's Razorpay origins are untested for the
   same reason.

@@ -493,7 +493,7 @@ await mongod.stop();
 
 const { reloadSettings } = await import('../src/config/env.js');
 const ai = await import('../src/providers/ai/index.js');
-const { resetAiClient } = await import('../src/providers/ai/llm.js');
+const { GROQ_CHAT_URL } = await import('../src/providers/ai/llm.js');
 
 async function withEnv<T>(
   env: Record<string, string | undefined>,
@@ -507,7 +507,6 @@ async function withEnv<T>(
     else process.env[key] = value;
   }
   reloadSettings();
-  resetAiClient();
 
   try {
     return await run();
@@ -517,16 +516,15 @@ async function withEnv<T>(
       else process.env[key] = value;
     }
     reloadSettings();
-    resetAiClient();
   }
 }
 
 // The developer's own .env must not decide what this check sees.
-delete process.env.ANTHROPIC_API_KEY;
+delete process.env.GROQ_API_KEY;
 reloadSettings();
 
-const noKey = await withEnv({ ANTHROPIC_API_KEY: undefined }, async () => {
-  check('with no key, Claude is not in play', !ai.usingClaude());
+const noKey = await withEnv({ GROQ_API_KEY: undefined }, async () => {
+  check('with no key, the model is not in play', !ai.usingModel());
   return ai.assessSymptoms({ symptomsText: 'itchy rash for three days' });
 });
 check('with no key the source is rules', noKey.source === 'rules', noKey.source);
@@ -544,9 +542,9 @@ check(
 // not reachable at all — and the patient still gets the rules answer. This is
 // the fallback proven end to end, without needing a real account.
 const badKey = await withEnv(
-  { ANTHROPIC_API_KEY: 'sk-ant-not-a-real-key', TRIAGE_TIMEOUT_MS: '2000' },
+  { GROQ_API_KEY: 'gsk_not_a_real_key', TRIAGE_TIMEOUT_MS: '2000' },
   async () => {
-    check('with a key set, Claude is in play', ai.usingClaude());
+    check('with a key set, the model is in play', ai.usingModel());
     return ai.assessSymptoms({ symptomsText: 'itchy rash for three days' });
   },
 );
@@ -560,7 +558,7 @@ check(
 // The emergency path must survive the fallback too — it is the one answer that
 // matters most, and it is the rules engine that produces it either way.
 const badKeyEmergency = await withEnv(
-  { ANTHROPIC_API_KEY: 'sk-ant-not-a-real-key', TRIAGE_TIMEOUT_MS: '2000' },
+  { GROQ_API_KEY: 'gsk_not_a_real_key', TRIAGE_TIMEOUT_MS: '2000' },
   () => ai.assessSymptoms({ symptomsText: 'crushing chest pain and short of breath' }),
 );
 check(
@@ -568,6 +566,95 @@ check(
   badKeyEmergency.urgency === 'emergency' && badKeyEmergency.source === 'rules',
   badKeyEmergency,
 );
+
+
+/* ============================================ the model, with fetch stubbed === */
+
+// No real key is needed to prove the two halves that matter: that the request
+// is what Groq expects, and that every kind of answer is handled. `fetch` is
+// swapped for one that records the request and replies with a canned body.
+
+const realFetch = globalThis.fetch;
+type Sent = { url: string; headers: Record<string, string>; body: Record<string, unknown> };
+let sent: Sent | null = null;
+
+function replyWith(status: number, body: unknown) {
+  globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
+    sent = {
+      url: String(url),
+      headers: init?.headers as Record<string, string>,
+      body: JSON.parse(String(init?.body)) as Record<string, unknown>,
+    };
+    return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch;
+}
+
+const completion = (content: unknown, finish = 'stop') => ({
+  model: 'openai/gpt-oss-120b',
+  choices: [{ message: { content: typeof content === 'string' ? content : JSON.stringify(content) }, finish_reason: finish }],
+});
+
+const goodAnswer = {
+  urgency: 'routine',
+  recommendedSpeciality: 'Dermatologist',
+  intakeNote: 'Itchy rash on both arms for three days.',
+  questionsToAsk: ['Has anything new touched your skin?'],
+  durationText: 'three days',
+  severity: 'mild',
+  redFlags: [],
+};
+
+const stubbed = (body: unknown, status = 200) =>
+  // TRIAGE_MODEL unset, so the default is under test rather than whatever .env says.
+  withEnv({ GROQ_API_KEY: 'gsk_stub', TRIAGE_MODEL: undefined, TRIAGE_TIMEOUT_MS: '2000' }, () => {
+    replyWith(status, body);
+    return ai.assessSymptoms({ symptomsText: 'itchy rash on both arms for three days' });
+  });
+
+try {
+  const good = await stubbed(completion(goodAnswer));
+  check('a good model answer is used, with source llm', good.source === 'llm', good);
+  check('the model that answered is recorded', good.modelUsed === 'openai/gpt-oss-120b', good.modelUsed);
+  check(
+    'the model answer is used as given',
+    good.urgency === 'routine' && good.recommendedSpeciality === 'Dermatologist',
+    good,
+  );
+  check('the note says an AI wrote it', good.intakeNote.includes('not a clinician'), good.intakeNote);
+
+  const request = sent as Sent | null;
+  check('the request goes to Groq', request?.url === 'https://api.groq.com/openai/v1/chat/completions', request?.url);
+  check('the key goes as a bearer token', request?.headers.authorization === 'Bearer gsk_stub');
+  check('the model asked for is gpt-oss-120b', request?.body.model === 'openai/gpt-oss-120b', request?.body.model);
+  const format = request?.body.response_format as { type?: string; json_schema?: { strict?: boolean } } | undefined;
+  check(
+    'the answer is constrained by a strict JSON schema',
+    format?.type === 'json_schema' && format.json_schema?.strict === true,
+    format,
+  );
+  check('reasoning is kept short and left out of the reply', request?.body.reasoning_effort === 'low' && request?.body.include_reasoning === false);
+  check('the URL the check expects is the one the code uses', GROQ_CHAT_URL === request?.url);
+
+  const emergency = await stubbed(
+    completion({ ...goodAnswer, urgency: 'emergency', recommendedSpeciality: 'Cardiologist', redFlags: ['chest pain'] }),
+  );
+  check(
+    'an emergency from the model never carries a speciality',
+    emergency.source === 'llm' && emergency.urgency === 'emergency' && emergency.recommendedSpeciality === undefined,
+    emergency,
+  );
+
+  const wrongShape = await stubbed(completion({ ...goodAnswer, recommendedSpeciality: 'Astrologer' }));
+  check('a speciality the clinic does not have falls to the rules', wrongShape.source === 'rules', wrongShape.source);
+
+  const cutOff = await stubbed(completion('{"urgency":"rout', 'length'));
+  check('an answer cut off mid-way falls to the rules', cutOff.source === 'rules', cutOff.source);
+
+  const refused = await stubbed({ error: { message: 'Invalid API Key' } }, 401);
+  check('an error from Groq falls to the rules', refused.source === 'rules', refused.source);
+} finally {
+  globalThis.fetch = realFetch;
+}
 
 
 console.log(`\n${results.join('\n')}\n`);

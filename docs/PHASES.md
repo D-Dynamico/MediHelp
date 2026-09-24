@@ -176,7 +176,9 @@ record; replaying a webhook does not double-credit.
       persisting a `TriageAssessment` and returning its id.
 - [x] **8.3 Claude engine** — used only when `ANTHROPIC_API_KEY` is set:
       schema-constrained JSON, hard timeout, and a `try`/fallback so any failure
-      lands on the rules engine with `source: 'rules'`.
+      lands on the rules engine with `source: 'rules'`. *(Replaced on
+      2026-09-24 by `openai/gpt-oss-120b` on Groq, behind the same interface,
+      using `GROQ_API_KEY`.)*
 - [x] **8.4 Link to booking** — `triageId` carried into the appointment; the
       doctor's appointment rows show the urgency chip and intake note.
 - [x] **8.5 Triage UI** — symptom entry, result card, emergency banner that replaces

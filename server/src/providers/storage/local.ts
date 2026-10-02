@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { logger } from '../../config/logger.js';
+import { SERVER_ROOT } from '../../config/paths.js';
 import type { StorageProvider, StoredImage } from './index.js';
 
 /**
@@ -13,10 +13,8 @@ import type { StorageProvider, StoredImage } from './index.js';
  * ephemeral — that is what the Cloudinary provider is for.
  */
 
-const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-
 /** Absolute path to the upload directory. Exported so `app.ts` can serve it. */
-export const UPLOAD_DIR = path.join(serverRoot, 'uploads');
+export const UPLOAD_DIR = path.join(SERVER_ROOT, 'uploads');
 
 /** The URL prefix the files are served under. */
 export const UPLOAD_URL_PREFIX = '/uploads';

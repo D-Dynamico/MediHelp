@@ -1,15 +1,14 @@
-import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import dotenv from 'dotenv';
 import { z } from 'zod';
+import { REPO_ROOT } from './paths.js';
 
 /**
  * Settings are parsed once and cached. A change to .env therefore needs a server
  * restart to take effect — `reloadSettings()` exists for scripts and tests only.
  */
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-dotenv.config({ path: path.join(repoRoot, '.env'), quiet: true });
+dotenv.config({ path: path.join(REPO_ROOT, '.env'), quiet: true });
 
 const SECRET_HINT =
   'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'hex\'))"';

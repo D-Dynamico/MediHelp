@@ -99,6 +99,54 @@ Added that origin. The payment frame from `api.razorpay.com` and the calls to
 - Typecheck and lint clean on both packages. Client checks 14/14. Server
   checks: 18 scripts, 737 assertions, 0 failures (unchanged count).
 
+## 13.6 First deploy (on the user's Render account)
+
+Live at https://medihelp-ea50.onrender.com, database `medihelp-live` (fresh,
+seeded by the user from their machine with their own admin and demo passwords;
+the old `medihelp` database, with the README's public password on its admin,
+was deliberately not used).
+
+**Every database request failed with a 500.** Health, specialities, pages, headers and the
+Socket.IO handshake were all fine. The Render log showed
+`Invalid namespace specified: net/medihelp-live.waitlists`: the `MONGODB_URI`
+in Render read `.mongodb.net/net/medihelp-live`, from editing "the part after
+`.net/`". The connection opens without touching a database, so startup and the
+health check passed. The user corrected it; `/api/doctors` then returned all
+eight doctors. `docs/DEPLOYMENT.md` now shows the exact shape and this failure.
+
+(During this, my read-only probe of `medihelp-live` was refused by the
+auto-mode classifier as a production read; I stopped and asked for the Render
+log instead.)
+
+## Indexes were never built in production
+
+`connectDb` sets `autoIndex: false` in production, and the seed never built
+indexes itself. So a seed run with `NODE_ENV=production`, which the seed requires
+before it accepts real passwords, leaves the database with no indexes at all.
+That means no unique slot index (double bookings), no unique email, and no TTL on refresh
+tokens. The live database was seeded that way.
+
+- `ensureIndexes()` in `models/index.ts` calls `createIndexes()` on all nine
+  models, one at a time. It only adds and never drops, unlike `syncIndexes`, so
+  it is safe on a live database.
+- The seed calls it after clearing and before inserting, so the seed's own data
+  is held to the unique indexes.
+- `npm run sync:indexes --workspace server` runs it against whatever
+  `MONGODB_URI` points at and reports how many indexes it added. That's for the live
+  database, and for any other database set up the old way.
+- Not chosen: building indexes on server boot in production. It's cheap at
+  this size, but the off-in-production default was deliberate, and the seed
+  plus the script cover every way a database gets set up here.
+
+**Verified** on an in-memory MongoDB: a seed with `NODE_ENV=production` now leaves
+the slot, email and TTL indexes in place. After dropping every index,
+`sync:indexes` added 29 back, and a second run added 0. `check:seed` 28/28,
+`check:models` 13/13, `check:booking` 95/95, `check:auth:http` 28/28;
+typecheck and lint clean.
+
+**The user still has to run `sync:indexes` against `medihelp-live`.** It's their
+database, and my reads of it are refused.
+
 ## Open items
 
 - **Refresh shares the sign-in rate limit.** `POST /api/auth/refresh` uses
@@ -111,7 +159,11 @@ Added that origin. The payment frame from `api.razorpay.com` and the calls to
   their call.
 - The client bundle is 517 kB (160 kB gzipped) in one chunk; Vite warns. Route
   level code-splitting would fix it. Not urgent.
-- 13.6 deploy and 13.7 live checks: the user's Render and Atlas accounts.
+- **Run `npm run sync:indexes --workspace server` against `medihelp-live`**
+  (user, from their machine), then confirm it reports indexes added.
+- 13.7 live checks: the user's, with their passwords (all three logins, a
+  booking, the queue in two browsers, a photo after a redeploy if Cloudinary is
+  set, a hard-refreshed deep link).
 - Carried over from phase 12: Groq key, Razorpay for real, `SEED_ADMIN_EMAIL`,
   and the five lower-risk review findings listed in
   `2026-09-24-phase-12-hardening.md`.

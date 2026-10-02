@@ -143,8 +143,14 @@ pinger — that burns the free tier's monthly hours for no real benefit.
 2. **Network Access** → allow `0.0.0.0/0`. Render's free tier has no static
    outbound IP, so an IP allowlist cannot be narrowed. The database user's
    password is the real access control; make it long and random.
-3. Put the connection string in `MONGODB_URI`, including the database name —
-   the part after `.net/`. Without it you land in a database called `test`.
+3. Put the connection string in `MONGODB_URI`, including the database name
+   straight after `.mongodb.net/` and before the `?`, as in
+   `...@cluster0.xxxxx.mongodb.net/medihelp-live?retryWrites=true...`. Without
+   it you land in a database called `test`. Be careful when editing that part:
+   on the first deploy it became `.mongodb.net/net/medihelp-live`. The server
+   started and passed its health check, but every query failed with
+   `Invalid namespace specified: net/medihelp-live...`, because a database name
+   cannot contain `/`.
 
 Then check it from your machine:
 
@@ -163,6 +169,19 @@ Seeding production is a deliberate act, not part of the deploy: run
 `npm run seed` against the production `MONGODB_URI` from your machine, once. The
 seed script must refuse to run against a database that already has users unless
 `--force` is passed, so a redeploy can never wipe real data.
+
+**Indexes.** In production the server connects with Mongoose's automatic index
+building turned off, so it never builds indexes on boot. The seed builds every
+index before inserting anything. A database that already has data and lacks
+them gets them from:
+
+```bash
+npm run sync:indexes --workspace server   # adds missing indexes; never drops or edits anything
+```
+
+They are not optional: they are what stops two active bookings in one slot,
+two accounts on one email, and refresh tokens piling up forever. The first
+production seed, on 2026-10-02, ran before the seed built them.
 
 Set `SEED_ADMIN_PASSWORD` and `SEED_DEMO_PASSWORD` before you do. With
 `NODE_ENV=production` the seed refuses to run until both are set to strong values

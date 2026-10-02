@@ -21,6 +21,7 @@ import {
   AppointmentModel,
   AuditLogModel,
   DoctorModel,
+  ensureIndexes,
   PaymentModel,
   QueueSessionModel,
   RefreshTokenModel,
@@ -270,6 +271,11 @@ export async function seedDatabase({ force = false } = {}): Promise<SeedResult> 
     QueueSessionModel.deleteMany({}),
     WaitlistModel.deleteMany({}),
   ]);
+
+  // Before any data goes in, so the seed itself is held to the unique indexes.
+  // Production connects with automatic index building off, so without this a
+  // production seed leaves the database with none.
+  await ensureIndexes();
 
   const adminPassword = passwords.admin;
   const passwordHash = await hashPassword(passwords.demo);

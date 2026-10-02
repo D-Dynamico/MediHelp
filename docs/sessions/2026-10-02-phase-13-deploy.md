@@ -147,6 +147,18 @@ typecheck and lint clean.
 **The user still has to run `sync:indexes` against `medihelp-live`.** It's their
 database, and my reads of it are refused.
 
+## README for the live site
+
+`README.md` got a **Live demo** section near the top with the URL and what a
+visitor should expect: the ~1 minute free-tier wake-up, browsing without an
+account, the mock payment, and triage on the rules engine without an AI key. The
+demo-accounts section now says the live site keeps the same emails but its own
+password, and that its admin is private. The README's `Password123!` only works
+locally. The live demo password is deliberately not in the README until the user
+decides whether to publish it. There is also a short **Deploying** section
+(Render settings, pointing to `docs/DEPLOYMENT.md`), and `sync:indexes` is now
+under Commands. 13.6 is ticked in `docs/PHASES.md`.
+
 ## Open items
 
 - **Refresh shares the sign-in rate limit.** `POST /api/auth/refresh` uses

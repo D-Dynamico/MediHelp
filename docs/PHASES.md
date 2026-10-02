@@ -334,7 +334,7 @@ settings and the caveats are in `docs/DEPLOYMENT.md`.
 - [x] **13.5 Seed safety** — the seed script refuses to run against a database
       that already has users unless `--force` is passed, so seeding production is
       deliberate and a rerun cannot wipe real data.
-- [ ] **13.6 Ship it** — Atlas network access and user, Render service with build,
+- [x] **13.6 Ship it** — Atlas network access and user, Render service with build,
       start and health-check settings, environment variables set, first deploy.
 - [ ] **13.7 Verify live** — the five post-deploy checks in `docs/DEPLOYMENT.md`:
       all three logins, a booking, the live queue in two browsers, a photo upload

@@ -12,6 +12,24 @@ payments, plus three features that go past the usual CRUD app:
 - **Auto-waitlist** — a cancelled slot is offered automatically to the next person
   waiting, with a claim window, so it never goes to waste.
 
+## Live demo
+
+**https://medihelp-ea50.onrender.com**
+
+- **The first visit can take about a minute.** It runs on Render's free tier,
+  which puts the app to sleep after 15 minutes without visitors. The first
+  request wakes it, and after that it is quick.
+- **Browsing needs no account.** The home page lists the doctors and each one's
+  free slots. To book, create a patient account with **Create account**, or sign
+  in as one of the [demo accounts](#demo-accounts) below. The live site uses the
+  same emails, but with its own password rather than the one in this README.
+- **Payments are a mock.** Pressing "pay" marks the booking paid at once, and no
+  money moves.
+- **Triage runs on the built-in rules engine** unless an AI key is set on the
+  server, so it answers instantly and offline. The answers have the same shape
+  either way.
+- It is a demo with demo data, so please don't enter real medical details.
+
 ## Documentation
 
 | Doc | What's in it |
@@ -71,7 +89,9 @@ npm run dev:sandbox
 
 ## Demo accounts
 
-After seeding, in development:
+After seeding, in development. On the [live demo](#live-demo) the doctor and
+patient emails are the same, but the password is different, and the admin
+account is private.
 
 | Role | Email | Password |
 |---|---|---|
@@ -164,7 +184,26 @@ npm run typecheck        # tsc --noEmit on both packages
 npm run lint
 npm run build            # production build of both
 npm start                # run that build; set NODE_ENV=production to serve the client too
+npm run sync:indexes --workspace server   # add any missing database indexes; changes no data
 ```
+
+## Deploying
+
+The live demo is one Render web service. The same server answers the API, the
+live queue's websocket and the website, all at one address, with MongoDB Atlas
+behind it. In short:
+
+| Render setting | Value |
+|---|---|
+| Build command | `npm ci --include=dev && npm run build` |
+| Start command | `npm start` |
+| Health check path | `/api/health` |
+
+Set `NODE_ENV=production`, `MONGODB_URI` and a new `JWT_SECRET` in Render's
+environment settings, then seed the database once from your own machine with
+strong `SEED_ADMIN_PASSWORD` and `SEED_DEMO_PASSWORD` values. Every push to
+`main` redeploys. The full walkthrough, with the reasons behind each setting and
+the mistakes to avoid, is in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## Checks
 
@@ -172,7 +211,7 @@ These run against a MongoDB started on the fly, never your Atlas database, so
 they need no setup:
 
 ```bash
-npm run check --workspace server   # 18 scripts, around 700 assertions:
+npm run check --workspace server   # 18 scripts, over 700 assertions:
                                    # auth, admin, booking, payments, triage,
                                    # the live queue, the waitlist, security
                                    # headers, the audit trail, and more

@@ -320,9 +320,9 @@ Target: one Render web service serving the API, the websocket and the built
 client from a single origin, with Atlas and Cloudinary. The reasoning, the Render
 settings and the caveats are in `docs/DEPLOYMENT.md`.
 
-- [ ] **13.1 Production build** — root `start` script, `tsc` server build verified
+- [x] **13.1 Production build** — root `start` script, `tsc` server build verified
       from a clean clone, `PORT` read from env and bound on `0.0.0.0`.
-- [ ] **13.2 Serve the client** — in production only, Express serves `client/dist`
+- [x] **13.2 Serve the client** — in production only, Express serves `client/dist`
       with cache headers and an SPA fallback, ordered after `/api` and
       `/socket.io` so neither falls through to `index.html`.
 - [x] **13.3 Behind a proxy** — `trust proxy`, `secure` cookies in production
@@ -347,5 +347,11 @@ redeploy, and the websocket updating a second browser in real time.
 13.3–13.5 were built alongside earlier phases and ticked on 2026-09-23: `trust
 proxy` and `secure` cookies in production (`app.ts`, `auth.controller.ts`), the
 Cloudinary provider (`providers/storage/cloudinary.ts`), and the seed's refusal
-without `--force` (`seed.ts`). 13.1 is still open — only the server package has a
-`start` script, the root does not — and 13.2 is untouched.
+without `--force` (`seed.ts`).
+
+13.1 and 13.2 were done on 2026-10-02 (`docs/sessions/2026-10-02-phase-13-deploy.md`).
+The build had never been run until then, and its output crashed on start: the
+`@shared` alias, `shared/` compiling to CommonJS, and two paths counted from the
+source folder. All three are fixed. The client is served with long-lived caching
+for hashed assets and an SPA fallback. A browser walk of the production build found
+one CSP gap, Razorpay's `cdn.razorpay.com`, which is now allowed.

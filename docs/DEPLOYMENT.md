@@ -54,13 +54,20 @@ Socket.IO and the cron sweeper).
 
 | Setting | Value |
 |---|---|
-| Build command | `npm install && npm run build` |
+| Build command | `npm ci --include=dev && npm run build` |
 | Start command | `npm start` |
 | Health check path | `/api/health` |
-| Node version | 20 or later (set `NODE_VERSION` if needed) |
+| Node version | 20 or later (set `NODE_VERSION=22` to pin it) |
 
-`npm run build` builds both workspaces: `tsc` for the server into `server/dist`,
-Vite for the client into `client/dist`. In production the server resolves
+`--include=dev` is not optional. Render exposes your environment variables to the
+build, so `NODE_ENV=production` is already set when `npm ci` runs, and npm then
+skips devDependencies, which is where `tsc`, Vite and `tsx` live. Without the
+flag the build fails with `tsc: not found`.
+
+`npm run build` builds both workspaces: `tsc` for the server into `server/dist`
+(then `scripts/rewrite-shared-imports.ts` turns the `@shared/...` alias, which
+Node cannot resolve, into relative paths), and Vite for the client into
+`client/dist`. In production the server resolves
 `client/dist` and serves it with an SPA fallback, so a hard refresh on
 `/doctor/appointments` returns `index.html` rather than a 404 — with `/api` and
 `/socket.io` matched first so they never fall through to the client.
@@ -72,6 +79,8 @@ documented in `.env.example`.
 
 ```
 NODE_ENV=production
+NODE_VERSION=22
+MONGOMS_DISABLE_POSTINSTALL=1
 MONGODB_URI=<Atlas connection string>
 JWT_SECRET=<48 random bytes, hex>
 STORAGE_PROVIDER=cloudinary
@@ -79,6 +88,9 @@ CLOUDINARY_CLOUD_NAME=...
 CLOUDINARY_API_KEY=...
 CLOUDINARY_API_SECRET=...
 ```
+
+`MONGOMS_DISABLE_POSTINSTALL=1` stops the test-only in-memory MongoDB from
+downloading its ~100 MB database binary on every build. Production never uses it.
 
 Leave `PAYMENT_PROVIDER=mock` unless you have Razorpay keys, and leave
 `GROQ_API_KEY` empty to run triage on the offline rules engine. Both degrade
@@ -90,6 +102,23 @@ keep the `@medihelp.test` default.
 
 `PORT` is injected by Render — the server must read it and must bind `0.0.0.0`,
 not `localhost`, or the health check never passes.
+
+### What the server sends, and why
+
+Verified against the production build on 2026-10-02 (`docs/sessions/2026-10-02-phase-13-deploy.md`):
+
+| Request | Answer |
+|---|---|
+| `/assets/*` (Vite's fingerprinted files) | Cached a year, `immutable`, gzipped |
+| Other files in `client/dist` (favicon, doctor photos) | Cached an hour |
+| Any other GET with no file extension | `index.html`, `no-cache`, so a deploy shows up on the next load |
+| Anything under `/api`, `/socket.io`, `/uploads` that no route takes | JSON 404, never the page |
+| A missing file such as `/logo.png`, or a POST to a page path | 404 |
+
+The CSP lets Razorpay's checkout load its script from `checkout.razorpay.com`,
+its fraud check from `cdn.razorpay.com`, and its payment frame from
+`api.razorpay.com`. That was checked by opening the real checkout, with a dummy
+key, in the production build.
 
 ### The free tier sleeps
 
@@ -157,8 +186,8 @@ deploy or restart. That is why uploads cannot stay local in production, and why
 
 ## Pre-deploy checklist
 
-- [ ] `npm run build` succeeds from a clean clone
-- [ ] `NODE_ENV=production npm start` serves the client and the API on one port
+- [x] `npm run build` succeeds from a clean `server/dist`
+- [x] `NODE_ENV=production npm start` serves the client and the API on one port
 - [ ] Cookies are `secure` and `sameSite=strict` in production (`secure` off in
       development, or nothing works over plain http on localhost)
 - [ ] `app.set('trust proxy', 1)` so `secure` cookies and rate-limit IPs work

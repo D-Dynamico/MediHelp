@@ -26,11 +26,13 @@ MediHelp/
 ├─ README.md            Human setup and run instructions
 ├─ docs/                Architecture, system design, workflow, phases, sessions
 ├─ shared/
+│  ├─ package.json      Only `"type": "module"`, so the server build emits ESM
 │  ├─ types.ts          Roles, statuses, DTOs — imported by client and server
 │  └─ queue.ts          Wait-estimate maths, so both sides show the same number
 ├─ server/
 │  ├─ src/
-│  │  ├─ config/        env.ts (zod-validated settings), db.ts, logger.ts
+│  │  ├─ config/        env.ts (zod-validated settings), db.ts, logger.ts,
+│  │  │                 paths.ts (repo root, found the same from src/ and dist/)
 │  │  ├─ models/        Mongoose schemas (see SYSTEM_DESIGN.md)
 │  │  ├─ modules/       One folder per domain; each has
 │  │  │                 *.routes.ts / *.controller.ts / *.service.ts / *.schema.ts,
@@ -38,7 +40,7 @@ MediHelp/
 │  │  │                 auth, admin, doctors, patients, appointments,
 │  │  │                 payments, triage, queue, waitlist
 │  │  ├─ middleware/    auth (requireAuth, requireRole, requireOwnership, audit),
-│  │  │                 validate, sanitize, error, rateLimit, upload
+│  │  │                 validate, sanitize, error, rateLimit, upload, serveClient
 │  │  ├─ realtime/      io.ts (socket server, handshake auth, room names)
 │  │  ├─ jobs/          waitlistSweeper.ts (node-cron)
 │  │  ├─ providers/     payment/, storage/, ai/ — swappable integrations
@@ -121,7 +123,10 @@ fight locally.
 
 The same two packages ship as **one service**: Express serves `/api`,
 `/socket.io` and — in production only — the built client from `client/dist`, all
-on one origin. CORS stays off in production too, because `CORS_ORIGINS` is
+on one origin (`middleware/serveClient.ts`; caching and fallback rules are in
+`docs/DEPLOYMENT.md`). The server build runs `tsc`, then
+`scripts/rewrite-shared-imports.ts`, because `tsc` leaves the `@shared/*` alias
+in its output and Node cannot resolve it. CORS stays off in production too, because `CORS_ORIGINS` is
 empty. The refresh cookie keeps `sameSite=strict` because nothing is cross-site.
 
 The development proxy exists precisely so the client makes the same same-origin

@@ -20,6 +20,7 @@ import { waitlistRouter } from './modules/waitlist/waitlist.routes.js';
 import { UPLOAD_DIR, UPLOAD_URL_PREFIX } from './providers/storage/local.js';
 import { apiLimiter } from './middleware/rateLimit.js';
 import { sanitizeRequest } from './middleware/sanitize.js';
+import { serveClient } from './middleware/serveClient.js';
 
 /**
  * The content security policy is written for the built client, which this app
@@ -37,7 +38,9 @@ import { sanitizeRequest } from './middleware/sanitize.js';
 const contentSecurityPolicy = {
   directives: {
     defaultSrc: ["'self'"],
-    scriptSrc: ["'self'", 'https://checkout.razorpay.com'],
+    // checkout.js pulls in a fraud-check script from Razorpay's CDN. Blocking it
+    // was caught by loading the real checkout against the production build.
+    scriptSrc: ["'self'", 'https://checkout.razorpay.com', 'https://cdn.razorpay.com'],
     styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
     fontSrc: ["'self'", 'https://fonts.gstatic.com'],
     imgSrc: ["'self'", 'data:', 'blob:', 'https://res.cloudinary.com'],
@@ -134,7 +137,10 @@ export function createApp(): Express {
   // The one route with no login behind it: a screen on a waiting-room wall,
   // holding a signed link and nothing else.
   app.use('/api/board', boardRouter);
-  // Further feature routers mount here, above the two handlers below.
+  // Further feature routers mount here, above the client and the two handlers below.
+
+  // In development Vite serves the client on its own port.
+  if (getSettings().isProduction) serveClient(app);
 
   app.use(notFound);
   app.use(errorHandler);

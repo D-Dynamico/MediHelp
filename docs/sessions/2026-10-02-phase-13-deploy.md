@@ -42,6 +42,76 @@ invisible under `tsx`, which is all development ever used:
 Plus a root `start` script (`npm start --workspace server`), which is what
 Render's start command runs.
 
-**Verified**: the built server now starts with `NODE_ENV=production` through the
-root `npm start` against an in-memory database. The full checks are in the 13.2
-entry, which tested both steps together.
+## 13.2 Serve the client
+
+`server/src/middleware/serveClient.ts`, mounted in `app.ts` after every API
+router and only when `NODE_ENV=production` (Vite serves pages in development):
+
+- `/assets/*` (Vite's fingerprinted output) cached a year, `immutable`; other
+  `client/dist` files (favicon, doctor photos) an hour; `index.html` `no-cache`
+  so a deploy reaches people on their next load.
+- `compression` (new dependency) gzips the client's files. It is mounted after
+  the API, so API responses are untouched.
+- SPA fallback: GET/HEAD with no file extension and not under `/api`,
+  `/socket.io` or `/uploads` gets `index.html`. A miss under those prefixes
+  stays a JSON 404, a missing `/logo.png` stays a 404, and a POST to a page
+  path is not answered with HTML. No client route has a dot in it, so the
+  extension rule cannot swallow a real page.
+- If `client/dist` is missing it warns and carries on serving the API, rather
+  than refusing to boot.
+
+**CSP gap found and fixed.** Loading Razorpay's real `checkout.js` in the
+production build, then opening it with a dummy key, showed it pulls a
+fraud-check script from `https://cdn.razorpay.com`, which `script-src` blocked.
+Added that origin. The payment frame from `api.razorpay.com` and the calls to
+`*.razorpay.com` were already allowed and loaded fine.
+
+## Deploy doc
+
+`docs/DEPLOYMENT.md`:
+- Build command is now `npm ci --include=dev && npm run build`. Render shows
+  env vars to the build, so `NODE_ENV=production` makes npm skip
+  devDependencies — where `tsc`, Vite and `tsx` live. The old `npm install &&
+  npm run build` would have failed with `tsc: not found`.
+- Two more env vars: `NODE_VERSION=22`, and `MONGOMS_DISABLE_POSTINSTALL=1`,
+  which stops `mongodb-memory-server` (a devDependency, now installed on Render
+  because of `--include=dev`) downloading a ~100 MB mongod on every build. The
+  variable name was confirmed in its `postinstall` helper.
+- A table of what the server sends for each kind of path, and which Razorpay
+  origins the CSP allows and why.
+
+## Verification
+
+- **HTTP smoke test** (scratchpad `prod-smoke.mjs`): root `npm start` with
+  `NODE_ENV=production` against an in-memory MongoDB. 12/12: `/` and deep links
+  (`/admin/appointments`, `/doctors/abc`, `/board/x?token=t`) give `index.html`
+  with `no-cache`; `/api/health` JSON; `/api/nope` and bare `/api` JSON 404;
+  `/logo-missing.png` 404; POST `/admin` JSON 404; favicon one-hour cache;
+  Socket.IO polling handshake 200; the hashed JS asset `immutable` and gzipped.
+- **Headless browser walk** (scratchpad `prod-browser.mjs`, Playwright's
+  Chromium from the npx cache, not the user's Chrome): seeded in-memory DB,
+  production build. Public home, doctor detail and the 404 page; patient,
+  doctor and admin each signed in and every page of their area rendered with
+  the expected heading; a reload of `/account` kept the patient signed in.
+  Zero CSP violations after the `cdn.razorpay.com` fix. The only 4xx left are
+  the expected ones: `/api/auth/refresh` 401 on signed-out page loads, and
+  Razorpay rejecting the dummy key.
+- Typecheck and lint clean on both packages. Client checks 14/14. Server
+  checks: 18 scripts, 737 assertions, 0 failures (unchanged count).
+
+## Open items
+
+- **Refresh shares the sign-in rate limit.** `POST /api/auth/refresh` uses
+  `authLimiter` (20 per 15 minutes per IP), and every page load or new tab
+  makes one refresh call. The first browser walk did ~21 page loads and the
+  21st got a 429, which the client treats as signed out. Real users navigate
+  inside the app rather than reloading, but a reviewer clicking around with
+  reloads, or several people behind one network address (a clinic's office),
+  will hit it. Raised with the user, not changed: it is a security limit and
+  their call.
+- The client bundle is 517 kB (160 kB gzipped) in one chunk; Vite warns. Route
+  level code-splitting would fix it. Not urgent.
+- 13.6 deploy and 13.7 live checks: the user's Render and Atlas accounts.
+- Carried over from phase 12: Groq key, Razorpay for real, `SEED_ADMIN_EMAIL`,
+  and the five lower-risk review findings listed in
+  `2026-09-24-phase-12-hardening.md`.

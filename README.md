@@ -163,6 +163,7 @@ npm run seed             # demo data into an empty database
 npm run typecheck        # tsc --noEmit on both packages
 npm run lint
 npm run build            # production build of both
+npm start                # run that build; set NODE_ENV=production to serve the client too
 ```
 
 ## Checks

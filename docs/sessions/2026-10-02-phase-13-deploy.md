@@ -154,8 +154,9 @@ visitor should expect: the ~1 minute free-tier wake-up, browsing without an
 account, the mock payment, and triage on the rules engine without an AI key. The
 demo-accounts section now says the live site keeps the same emails but its own
 password, and that its admin is private. The README's `Password123!` only works
-locally. The live demo password is deliberately not in the README until the user
-decides whether to publish it. There is also a short **Deploying** section
+locally. **The user chose to keep the live demo password private**, so the
+README sends live visitors to sign up as a patient and points them to the local
+setup for the doctor's side. Don't add the live password anywhere. There is also a short **Deploying** section
 (Render settings, pointing to `docs/DEPLOYMENT.md`), and `sync:indexes` is now
 under Commands. 13.6 is ticked in `docs/PHASES.md`.
 

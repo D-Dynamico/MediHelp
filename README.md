@@ -20,9 +20,10 @@ payments, plus three features that go past the usual CRUD app:
   which puts the app to sleep after 15 minutes without visitors. The first
   request wakes it, and after that it is quick.
 - **Browsing needs no account.** The home page lists the doctors and each one's
-  free slots. To book, create a patient account with **Create account**, or sign
-  in as one of the [demo accounts](#demo-accounts) below. The live site uses the
-  same emails, but with its own password rather than the one in this README.
+  free slots. To book, sign up as a patient with **Create account**. The demo
+  doctor and admin accounts on the live site are private. To try the doctor's
+  side (the live queue and the waiting-room board), run it locally with the
+  [demo accounts](#demo-accounts) below.
 - **Payments are a mock.** Pressing "pay" marks the booking paid at once, and no
   money moves.
 - **Triage runs on the built-in rules engine** unless an AI key is set on the
@@ -89,9 +90,8 @@ npm run dev:sandbox
 
 ## Demo accounts
 
-After seeding, in development. On the [live demo](#live-demo) the doctor and
-patient emails are the same, but the password is different, and the admin
-account is private.
+After seeding, in development. These logins don't work on the
+[live demo](#live-demo), whose seeded accounts have private passwords.
 
 | Role | Email | Password |
 |---|---|---|
